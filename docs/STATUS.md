@@ -50,11 +50,12 @@ No open reconciliation item remains at the repository-layout level.
 - [x] `docs/DECISIONS.md` written - quick-reference ADR index with instructions for adding future ADRs.
 - [x] `ADR-0011` written and repository restructured same-day - `apps/`+`packages/` via pnpm workspaces + Turborepo, evaluated against scalability/DX/code-sharing/connector-architecture/desktop/mobile/CI-CD/testing/build-performance/future-microservices, over the provisional `backend/`+`frontend/`+`connectors/` split. `ARCHITECTURE.md` Section 12 and `ROADMAP.md`'s Repository Layout section both updated to reflect this as final, not provisional.
 - [x] Git repository connected: `https://github.com/BozgunBer-2506/smartmc`, initial commit pushed to `main`.
-- [x] Document metadata-header convention adopted (Title/Version/Status/Owner/Last Updated/Depends On/Related ADRs) and backfilled onto every existing living document in `docs/` - see ROADMAP.md's Working Rules.
+- [x] Document metadata-header convention adopted (Title/Version/Status/Owner/Last Updated/Depends On/Related ADRs) and backfilled onto every existing living document in `docs/` - see ROADMAP.md's Working Rules. Also fixed leftover "PulseHub" naming in ARCHITECTURE.md left over from before the product was renamed.
+- [x] `SECURITY.md` written - threat model (assets/actors/attack surfaces/data classification), authentication/session security (Argon2id, passkeys-as-default, refresh-token reuse detection, separate admin auth tier), secrets management (why connector credentials are retrievable and how that's bounded via indirection/access-scoping/logging/unconditional-revocation-on-disconnect), encryption at rest/in transit, full GDPR operational policy (subject rights, retention timelines, residency, breach notification), audit logging spec (what's logged, integrity enforcement, retention), OWASP-Top-10-mapped application security, inbound webhook verification + outbound webhook signing, third-party connector sandboxing (Phase 18 forward-looking), infrastructure security, incident response, vulnerability management/CI security testing, explicitly-rejected-approaches list.
 
 ## In Progress
 
-`SECURITY.md` - about to start.
+Nothing actively in progress. Awaiting direction on next Phase 0 document.
 
 ## Not Started (Phase 0 remaining)
 
@@ -71,8 +72,8 @@ All other previously-open decisions (monorepo tool, repository layout, monolith-
 
 ## Next Action
 
-1. Write `SECURITY.md` (`API.md`'s auth section and `DATABASE.md`'s credential-storage design both assume a threat model this document should make explicit).
-2. Then `AUTOMATION_ENGINE.md`, `UI_GUIDE.md`, `DESIGN_SYSTEM.md` to close out Phase 0.
+1. Write `AUTOMATION_ENGINE.md` (recommended next - it's the formal spec the visual rule builder and execution engine, Phase 10, will be implemented directly against, and both `DATABASE.md`'s `rules.jsonb` design and `API.md`'s rule endpoints already assume its schema exists).
+2. Then `UI_GUIDE.md`, `DESIGN_SYSTEM.md` to close out Phase 0.
 3. Once every Phase 0 box in ROADMAP.md is checked, begin Phase 1 (project bootstrap) directly against the `apps/`+`packages/` structure ratified in ADR-0011 - no further reconciliation needed.
 
 ## How to Resume From Zero Context
