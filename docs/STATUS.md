@@ -53,14 +53,15 @@ No open reconciliation item remains at the repository-layout level.
 - [x] Document metadata-header convention adopted (Title/Version/Status/Owner/Last Updated/Depends On/Related ADRs) and backfilled onto every existing living document in `docs/` - see ROADMAP.md's Working Rules. Also fixed leftover "PulseHub" naming in ARCHITECTURE.md left over from before the product was renamed.
 - [x] `SECURITY.md` written - threat model (assets/actors/attack surfaces/data classification), authentication/session security (Argon2id, passkeys-as-default, refresh-token reuse detection, separate admin auth tier), secrets management (why connector credentials are retrievable and how that's bounded via indirection/access-scoping/logging/unconditional-revocation-on-disconnect), encryption at rest/in transit, full GDPR operational policy (subject rights, retention timelines, residency, breach notification), audit logging spec (what's logged, integrity enforcement, retention), OWASP-Top-10-mapped application security, inbound webhook verification + outbound webhook signing, third-party connector sandboxing (Phase 18 forward-looking), infrastructure security, incident response, vulnerability management/CI security testing, explicitly-rejected-approaches list.
 
+- [x] `AUTOMATION_ENGINE.md` written - designed as the product's flagship differentiator, not a feature: trigger model (9 categories incl. future location-aware), nested-condition model with reusable Condition Snippets, action model with branching/parallel/delayed steps and reusable Composite Actions, the cross-channel Context Object (the section explicitly named as the actual technical moat vs. Zapier/generic automation tools), visual builder driven by a registered-capability catalog (so the engine is a platform, not a hardcoded feature), natural-language rule creation and AI-assisted rules (both strictly draft-only, never auto-activating, per PRODUCT.md's hard AI boundary), execution engine (idempotent, isolated per rule, sandboxed external calls), retry policy, failure policy (circuit breakers, auto-disable with notification), dead letter queue (replayable), rule versioning/testing/simulator (a time-travel virtual-clock sandbox - the section flagged as the hardest-to-copy piece)/debugger, rule analytics framed around "value delivered" not just technical metrics, a three-tier marketplace design (snippets/composite actions/rule bundles) with safety review, import/export with portable variable-based references, a dedicated "why competitors can't copy this" section, and 208 examples across all 16 requested categories (Personal through Accessibility, 13 each).
+
 ## In Progress
 
 Nothing actively in progress. Awaiting direction on next Phase 0 document.
 
 ## Not Started (Phase 0 remaining)
 
-- [ ] `AUTOMATION_ENGINE.md` - not started. Should formalize PRODUCT.md's automation section into an implementable JSON schema + execution semantics.
-- [ ] `UI_GUIDE.md` - not started. Should expand PRODUCT.md's "UI Principles" section into concrete screen-level specs.
+- [ ] `UI_GUIDE.md` - not started. Should expand PRODUCT.md's "UI Principles" section into concrete screen-level specs. Should also cover the rule builder canvas UI now that AUTOMATION_ENGINE.md has specified its behavior (Section 7).
 - [ ] `DESIGN_SYSTEM.md` - not started. Should expand PRODUCT.md's "Brand" section into implementable tokens/components.
 
 ## Known Open Decisions (unresolved, tracked here so they aren't lost)
@@ -72,9 +73,8 @@ All other previously-open decisions (monorepo tool, repository layout, monolith-
 
 ## Next Action
 
-1. Write `AUTOMATION_ENGINE.md` (recommended next - it's the formal spec the visual rule builder and execution engine, Phase 10, will be implemented directly against, and both `DATABASE.md`'s `rules.jsonb` design and `API.md`'s rule endpoints already assume its schema exists).
-2. Then `UI_GUIDE.md`, `DESIGN_SYSTEM.md` to close out Phase 0.
-3. Once every Phase 0 box in ROADMAP.md is checked, begin Phase 1 (project bootstrap) directly against the `apps/`+`packages/` structure ratified in ADR-0011 - no further reconciliation needed.
+1. Write `UI_GUIDE.md`, then `DESIGN_SYSTEM.md` to close out Phase 0 - these are the last two remaining boxes on ROADMAP.md's Phase 0 checklist.
+2. Once both are done, every Phase 0 box is checked - begin Phase 1 (project bootstrap) directly against the `apps/`+`packages/` structure ratified in ADR-0011, no further reconciliation needed.
 
 ## How to Resume From Zero Context
 
