@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 1.4
+Version: 1.5
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -60,7 +60,8 @@ smartmc/
 │   ├── database/          Prisma schema, client, migrations (DATABASE.md)
 │   ├── auth/             Auth.js integration, JWT/session logic
 │   ├── shared/            Canonical domain types (Message, Conversation, Contact...)
-│   ├── ui/              shadcn/ui-based component library
+│   ├── design-tokens/       Platform-agnostic design tokens (DESIGN_SYSTEM.md) - added 2026-07-18, consumed by ui/ today and a future React Native mapping in Phase 14
+│   ├── ui/              shadcn/ui-based component library (DESIGN_SYSTEM.md)
 │   ├── ai/              AI feature integrations (Phase 13), isolated per PRODUCT.md
 │   └── config/            eslint, tsconfig, tailwind presets
 ├── infrastructure/         Docker, Docker Compose, Kubernetes, Terraform
@@ -90,10 +91,10 @@ Goal: lock down what we're building and why, before any code exists.
 - [x] `ADR-0012` - **IdentityGraph** named and formalized as a first-class architectural capability, after a 36-candidate naming exercise across Graph/Identity/Communication/Relationship/Intelligence/Platform categories. Every consuming system (Automation Engine, Search, AI, Notifications) now reasons about identities, never raw provider accounts. Never auto-merges beyond exact deterministic match; strictly workspace-scoped, never cross-tenant (added to PRODUCT.md's Never Build list). `PRODUCT.md`, `ARCHITECTURE.md` (new Section 13), `DATABASE.md` (confidence-score column + `identity_merge_log`/`identity_split_log` audit tables), and `AUTOMATION_ENGINE.md` all updated to route their existing identity-adjacent content through this one named capability - see [adr/0012-identitygraph-canonical-identity-layer.md](adr/0012-identitygraph-canonical-identity-layer.md).
 - [x] `ADR-0013` - **Identity merge governance sharpened same-day**: a candidate match is a persisted, reviewable `identity_merge_suggestions` record (pending/approved/rejected/expired), not an ephemeral event; every merge is reversible via a first-class split action. States explicitly that safety/reversibility, not matching sophistication, is the priority whenever the two trade off - illustrated with a worked "two Ahmets" failure-mode example now in `ARCHITECTURE.md` Section 13.6.1. See [adr/0013-identity-merge-safety-over-cleverness.md](adr/0013-identity-merge-safety-over-cleverness.md).
 - [x] **Licensing & secrets hygiene** - `LICENSE` added (all-rights-reserved, deliberately not MIT/Apache at this stage per user direction), `.gitignore` hardened with secret-file and database-dump patterns beyond the original `.env`-only coverage. Confirmed no secrets were ever tracked in repo history.
-- [ ] `UI_GUIDE.md` - expand PRODUCT.md's UI Principles into concrete screen-level guidance (inbox layout, rule builder canvas, morning briefing)
-- [ ] `DESIGN_SYSTEM.md` - tokens (color, type, spacing), component inventory on top of shadcn/ui, expand PRODUCT.md's Brand section into implementable specs
+- [x] `UI_GUIDE.md` - the complete UX philosophy: core principles, user mental model (five objects: Needs You, Morning Briefing, Waiting On, People, Rules), information architecture, navigation, the Inbox/Morning Briefing/Identity view/Conversation timeline/Context panel/Automation builder/Notification center/Search experiences, AI interaction patterns, desktop/mobile experience, empty/loading/error states, permission and account-connection flows, first-time onboarding, power-user workflows, what users should/never see, confirmation-vs-instant action rules, and design-for-millions requirements.
+- [x] `DESIGN_SYSTEM.md` - the complete, implementation-ready design system on shadcn/ui + Tailwind: a three-layer structure (platform-agnostic tokens → shadcn primitives → product composites) specifically so tokens can be shared with a future React Native app without a rewrite; full color/typography/spacing/grid/responsive specs; every primitive and product composite (including the novel IdentityGraph-specific components: Identity Avatar, Identity Link Chip, Merge Suggestion Card, Merge/Split Confirmation Dialog); accessibility, keyboard nav, dark mode, and animation rules; cross-platform strategy for web/desktop/mobile.
 
-Output: no code. Product and technical design only. **Phase 0 is not done until every box above is checked.**
+Output: no code. Product and technical design only. **Phase 0 is complete as of 2026-07-18 - every box above is checked.**
 
 ---
 
