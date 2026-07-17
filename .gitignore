@@ -7,3 +7,23 @@ build/
 .next/
 *.log
 .DS_Store
+
+# Secrets - never committed, regardless of source
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+credentials.json
+service-account*.json
+secrets/
+secrets.*
+docker-compose.override.yml
+*.env.local
+
+# Database dumps / backups - may contain real user or message data
+*.sql
+*.dump
+*.bak
+*.backup
+dump.rdb

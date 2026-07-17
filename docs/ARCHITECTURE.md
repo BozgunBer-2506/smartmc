@@ -16,6 +16,7 @@ Related ADRs:
   - ADR-0010
   - ADR-0011
   - ADR-0012
+  - ADR-0013
 ```
 
 Note: this document was originally drafted under the project's working name "PulseHub" before the product was named Smart Message Center; all references have been updated for consistency.
@@ -535,7 +536,24 @@ Any future open decision at this level gets its own entry in [docs/DECISIONS.md]
 
 ## 13. IdentityGraph: The Canonical Identity Layer
 
-Introduced 2026-07-18 via [ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md), following a formal naming exercise (36 candidates evaluated across Graph/Identity/Communication/Relationship/Intelligence/Platform categories - full analysis in that ADR). Appended as a new top-level section rather than inserted earlier in this document's numbering, specifically so every existing cross-reference to this document's Sections 1-12 from `DATABASE.md`, `API.md`, `SECURITY.md`, `CONNECTOR_SDK.md`, and `AUTOMATION_ENGINE.md` remains valid - renumbering to place this "where it conceptually belongs" would have silently broken a dozen cross-document references for a purely cosmetic gain.
+Introduced 2026-07-18 via [ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md), following a formal naming exercise (36 candidates evaluated across Graph/Identity/Communication/Relationship/Intelligence/Platform categories - full analysis in that ADR), and sharpened the same day by [ADR-0013](adr/0013-identity-merge-safety-over-cleverness.md) after a review specifically flagged that safe, reversible merging - not clever matching - is the actual design priority. Appended as a new top-level section rather than inserted earlier in this document's numbering, specifically so every existing cross-reference to this document's Sections 1-12 from `DATABASE.md`, `API.md`, `SECURITY.md`, `CONNECTOR_SDK.md`, and `AUTOMATION_ENGINE.md` remains valid - renumbering to place this "where it conceptually belongs" would have silently broken a dozen cross-document references for a purely cosmetic gain.
+
+### 13.0 Concept Glossary
+
+For a reader checking "is X actually specified anywhere":
+
+| Concept | Where it's defined |
+|---|---|
+| Identity entity | `Contact` - `DATABASE.md` Section 6.6 |
+| Provider identity | `ContactIdentity` - `DATABASE.md` Section 6.6 |
+| Identity confidence score | `contact_identities.confidence_score` - `DATABASE.md` Section 6.6 |
+| Merge request | `identity_merge_suggestions` (pending/approved/rejected/expired lifecycle) - `DATABASE.md` Section 6.6, [ADR-0013](adr/0013-identity-merge-safety-over-cleverness.md) |
+| Split operation | Manual split action + `identity_split_log` - Section 13.3 below, `DATABASE.md` Section 6.6 |
+| User approval flow | Section 13.6 below; UI realization in `UI_GUIDE.md` Section 7 |
+| Identity history | `identity_merge_log` + `identity_split_log` (structural changes) and relationship/communication history (Section 13.3 below) - together, "how this identity has changed" and "what this identity has said" |
+| Privacy controls | Section 13.8 below |
+| Data ownership | Section 13.8 below |
+| Wrong-merge recovery | Section 13.6.1 below - treated as IdentityGraph's primary design priority, not a fallback |
 
 ### 13.1 Purpose
 
@@ -594,9 +612,17 @@ Restated and sharpened from `AUTOMATION_ENGINE.md` Section 1/18, now with a name
 The single highest-consequence failure mode for IdentityGraph is a wrong merge - conflating two different real people, which corrupts VIP status, relationship history, and every automation targeting either of them. Prevention is structural, not just procedural:
 
 - **Automatic merge is permitted in exactly one case**: an exact, deterministic match on `(provider, externalId)` - the same provider-native account, seen twice. This is not really a "merge decision" at all; it's recognizing the same identity, and carries no ambiguity.
-- **Every other candidate match, regardless of confidence score, requires human confirmation** before two `Contact` records become one - a 98%-confidence suggestion is still a suggestion, surfaced via the `identity.conflict_detected`/suggested-merge signal (`EVENT_MODEL.md` Section 7.3), never auto-applied. This is a hard product boundary, not a tunable threshold someone can quietly lower under pressure to "reduce manual work."
-- **Every merge and split is audit-logged** (`DATABASE.md` Section 13.4's new tables) with who confirmed it, when, and what confidence signals were present at the time - so an incorrect merge is always traceable and reversible (Section 13.3's manual-split capability), never a silent, unrecoverable data-corruption event.
-- **Suggestion frequency is rate-limited per workspace** - IdentityGraph does not surface unlimited low-confidence merge suggestions, which would train users to reflexively approve them out of alert fatigue (the same failure mode `PRODUCT.md`'s UI Principles warn against for notifications generally, applied here to identity-merge prompts specifically).
+- **Every other candidate match, regardless of confidence score, becomes a persisted, reviewable `identity_merge_suggestion`** (`DATABASE.md` Section 6.6, [ADR-0013](adr/0013-identity-merge-safety-over-cleverness.md)) - a 98%-confidence suggestion is still a suggestion sitting in a `pending` state until a human explicitly approves or rejects it, never auto-applied. This is a hard product boundary, not a tunable threshold someone can quietly lower under pressure to "reduce manual work."
+- **Every merge and split is audit-logged** (`DATABASE.md` Section 6.6's `identity_merge_log`/`identity_split_log`) with who confirmed it, when, and what confidence signals were present at the time - so an incorrect merge is always traceable and reversible (Section 13.3's manual-split capability), never a silent, unrecoverable data-corruption event.
+- **Suggestion frequency is rate-limited per workspace, and suggestions expire** - IdentityGraph does not surface unlimited low-confidence merge suggestions, which would train users to reflexively approve them out of alert fatigue (the same failure mode `PRODUCT.md`'s UI Principles warn against for notifications generally, applied here to identity-merge prompts specifically), and a `pending` suggestion left unreviewed expires rather than accumulating as stale, potentially-outdated evidence.
+
+#### 13.6.1 Worked Example: Two Ahmets, and Why Recovery Matters More Than Prevention
+
+A concrete illustration of why [ADR-0013](adr/0013-identity-merge-safety-over-cleverness.md) treats safe reversal, not matching sophistication, as the priority: a workspace has "Ahmet" the customer (tagged VIP, targeted by three automation rules routing his invoices to Finance) and, separately, "Ahmet" a personal friend of the workspace owner, messaging through a channel that exposes only a first name. A fuzzy-matching heuristic, tuned aggressively enough, could plausibly suggest merging them - shared first name, temporally-close messages, no strongly distinguishing signal available from either provider.
+
+**If this were ever auto-merged**, the damage is immediate and compounding: the friend's casual messages now inherit VIP treatment and Finance-routing automation; the customer's messages are now polluted with the friend's conversational history for any AI-generated summary; a "no reply after 2 days" reminder rule fires against the wrong relationship entirely. None of this produces an error message - it produces confidently wrong behavior, which is worse than a visible failure because nothing prompts a user to notice something is broken until real damage (a misrouted invoice, an inappropriately-VIP-flagged casual message) has already occurred.
+
+**Because merging requires explicit human confirmation (Section 13.6) and every merge is reversible (Section 13.3)**, the actual failure mode is bounded and recoverable: the suggestion sits `pending` until a human reviews it (and a well-designed review card, per `UI_GUIDE.md` Section 7, showing "shared first name only, no other matching signal" as the evidence, should make a careless approval less likely in the first place) - and even if a user does approve it in error, a split is a first-class, immediately-available action, not a support escalation. **This is the actual point of ADR-0013**: IdentityGraph's job is not to never be wrong - a system confident enough to never suggest a borderline match would also miss many real duplicates. Its job is to make being wrong cheap, visible, and fast to fix.
 
 ### 13.7 Risks & Limitations
 
@@ -614,5 +640,6 @@ Stated honestly, not glossed over:
 - **Data minimization inherited from `DATABASE.md`/`SECURITY.md`**: IdentityGraph does not collect additional signal beyond what connectors already normalize into the canonical `Message`/`Conversation`/`Contact` model (`DATABASE.md` Section 6.6-6.8) - it resolves and links, it does not go fetch additional external profile data from third-party sources.
 - **Confidence scores and matching signals are internal-only**, never exposed to other users of a shared workspace beyond the merge-suggestion UI itself, and never exposed externally via the public API - a workspace member sees "these might be the same person," not the underlying signal weights that produced that suggestion.
 - **GDPR erasure applies at the `Contact` level** (`SECURITY.md` Section 7.2) - erasing a person's data erases their `Contact` record and every `ContactIdentity` link to it; a merge performed before an erasure request is itself part of the auditable history retained only as long as `DATABASE.md`'s audit-retention policy (`SECURITY.md` Section 8.4) requires, not indefinitely.
+- **Data ownership, stated explicitly**: the *workspace* (its owner/admins, per `DATABASE.md` Section 6.3's role model) controls and is accountable for the `Contact` records IdentityGraph builds - the real people those records represent are data subjects with GDPR rights (Section 7.2 above), not platform users with any account or access of their own to that data. This is the standard controller/data-subject relationship `SECURITY.md` already establishes generally, restated here because IdentityGraph is the specific capability that makes "who controls this record, and who has rights over it" a question worth answering explicitly rather than leaving implicit.
 
 ---

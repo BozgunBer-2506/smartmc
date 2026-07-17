@@ -2,7 +2,7 @@
 
 ```yaml
 Title: DATABASE.md
-Version: 1.1
+Version: 1.2
 Status: Approved
 Owner: Architecture
 Last Updated: 2026-07-18
@@ -15,6 +15,7 @@ Related ADRs:
   - ADR-0007
   - ADR-0008
   - ADR-0012
+  - ADR-0013
 ```
 
 Author role: Principal Database Architect
@@ -231,6 +232,18 @@ Index: `idx_contact_identities_contact_id`, `idx_contact_identities_external_id`
 **Why identity resolution is a separate table, not columns on Contact**: a person can have a Telegram handle, a work email, and a Slack user ID simultaneously - this is fundamentally one-to-many, and flattening it onto Contact (e.g. `telegram_id`, `slack_id`, `email` columns) would require a schema migration for every new provider, defeating the entire pluggable-connector premise.
 
 **Why `match_type` is a hard enum with only two values, not a free-form confidence threshold**: `ARCHITECTURE.md` Section 13.6's governance rule ("every candidate match short of an exact deterministic match requires human confirmation, regardless of confidence score") is enforced at the schema level, not just in application logic - there is no row state representing "auto-merged because confidence was high enough." A `contact_identities` row exists either because it was an exact match or because a human explicitly confirmed it; there is no third path.
+
+#### IdentityGraph Merge Suggestion Queue
+
+**`identity_merge_suggestions`** (per [ADR-0013](adr/0013-identity-merge-safety-over-cleverness.md) - a candidate match is persisted, reviewable state, never just a fired-and-forgotten event): `id (uuid, PK)`, `workspace_id (FK)`, `candidate_contact_id_a (uuid)`, `candidate_contact_id_b (uuid)`, `confidence_score (numeric(3,2), not null)`, `matching_signals (jsonb)` - the human-legible evidence shown on the review card (`UI_GUIDE.md` Section 7), never the raw signal weights (`ARCHITECTURE.md` Section 13.8), `status (enum: pending, approved, rejected, expired)`, `reviewed_by_user_id (FK, nullable)`, `reviewed_at (timestamptz, nullable)`, `expires_at (timestamptz, not null)` - unreviewed suggestions expire rather than accumulate forever, both as an anti-fatigue measure (`ARCHITECTURE.md` Section 13.6) and because stale candidate evidence (e.g. a shared-conversation signal from months ago) may no longer reflect current reality, `created_at`.
+
+Unique constraint `uq_identity_merge_suggestions_candidates` on `(workspace_id, least(candidate_contact_id_a, candidate_contact_id_b), greatest(candidate_contact_id_a, candidate_contact_id_b))` where `status = 'pending'` - prevents duplicate pending suggestions for the same pair from piling up if the matching process re-runs before a user reviews the first one.
+
+**On approval**: the suggestion's `status` moves to `approved` and a corresponding `identity_merge_log` row (below) is written in the same transaction - the suggestion record and the completed-merge audit record are deliberately two different tables serving two different questions ("what was proposed and reviewed" vs. "what actually happened, permanently") rather than one table trying to answer both.
+
+**On rejection**: `status` moves to `rejected` and the same candidate pair is not re-suggested by the routine matching process (though a user can still manually initiate a merge between any two Contacts directly if they later change their mind) - a rejected suggestion is itself informative, per ADR-0013's point that rejections should weigh down future matching confidence for that specific pair, not just disappear.
+
+Index: `idx_identity_merge_suggestions_workspace_status`, `idx_identity_merge_suggestions_expires_at` (for the expiry sweep).
 
 #### IdentityGraph Audit Tables
 

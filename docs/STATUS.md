@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 1.5
+Version: 1.6
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -10,6 +10,8 @@ Depends On:
   - ROADMAP.md
 Related ADRs:
   - ADR-0011
+  - ADR-0012
+  - ADR-0013
 ```
 
 Living status file. Updated at the end of every work session. If a new session starts cold (context lost, new machine, new day), read this file first, then [ROADMAP.md](ROADMAP.md), before doing anything else.
@@ -59,6 +61,8 @@ No open reconciliation item remains at the repository-layout level.
 - [x] `ROADMAP.md` updated with a new Working Rule ("every phase ends with working, demonstrable software") and Phase 1 restructured into Sprint 1 (infrastructure only, no connector) / Sprint 2 (Mock Connector end-to-end: synthetic message → DB → WebSocket → UI, per user's suggested flow). Phases 2-5 each given an explicit Definition of Done: Phase 2 = a real login-able app, Phase 3 = an inbox showing a message list from mock/seeded data, Phase 4 = the Mock Connector passing its own full certification checklist including simulated-restart and webhook-loss-then-reconciliation tests, Phase 5 = a real person connecting a real Telegram bot and seeing a real message arrive live.
 
 - [x] **IdentityGraph** named and formalized as a first-class architectural capability (2026-07-18). Naming exercise: 36 candidates across Graph/Identity/Communication/Relationship/Intelligence/Platform categories, scored on meaning/pros/cons/technical clarity/marketing strength/memorability/uniqueness; trademark-risky options (Prism - NSA collision, Keystone - OpenStack Identity collision, Nexus/Meridian/Compass - heavily diluted) excluded outright. **`IdentityGraph`** selected over runner-up `IdentityFabric`. Recorded in [ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md). Governance: never auto-merges beyond exact `(provider, externalId)` match; strictly workspace-scoped, never cross-tenant (now in `PRODUCT.md`'s Never Build list). Documents updated: `PRODUCT.md` (moat argument + Never Build), `ARCHITECTURE.md` (new Section 13, full responsibilities/moat-argument/risks/privacy/incorrect-merge-prevention), `DATABASE.md` (confidence-score column on `contact_identities`, new `identity_merge_log`/`identity_split_log` append-only audit tables), `AUTOMATION_ENGINE.md` (Context Object's `sender`/`contact` section and messaging-native condition primitives now explicitly attributed to IdentityGraph), `DECISIONS.md` (ADR-0012 row). `ROADMAP.md` updated: Phase 3 gets an IdentityGraph exact-match-only scaffold task, Phase 9 gets the confidence-scoring/duplicate-detection/manual-merge-split UI task.
+- [x] **IdentityGraph depth pass** (2026-07-18, same day, in response to a review flagging that merge requests need to be persisted/reviewable state and that "safe merge and undo" - not matching cleverness - is the actual design priority). [ADR-0013](adr/0013-identity-merge-safety-over-cleverness.md) records this explicitly, illustrated with a concrete "two Ahmets" failure-mode example (a customer and an unrelated friend sharing a first name, wrongly merged, cascading into misapplied VIP status, misfired automation, and AI drawing on blended history). `DATABASE.md` gains a new `identity_merge_suggestions` table (pending/approved/rejected/expired lifecycle - a candidate match is no longer just an ephemeral event). `ARCHITECTURE.md` Section 13 gains a concept glossary (mapping identity entity / provider identity / confidence score / merge request / split operation / approval flow / identity history / privacy controls / data ownership / wrong-merge recovery to exact locations, closing every gap the review named) and the worked example as Section 13.6.1.
+- [x] **Licensing and secrets hygiene** (2026-07-18, per user direction): confirmed the GitHub repo (`BozgunBer-2506/smartmc`) is public and no LICENSE file previously existed (so it was already implicitly all-rights-reserved) and no secrets were ever tracked. Added an explicit `LICENSE` file (all-rights-reserved, deliberately not MIT/Apache - that's a future, deliberate decision, not a default to fall into) and hardened `.gitignore` with secret-file patterns (`*.pem`, `*.key`, `credentials.json`, `secrets/`, etc.) and database-dump patterns (`*.sql`, `*.dump`, `dump.rdb`) beyond the original `.env`-only coverage. `README.md` gets a short License section explaining the reasoning.
 
 ## In Progress
 

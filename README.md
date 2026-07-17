@@ -41,3 +41,7 @@ scripts/             CI-support and one-off scripts
 ## Working Rules
 
 Documented in full in [docs/ROADMAP.md](docs/ROADMAP.md). The short version: document before coding, every phase ends with a commit, nothing ships that isn't traceable to [docs/PRODUCT.md](docs/PRODUCT.md), and every hard-to-reverse technical decision gets an ADR.
+
+## License
+
+This repository is public for transparency and portfolio purposes only. It is **not** open source - see [LICENSE](LICENSE). No permission is granted to use, copy, or distribute its contents. This is a deliberate choice at this stage, not an oversight: the most valuable output of this project so far is the architecture and product thinking in `docs/`, not yet any code, and an open-source license (MIT/Apache-2.0) is a decision to make later, deliberately, per package if it ever happens - not a default to fall into.
