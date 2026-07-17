@@ -2,12 +2,13 @@
 
 ```yaml
 Title: PRODUCT.md
-Version: 1.0
+Version: 1.1
 Status: Approved
 Owner: Product
-Last Updated: 2026-07-17
+Last Updated: 2026-07-18
 Depends On: []
-Related ADRs: []
+Related ADRs:
+  - ADR-0012
 ```
 
 ---
@@ -329,6 +330,7 @@ One solution per problem, matched by number.
 - The **productivity** category (Superhuman, Missive) proves the UX bar and the automation appetite exist, but neither spans consumer messaging channels (Telegram, Discord, WhatsApp).
 - **Nobody** combines: (a) true multi-channel aggregation via official APIs, (b) a Zapier-grade no-code automation engine scoped to messaging, and (c) importance-based notification intelligence as the primary UX, not a bolt-on feature. That gap is the entire bet of Smart Message Center.
 - **Honest risk to flag**: Beeper is the most dangerous competitor, not because their product is better today, but because they have brand trust and distribution in exactly this category, and adding an automation engine is a plausible move for them. Our defensibility can't be "we thought of unification first" - it has to be the automation/rules data model and the trust built from never over-promising on AI.
+- **The actual technical moat, named**: as of 2026-07-18 ([ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md)), this defensibility argument has a name - **IdentityGraph**, the canonical, cross-provider identity resolution layer every automation rule, search query, and notification decision runs through (`ARCHITECTURE.md` Section 13). A competitor can copy a visual rule builder or a unified-inbox UI in a sprint. They cannot copy a working, ToS-compliant, multi-provider identity resolution layer without first doing the multi-year work of building the unified messaging platform underneath it - which is exactly the "automation/rules data model" defensibility this section already argued for, now made concrete and buildable rather than aspirational.
 
 ---
 
@@ -718,3 +720,4 @@ Ranked by what actually proves the mission, not vanity metrics:
 - **Building every possible integration to maximize channel count for marketing purposes.** Rambox has 100+ services and is a worse product than a focused 4-channel MVP done well - channel count is not a proxy for value, and chasing it dilutes engineering focus away from the automation/priority core that's the actual differentiator.
 - **Enterprise-first go-to-market.** We will not chase large enterprise contracts before the individual/team product is proven - it's a different sales motion, different product requirements (SSO/DLP/legal-hold), and pursuing it early starves the core product of the resources that make it good enough to eventually sell to enterprise anyway.
 - **A general-purpose "AI agent that manages your life."** Scope creep into calendar-management-as-a-primary-feature, task-management-as-a-primary-feature, or a general assistant is explicitly out of scope forever, not just for MVP - Smart Message Center is a communication operating system, not an everything-app, and every "everything app" in this industry's history has diluted itself into mediocrity chasing that breadth.
+- **A cross-tenant or platform-wide IdentityGraph.** Added 2026-07-18 ([ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md)) as IdentityGraph was formalized as a first-class capability. IdentityGraph is strictly workspace-scoped - there will never be a global identity graph correlating the same real person across different customers' workspaces, no matter how valuable that data might look for cross-customer analytics, ad-style targeting, or a future "network effects" pitch. A person who messages two different Smart Message Center customers is two entirely separate, unlinked records. This is a hard privacy/trust boundary, not a technical limitation we'd lift given the chance.

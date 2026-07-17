@@ -1,0 +1,28 @@
+# 0012 - IdentityGraph: A First-Class Canonical Identity Layer
+
+- Status: Accepted
+- Date: 2026-07-18
+- Deciders: Founder/CTO
+- Related: [PRODUCT.md](../PRODUCT.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [DATABASE.md](../DATABASE.md), [AUTOMATION_ENGINE.md](../AUTOMATION_ENGINE.md), [CONNECTOR_SDK.md](../CONNECTOR_SDK.md) Section 13, [SECURITY.md](../SECURITY.md)
+
+## Context
+
+`DATABASE.md` Section 6.6 already models `Contact`/`ContactIdentity` as the mechanism for deduplicating a real person across providers, and `AUTOMATION_ENGINE.md` Section 1 already argued that the canonical, cross-channel context model - not the visual rule builder - is the product's real moat. What was missing was a name, an explicit architectural boundary, and a stated set of responsibilities: the platform has been *implicitly* reasoning about identities all along, but nothing forced every consuming system (Automation Engine, Search, AI, Notifications) to go through one canonical layer rather than occasionally reaching for a provider-specific `LinkedAccount`/`ContactIdentity` directly. Left implicit, this invites drift - a shortcut taken under deadline pressure that has one feature reason about a raw provider account "just this once" quietly reintroduces the provider-fragmentation problem this whole product exists to solve.
+
+A naming exercise (conducted 2026-07-18, 36 candidates across Graph/Identity/Communication/Relationship/Intelligence/Platform categories) evaluated names for meaning, pros/cons, technical clarity, marketing strength, memorability, and best-effort uniqueness. Strong candidates with real collision risk were excluded outright: **Prism** collides with the NSA's PRISM surveillance program (unacceptable for a product whose core trust promise is message-content privacy); **Keystone** collides with OpenStack's existing identity service; **Nexus**, **Meridian**, and **Compass** are heavily diluted across unrelated industries.
+
+## Decision
+
+1. Name this capability **`IdentityGraph`** (single word, PascalCase, always capitalized as a proper noun in code/docs/marketing - never "Identity Graph" as a generic two-word phrase, so it reads as our specific implementation rather than the generic industry pattern it's built on).
+2. Establish IdentityGraph as a **first-class architectural layer**, not an implicit side effect of the Contact/ContactIdentity schema: every consuming system (Automation Engine, Search, AI, Notifications, and the unified inbox itself) reasons about **identities**, never raw provider accounts (`LinkedAccount`) or raw provider-native sender IDs directly.
+3. IdentityGraph's responsibilities: identity resolution, identity linking, confidence scoring, duplicate detection, manual merge, manual split, relationship history, communication history, and provider abstraction (full detail in `ARCHITECTURE.md`'s new IdentityGraph section).
+4. **Governance principle, non-negotiable**: IdentityGraph never auto-merges two identities except on an exact, deterministic match (`(provider, externalId)`, per `CONNECTOR_SDK.md` Section 13, already-established policy, now explicitly inherited by IdentityGraph as its named owner). Any fuzzy, cross-provider, or low-confidence match is surfaced to a human for confirmation - never applied automatically, regardless of confidence score.
+5. **Governance principle, non-negotiable**: IdentityGraph is strictly workspace-scoped. There is no cross-workspace, cross-tenant, or platform-wide identity graph correlating people across different customers' data. This is stated here as an architectural boundary, not just a policy preference - building a cross-tenant identity graph would be both a severe privacy/legal exposure and a direct violation of `SECURITY.md`'s data-classification and tenant-isolation principles, and is added to `PRODUCT.md`'s Never Build list as a result of this ADR.
+
+## Consequences
+
+- `ARCHITECTURE.md`, `DATABASE.md`, `AUTOMATION_ENGINE.md`, and `PRODUCT.md` are updated to introduce IdentityGraph explicitly and route their existing identity-adjacent content (Contact/ContactIdentity schema, the Context Object's `sender`/`contact` sections, PRODUCT.md's competitive-moat argument) through this one named capability.
+- `DATABASE.md` gains a confidence-score column on `ContactIdentity` and two new append-only audit tables (`identity_merge_log`, `identity_split_log`) - merges and splits are human-initiated, rare, and consequential enough to warrant the same audit discipline as `audit_logs` (`DATABASE.md` Section 8), not just a mutation with no trail.
+- `packages/shared` (ADR-0011's monorepo layout) gains an explicit `identity-graph` concept in its canonical domain types; a dedicated `packages/identity-graph` service package is a Phase 3-4 implementation concern, not part of this document-level decision.
+- This is the primary argument `PRODUCT.md`'s competitor analysis and `AUTOMATION_ENGINE.md`'s "why competitors can't copy this" section (Section 18) will now name explicitly: a competitor can clone UI, but cannot clone a multi-provider, ToS-compliant, human-governed identity resolution layer without doing the multi-year work this product has already invested in.
+- Known limitation, stated honestly rather than glossed over: IdentityGraph has a cold-start problem (a brand-new workspace has no relationship history to draw confidence from) and an accuracy ceiling bounded by how much identity signal each provider actually exposes (a provider that gives us only an opaque numeric ID and no name/handle limits resolution quality regardless of how good our matching logic is) - both are addressed in `ARCHITECTURE.md`'s new Risks & Limitations subsection, not hidden from the architecture record.

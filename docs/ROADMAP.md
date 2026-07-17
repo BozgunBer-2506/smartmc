@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 1.3
+Version: 1.4
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -13,6 +13,7 @@ Depends On:
   - EVENT_MODEL.md
 Related ADRs:
   - ADR-0011
+  - ADR-0012
 ```
 
 This file is the single source of truth for project sequencing. If context is lost between sessions, work resumes by reading this file plus [STATUS.md](STATUS.md), never by guessing.
@@ -85,6 +86,7 @@ Goal: lock down what we're building and why, before any code exists.
 - [x] `AUTOMATION_ENGINE.md` - the flagship differentiator, formalized: trigger/condition/action models (nested condition trees, condition snippets, composite actions), the cross-channel Context Object (the actual moat), visual builder + NL rule creation + AI-assisted rules (all optional, never load-bearing), execution engine (idempotent, isolated, sandboxed), retry/failure policy, dead letter queue, rule versioning/testing/simulator (time-travel sandbox)/debugger, rule analytics, marketplace (three-tier reusability: snippets/composite actions/rules), import/export, an explicit "why competitors can't copy this" argument, and 208 examples across the 16 requested categories.
 - [x] `CONNECTOR_SDK.md` - the contract any provider integration (ours or third-party) conforms to: connector lifecycle state machine, auth lifecycle across auth-method types, webhook/polling/hybrid ingestion (hybrid required by default - webhooks alone are never trusted), capability discovery + feature negotiation, health monitoring, retry/backoff, initial/incremental/reconciliation sync, checkpointed offline recovery, conflict resolution, message normalization contract, attachment abstraction, identity mapping (auto-match on exact identity only, never silent fuzzy merge), rate limit handling, a standardized provider-agnostic error taxonomy, a certification checklist, and the mock connector's dual role as both the first connector built (Phase 4) and the conformance-test reference implementation every other connector is held to. Added to scope per user direction on 2026-07-18, explicitly gating Phase 1.
 - [x] `EVENT_MODEL.md` - the canonical event registry the internal bus, outbound webhooks, and audit log all draw from one shared vocabulary: the event envelope (including `correlationId`/`causationId` for cross-event causal tracing), per-aggregate (not global) ordering guarantees, idempotency, retry/DLQ (mirroring `AUTOMATION_ENGINE.md`'s DLQ design), naming/versioning rules, and a full catalog of ~40 events across Message/Conversation/Contact-Identity/Connector/Rule/Notification/Workspace/Billing/Webhook domains, each with payload/producer/consumers/ordering key/idempotency key/retry behavior specified. Added to scope per user direction on 2026-07-18, explicitly gating Phase 1 alongside `CONNECTOR_SDK.md`.
+- [x] `ADR-0012` - **IdentityGraph** named and formalized as a first-class architectural capability, after a 36-candidate naming exercise across Graph/Identity/Communication/Relationship/Intelligence/Platform categories. Every consuming system (Automation Engine, Search, AI, Notifications) now reasons about identities, never raw provider accounts. Never auto-merges beyond exact deterministic match; strictly workspace-scoped, never cross-tenant (added to PRODUCT.md's Never Build list). `PRODUCT.md`, `ARCHITECTURE.md` (new Section 13), `DATABASE.md` (confidence-score column + `identity_merge_log`/`identity_split_log` audit tables), and `AUTOMATION_ENGINE.md` all updated to route their existing identity-adjacent content through this one named capability - see [adr/0012-identitygraph-canonical-identity-layer.md](adr/0012-identitygraph-canonical-identity-layer.md).
 - [ ] `UI_GUIDE.md` - expand PRODUCT.md's UI Principles into concrete screen-level guidance (inbox layout, rule builder canvas, morning briefing)
 - [ ] `DESIGN_SYSTEM.md` - tokens (color, type, spacing), component inventory on top of shadcn/ui, expand PRODUCT.md's Brand section into implementable specs
 
@@ -112,14 +114,18 @@ Goal: a working, empty project. Split into two sprints so "working software at t
 
 ### Sprint 2 - The First End-to-End Slice (Mock Connector Only, Never Telegram)
 
+Extended 2026-07-18 per user direction to prove the *whole* heartbeat of the product - ingestion through to a felt notification - not just message delivery. Every piece below is a deliberately minimal stub, not the real system: a hardcoded single rule, not the Phase 10 rule builder; an in-app toast, not the Phase 11 Notification Service. The point of Sprint 2 is proving the shape of the full loop end-to-end as cheaply as possible; each stub is properly built out in its own later phase (Phase 9-11) without changing the shape proven here.
+
 - [ ] `packages/connector-sdk` scaffolded per `CONNECTOR_SDK.md`'s contract (interface, registry, lifecycle state machine)
 - [ ] The Mock Connector (`CONNECTOR_SDK.md` Section 18) - not Telegram, not any real provider
 - [ ] Event bus wired per `EVENT_MODEL.md`'s envelope + `message.received` event
-- [ ] Minimal `apps/api` handler: Mock Connector event → Postgres (`packages/database`) write
+- [ ] Minimal `apps/api` handler: Mock Connector event → IdentityGraph exact-match resolution (Phase 3's scaffold) → Postgres (`packages/database`) write
 - [ ] WebSocket push (`API.md` Section 11) from that write to a connected client
-- [ ] A bare-bones `apps/web` screen that connects over WebSocket and renders an incoming mock message live
+- [ ] A bare-bones `apps/web` screen that connects over WebSocket and renders an incoming mock message live - a stand-in for the real unified inbox (Phase 9)
+- [ ] **One hardcoded stub rule** (not the visual builder, not the rule engine's full trigger/condition/action model - a single, literal `if message.received then create notification` check) reacting to the mock message via `rule.triggered`/`rule.action_executed` events (`EVENT_MODEL.md` Section 7.5) - a stand-in for the real Automation Engine (Phase 10)
+- [ ] **One stub notification** (an in-app toast, not push/email, not the Notification Service's silent-hours/VIP logic) appearing as a result of the stub rule firing - a stand-in for the real Notification Service (Phase 11)
 
-**Definition of Done for Phase 1**: `docker compose up`, open the web app, trigger the Mock Connector to emit a synthetic message (a CLI command or a debug button - not real infrastructure yet), and watch it appear in the browser in real time. This is the full pipeline diagram from `ARCHITECTURE.md` Section 1, proven end-to-end with fake data, before a single line of Telegram-specific code exists. If this doesn't work smoothly with a mock connector, it will not work smoothly with a real, rate-limited, flaky one - this sprint is where that gets found out cheaply.
+**Definition of Done for Phase 1**: `docker compose up`, register an account (Phase 2's auth, or a seeded dev-mode user if auth isn't ready yet), open the web app, trigger the Mock Connector to emit a synthetic message - and watch the full loop happen live: the message appears in the (stub) inbox, the stub rule fires, and a notification toast appears. This is `ARCHITECTURE.md` Section 1's entire pipeline diagram, felt end-to-end with fake data and stubbed intelligence, before a single line of Telegram-specific code or a single real automation rule exists. If this doesn't work smoothly with a mock connector and a trivial stub rule, it will not work smoothly once Telegram (Phase 5) and the real Automation Engine (Phase 10) replace those stubs - this sprint is where the pipeline's *shape* gets validated cheaply, before any of its pieces get complicated.
 
 ---
 
@@ -139,6 +145,7 @@ Goal: a working, empty project. Split into two sprints so "working software at t
 ## Phase 3 - Core Platform (no connectors yet)
 
 - [ ] Workspace/account model
+- [ ] `packages/identity-graph` scaffolded: `Contact`/`ContactIdentity` schema (`DATABASE.md` Section 6.6) with exact-match resolution only (`ARCHITECTURE.md` Section 13.6) - fuzzy/confidence-scored matching is a later phase, not required to prove the core model
 - [ ] Inbox shell rendering a **message list from seeded/mock data** (not an empty state - Phase 1's mock pipeline is reused here to seed realistic-looking conversations)
 - [ ] Linked Accounts model (structure only, no real provider yet)
 - [ ] Notifications shell (in-app notification center, no external push yet)
@@ -235,6 +242,7 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 - [ ] Archive
 - [ ] Categories
 - [ ] Unread manager ("Needs You" count - must be trustworthy, per PRODUCT.md UI Principles)
+- [ ] IdentityGraph fuzzy-match confidence scoring, duplicate-detection suggestion queue, and manual merge/split UI (`ARCHITECTURE.md` Section 13.3/13.6) - the exact-match-only version from Phase 3 gets its human-in-the-loop layer here, once there are multiple real connectors (Phase 5-8) generating cross-provider identity signal worth reconciling
 
 ---
 

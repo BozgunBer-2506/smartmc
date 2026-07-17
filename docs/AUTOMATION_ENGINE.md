@@ -2,7 +2,7 @@
 
 ```yaml
 Title: AUTOMATION_ENGINE.md
-Version: 1.0
+Version: 1.1
 Status: Approved
 Owner: Product / Architecture
 Last Updated: 2026-07-18
@@ -14,6 +14,7 @@ Depends On:
 Related ADRs:
   - ADR-0004
   - ADR-0005
+  - ADR-0012
 ```
 
 This document designs Smart Message Center's automation engine as the product's flagship capability - not a feature bolted onto the unified inbox, but the reason the unified inbox exists. No implementation code, no schema syntax: this is the design a decade of engineering teams will build against.
@@ -24,7 +25,7 @@ This document designs Smart Message Center's automation engine as the product's 
 
 Every unified-inbox competitor (PRODUCT.md's competitor analysis) either has no automation layer (Beeper, Rambox, Franz, Shift) or has one scoped to a single channel (Slack AI, Superhuman's snippets). Generic automation platforms (Zapier, IFTTT, Make) solve a fundamentally different problem: connecting *apps* to each other through their APIs, with no shared understanding of what a "conversation," a "contact," or "urgency" means. A Zapier rule that says "if a Gmail arrives, post to Slack" has no concept of who the sender is to you, whether they're a VIP, whether you're in silent hours, or whether you already owe them a reply from three days ago.
 
-**Smart Message Center's automation engine is different in kind, not degree, because it runs on top of the canonical cross-channel domain model (DATABASE.md) rather than beside it.** A rule here doesn't just react to "a message arrived" - it reacts to "a message arrived, from a contact who is VIP, in a conversation that's been silent for 6 days, during your configured silent hours, referencing an invoice you tagged Finance last week." That composite context is only possible because the unified inbox already normalized every provider into one `Message`/`Conversation`/`Contact` shape. **This is the moat**: a competitor can copy the visual rule-builder UI in a weekend. They cannot copy the context model without first doing the multi-year work of building a genuinely unified, provider-agnostic messaging platform underneath it. Section 15 makes this argument in full.
+**Smart Message Center's automation engine is different in kind, not degree, because it runs on top of the canonical cross-channel domain model (DATABASE.md) rather than beside it.** A rule here doesn't just react to "a message arrived" - it reacts to "a message arrived, from a contact who is VIP, in a conversation that's been silent for 6 days, during your configured silent hours, referencing an invoice you tagged Finance last week." That composite context is only possible because the unified inbox already normalized every provider into one `Message`/`Conversation`/`Contact` shape - and, specifically, because every "who is this" question in that sentence is answered by **IdentityGraph** (`ARCHITECTURE.md` Section 13, [ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md)), the platform's canonical identity resolution layer, rather than by a raw provider account. **This is the moat**: a competitor can copy the visual rule-builder UI in a weekend. They cannot copy IdentityGraph without first doing the multi-year work of building a genuinely unified, provider-agnostic, ToS-compliant identity resolution layer underneath it. Section 15 makes this argument in full.
 
 Everything below is designed against one test: **could a generic automation tool, wired up to our webhooks, replicate this rule?** Where the answer is yes, we haven't built anything defensible. Where the answer is no - because the rule needs relationship history, cross-channel identity, or silent-hours state that only exists inside our own domain model - that's the engine doing its job.
 
@@ -93,7 +94,7 @@ Every leaf condition has the same shape: a **field reference** (a path into the 
 
 ### 4.2 Messaging-Native Condition Primitives
 
-Beyond generic field comparisons, a fixed catalog of higher-level, pre-built condition primitives exists specifically because they'd otherwise require several nested leaf conditions to express correctly every time - these are the primitives a generic automation tool cannot offer, because they require the relationship/history model:
+Beyond generic field comparisons, a fixed catalog of higher-level, pre-built condition primitives exists specifically because they'd otherwise require several nested leaf conditions to express correctly every time - these are the primitives a generic automation tool cannot offer, because they require **IdentityGraph's** relationship/history model (`ARCHITECTURE.md` Section 13), not just a raw provider webhook payload:
 
 - `sender.isVip`, `sender.tags contains X`, `sender.isFirstContact` (never messaged before, ever, across any channel)
 - `conversation.isStale(duration)`, `conversation.hasUnresolvedAsk` (AI-optional, Section 9), `conversation.responseLagIsAbnormal` (compares current silence against that contact's historical average reply lag - directly serving PRODUCT.md problem #87)
@@ -150,7 +151,7 @@ The single most differentiating piece of the engine (Section 1). Every rule exec
 |---|---|---|
 | `message` | The triggering message (if any): body, format, attachments, sender, timestamps | Message-category triggers |
 | `conversation` | Full conversation state: participants, tags, last-activity time, staleness, archived status | Most trigger categories |
-| `sender` / `contact` | The relevant Contact's full profile: VIP status, tags, cross-channel identities, relationship history (first-contact date, historical response lag, prior conversation summaries) | Any trigger with an identifiable person involved |
+| `sender` / `contact` | The relevant Contact's full profile, resolved by **IdentityGraph** (`ARCHITECTURE.md` Section 13) - never a raw provider account: VIP status, tags, cross-channel identities, relationship history (first-contact date, historical response lag, prior conversation summaries) | Any trigger with an identifiable person involved |
 | `workspace` | Silent-hours state, timezone, plan tier, feature flags, workspace variables | Always |
 | `execution` | This execution's own metadata: which rule, which version, a unique execution id, prior step outputs within this run | Always |
 | `automation_memory` | Small, rule-scoped persistent state that survives across executions of the *same rule* for the *same conversation/contact* (e.g. a counter: "this is the 3rd time this rule matched for this contact this month") - opt-in per rule, not global mutable state | When the rule declares it needs memory |
@@ -281,7 +282,7 @@ Formalizes PRODUCT.md's Viral Features (shareable rule templates) and ROADMAP.md
 
 Stated explicitly, not left implicit, because this document's stated purpose is to be the thing that makes the product famous:
 
-1. **The context model is the actual product.** Sections 4.2 and 6 depend entirely on the canonical, cross-channel, relationship-aware domain model built out in `DATABASE.md` and `ARCHITECTURE.md`. A competitor can clone the visual builder's UI in days. They cannot clone `sender.isVip` meaning the same thing whether the sender messaged via Telegram or Slack without first doing the multi-year work of unifying identity across providers the way `DATABASE.md` Section 6.6 does - and doing it in a way that respects every provider's ToS (ADR-0010's discipline), which rules out the shortcuts some competitors (Beeper's bridging history) have taken.
+1. **IdentityGraph is the actual product.** Sections 4.2 and 6 depend entirely on the canonical, cross-channel, relationship-aware identity resolution layer named and formalized in `ARCHITECTURE.md` Section 13 ([ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md)), persisted per `DATABASE.md` Section 6.6. A competitor can clone the visual builder's UI in days. They cannot clone `sender.isVip` meaning the same thing whether the sender messaged via Telegram or Slack without first doing the multi-year work of unifying identity across providers the way IdentityGraph does - and doing it in a way that respects every provider's ToS (ADR-0010's discipline), which rules out the shortcuts some competitors (Beeper's bridging history) have taken.
 2. **The simulator (Section 14.3) requires owning the scheduling layer end-to-end.** A tool built as a thin layer over third-party webhooks has no virtual clock to fast-forward, because it doesn't own the "wait 2 days" primitive - we do, durably, in Postgres (`DATABASE.md` Section 6.13), specifically so it can be replayed.
 3. **Three-tier reusability (snippets, composite actions, rules/bundles) compounds.** A flat "here are 200 templates" competitor offering is a fixed catalog. This engine's combinatorial structure means the *marketplace itself* grows in expressive power as users publish snippets and composite actions others recombine in ways the original author never anticipated - a network effect a flat template gallery cannot replicate.
 4. **Inspectability (debugger, analytics, DLQ) is a trust product, not just a dev tool.** Competitors treat automation reliability as an engineering concern hidden from the user. This document treats it as a user-facing trust surface (Section 14.4, Section 15) because PRODUCT.md's entire thesis is that people won't delegate something as consequential as message handling to a system they can't verify - building that verification layer well is itself defensible product work, not just plumbing.

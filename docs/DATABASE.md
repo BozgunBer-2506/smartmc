@@ -2,10 +2,10 @@
 
 ```yaml
 Title: DATABASE.md
-Version: 1.0
+Version: 1.1
 Status: Approved
 Owner: Architecture
-Last Updated: 2026-07-17
+Last Updated: 2026-07-18
 Depends On:
   - PRODUCT.md
   - ARCHITECTURE.md
@@ -14,6 +14,7 @@ Related ADRs:
   - ADR-0002
   - ADR-0007
   - ADR-0008
+  - ADR-0012
 ```
 
 Author role: Principal Database Architect
@@ -215,19 +216,29 @@ Unique constraint: `uq_linked_accounts_workspace_provider_external` on `(workspa
 
 Index: `idx_linked_accounts_workspace_id`, `idx_linked_accounts_status` (for the health-check sweep job to find `error`/`reauth_required` accounts efficiently).
 
-### 6.6 Contact & ContactIdentity (items 20)
+### 6.6 Contact & ContactIdentity - IdentityGraph's Persistence Layer (items 20)
 
-Purpose: a deduplicated person, independent of which channel they message on - the entity that makes "unified" actually mean something (PRODUCT.md problem #97).
+Purpose: a deduplicated person, independent of which channel they message on - the entity that makes "unified" actually mean something (PRODUCT.md problem #97). **This table pair is the persistence layer for IdentityGraph** (`ARCHITECTURE.md` Section 13, [ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md)) - IdentityGraph is the architectural capability; `contacts`/`contact_identities` (extended below) is where it lives in Postgres.
 
 **`contacts`**: `id (uuid, PK)`, `workspace_id (FK)`, `display_name`, `avatar_url (nullable)`, `is_vip (boolean, default false)`, `notes (text, nullable)`, `created_at/updated_at/deleted_at`.
 
-**`contact_identities`**: `id (uuid, PK)`, `contact_id (FK)`, `provider_id (FK)`, `external_id (text, not null)` - the provider-native user ID, `handle (text, nullable)` - display handle (`@username`, phone number, email address), `created_at/updated_at`.
+**`contact_identities`**: `id (uuid, PK)`, `contact_id (FK)`, `provider_id (FK)`, `external_id (text, not null)` - the provider-native user ID, `handle (text, nullable)` - display handle (`@username`, phone number, email address), `match_type (enum: exact, confirmed_manual)` - how this link was established, `confidence_score (numeric(3,2), nullable)` - null for `exact` matches (certainty, not a probability), populated only for links that originated as a fuzzy suggestion before being human-confirmed (`ARCHITECTURE.md` Section 13.6 - a confidence score is retained for audit/tuning purposes even after confirmation, it does not disappear once a human approves the link), `created_at/updated_at`.
 
 Unique constraint `uq_contact_identities_provider_external` on `(provider_id, external_id, workspace_id)` - the same external identity can't be attached to two different Contacts within one workspace, which is what makes dedup enforceable at the DB layer instead of purely an application-logic hope.
 
 Index: `idx_contact_identities_contact_id`, `idx_contact_identities_external_id` (fast "which Contact does this inbound sender map to" lookup - this runs on every single inbound message, so it is one of the hottest indexes in the whole schema).
 
 **Why identity resolution is a separate table, not columns on Contact**: a person can have a Telegram handle, a work email, and a Slack user ID simultaneously - this is fundamentally one-to-many, and flattening it onto Contact (e.g. `telegram_id`, `slack_id`, `email` columns) would require a schema migration for every new provider, defeating the entire pluggable-connector premise.
+
+**Why `match_type` is a hard enum with only two values, not a free-form confidence threshold**: `ARCHITECTURE.md` Section 13.6's governance rule ("every candidate match short of an exact deterministic match requires human confirmation, regardless of confidence score") is enforced at the schema level, not just in application logic - there is no row state representing "auto-merged because confidence was high enough." A `contact_identities` row exists either because it was an exact match or because a human explicitly confirmed it; there is no third path.
+
+#### IdentityGraph Audit Tables
+
+**`identity_merge_log`** (append-only, mirrors `DATABASE.md` Section 8's audit-log discipline): `id (uuid, PK)`, `workspace_id (FK)`, `primary_contact_id (uuid)` - the `Contact` that survived, `merged_contact_id (uuid)` - the `Contact` that was absorbed (its id is retained here for history even though the `contacts` row itself is soft-deleted post-merge), `merged_by_user_id (FK)` - always a user, never `system`, since Section 13.6 requires human confirmation for every non-exact merge, `confidence_score_at_merge (numeric(3,2), nullable)`, `matching_signals (jsonb)` - what evidence was presented to the confirming user (matched name fragments, shared conversation participants, etc.), `created_at`. No `updated_at`/`deleted_at` - immutable by design, enforced at the database-role level identically to `audit_logs` (`DATABASE.md` Section 21).
+
+**`identity_split_log`** (append-only): `id (uuid, PK)`, `workspace_id (FK)`, `original_contact_id (uuid)`, `resulting_contact_ids (jsonb array)`, `split_by_user_id (FK)`, `reason (text, nullable)`, `created_at`. Records that a split happened and how the identities involved were redistributed; the operational detail of *how* shared history (tags, VIP status set before the split, automation targeting) divides between the resulting Contacts is an implementation-level concern flagged in `ARCHITECTURE.md` Section 13.7, not fully specified at the schema level here.
+
+Index (both tables): `idx_identity_merge_log_workspace_id_created_at`, `idx_identity_split_log_workspace_id_created_at`.
 
 ### 6.7 Conversation & ConversationParticipant (items 23-24)
 
@@ -600,7 +611,7 @@ Cross-reference of every requirement number from the brief to where it's address
 | 17 | Full-text search | 14 |
 | 18 | Message storage strategy | 6.8 |
 | 19 | Attachments | 6.10 |
-| 20 | Contacts | 6.6 |
+| 20 | Contacts (IdentityGraph persistence layer, [ADR-0012](adr/0012-identitygraph-canonical-identity-layer.md)) | 6.6 |
 | 21 | Providers | 6.4 |
 | 22 | Connector accounts | 6.5 |
 | 23 | Conversations | 6.7 |
