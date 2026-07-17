@@ -1,6 +1,14 @@
 # Smart Message Center - PRODUCT.md
 
-Version 0.1 - 2026-07-17
+```yaml
+Title: PRODUCT.md
+Version: 1.0
+Status: Approved
+Owner: Product
+Last Updated: 2026-07-17
+Depends On: []
+Related ADRs: []
+```
 
 ---
 

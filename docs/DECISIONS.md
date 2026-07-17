@@ -1,5 +1,16 @@
 # Smart Message Center - DECISIONS.md
 
+```yaml
+Title: DECISIONS.md
+Version: 1.1
+Status: Living
+Owner: Architecture
+Last Updated: 2026-07-18
+Depends On:
+  - ROADMAP.md
+Related ADRs: [all]
+```
+
 A quick-reference index of every Architecture Decision Record. This file is a lookup table, not a substitute for reading the actual ADR - it exists so "have we decided this already, and where" is answerable in ten seconds.
 
 Full records live in [adr/](adr/). Each ADR follows the same shape: Status, Context, Decision, Consequences. **ADRs are never edited after acceptance.** A changed decision gets a new, higher-numbered ADR that explicitly supersedes the old one (linked both ways) - the old ADR stays in place, marked superseded, so the historical reasoning is never lost.
@@ -16,6 +27,7 @@ Full records live in [adr/](adr/). Each ADR follows the same shape: Status, Cont
 | [0008](adr/0008-two-level-multi-tenancy.md) | Two-Level Multi-Tenancy: Organization and Workspace | Accepted | 2026-07-17 | Organization = billing/identity root; Workspace = actual tenant-scoping/data-sharing boundary. Designed for Phase 16 Teams from day one. |
 | [0009](adr/0009-modular-monolith-with-connector-workers.md) | Modular Monolith Core with Independently Deployable Connector Workers | Accepted | 2026-07-17 | Core API stays a monolith; connectors are split out as independent services from day one for provider-failure isolation. |
 | [0010](adr/0010-telegram-bot-api-only.md) | Telegram Integration via Bot API Only | Accepted | 2026-07-17 | No MTProto user-session mirroring, ever, regardless of the UX gap - ToS-safety and account-ban risk take priority. |
+| [0011](adr/0011-monorepo-layout.md) | Monorepo Layout: apps/ + packages/ via pnpm Workspaces + Turborepo | Accepted | 2026-07-18 | Ratifies `apps/*` (web, api, desktop, mobile) + `packages/*` (connector-sdk, automation-engine, database, auth, shared, ui, ai, config) over the provisional `backend/`+`frontend/`+`connectors/` split; also resolves Turborepo vs. Nx in Turborepo's favor. |
 
 ## How to Add a New ADR
 

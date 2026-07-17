@@ -1,5 +1,18 @@
 # Smart Message Center - ROADMAP.md
 
+```yaml
+Title: ROADMAP.md
+Version: 1.2
+Status: Living
+Owner: Founder/CTO
+Last Updated: 2026-07-18
+Depends On:
+  - PRODUCT.md
+  - ARCHITECTURE.md
+Related ADRs:
+  - ADR-0011
+```
+
 This file is the single source of truth for project sequencing. If context is lost between sessions, work resumes by reading this file plus [STATUS.md](STATUS.md), never by guessing.
 
 ---
@@ -17,24 +30,39 @@ This file is the single source of truth for project sequencing. If context is lo
 - Never implement a feature that isn't documented in [PRODUCT.md](PRODUCT.md) or this roadmap. If it seems needed but isn't documented, document it first, then build it.
 - Every feature traces back to a problem/solution pair in PRODUCT.md. If it doesn't, question whether it should be built.
 - Every significant, hard-to-reverse technical decision (a technology choice, a pattern adopted, a "we will not do X and here's why") gets its own ADR in `docs/adr/`, numbered sequentially, never edited after acceptance - superseded ADRs get a new ADR that supersedes the old one (linked both ways), the old one is never rewritten or deleted. This is what answers "why didn't we just use GraphQL everywhere" six months from now with a documented answer instead of a guess.
+- A repository-layout or deployment-topology decision is never left open past the document that depends on it - it gets resolved (ADR + updated ARCHITECTURE.md/ROADMAP.md/STATUS.md, and the repository restructured to match) before moving to the next document, not deferred to "whenever Phase 1 starts." Adopted 2026-07-18 after the `backend/`+`frontend/`+`connectors/` layout was correctly called out as something that shouldn't have been left provisional.
+- Every living document in `docs/` (not the ADRs, which have their own header convention) carries a metadata block directly under its title: `Title`, `Version`, `Status` (Draft/Review/Approved/Living), `Owner`, `Last Updated`, `Depends On` (other docs), `Related ADRs`. This is what lets a human or an AI resuming cold tell, at a glance, whether a document is current and what it would break to change. Adopted 2026-07-18, backfilled onto every existing document the same day.
 
 ---
 
 ## Repository Layout
 
-As of 2026-07-17, the repository root is:
+**Resolved as of 2026-07-18 via [ADR-0011](adr/0011-monorepo-layout.md).** A provisional `backend/`+`frontend/`+`connectors/` layout existed briefly (2026-07-17 to 2026-07-18) and has been fully replaced - not left as an alias or transitional structure. The repository root is:
 
 ```
 smartmc/
-├── docs/           # everything in this list - product/technical design, ADRs
+├── docs/              product/technical design documents, ADRs
 │   ├── adr/
 │   └── ...
-├── backend/        # empty - reserved for Phase 1 bootstrap
-├── frontend/        # empty - reserved for Phase 1 bootstrap
-├── connectors/       # empty - reserved for Phase 4-8 (Connector SDK + provider connectors)
+├── apps/
+│   ├── web/            Next.js unified inbox UI
+│   ├── api/            NestJS backend (modular monolith, ADR-0009)
+│   ├── desktop/          Tauri wrapper (Phase 15)
+│   └── mobile/           React Native (added when Phase 14 starts)
+├── packages/
+│   ├── connector-sdk/       Connector interface + registry + test harness (ADR-0004)
+│   ├── automation-engine/    Trigger/condition/action evaluation (Phase 10)
+│   ├── database/          Prisma schema, client, migrations (DATABASE.md)
+│   ├── auth/             Auth.js integration, JWT/session logic
+│   ├── shared/            Canonical domain types (Message, Conversation, Contact...)
+│   ├── ui/              shadcn/ui-based component library
+│   ├── ai/              AI feature integrations (Phase 13), isolated per PRODUCT.md
+│   └── config/            eslint, tsconfig, tailwind presets
+├── infrastructure/         Docker, Docker Compose, Kubernetes, Terraform
+└── scripts/             one-off and CI-support scripts
 ```
 
-**Open reconciliation item**: [ARCHITECTURE.md](ARCHITECTURE.md) Section 2 specifies a pnpm-workspace monorepo layout (`apps/web`, `apps/api`, `apps/desktop`, `packages/*`). The top-level `backend/`, `frontend/`, `connectors/` split adopted here is coarser. These need to be reconciled explicitly at the start of Phase 1 (e.g. `backend/` becomes the `apps/api` + `packages/*` root, `frontend/` becomes `apps/web` + `apps/desktop`, `connectors/` becomes `packages/connector-sdk` plus per-provider connector packages) - not silently, and not by picking one over the other without updating ARCHITECTURE.md to match. Tracked here so it isn't lost before Phase 1 starts.
+This is not provisional. Phase 1 bootstrap (below) proceeds directly against this structure with no further reconciliation needed.
 
 ---
 
@@ -48,11 +76,12 @@ Goal: lock down what we're building and why, before any code exists.
 - [x] `API.md` - API contract as product surface: REST-first + GraphQL where it adds value, versioning, error model, pagination/filtering/search, auth (OAuth2/JWT), webhooks, WebSockets/SSE, idempotency, long-running ops, per-domain API groups, event/webhook contracts, lifecycle rules
 - [x] `docs/adr/` - Architecture Decision Records, seeded with ADR-0001 through ADR-0010 covering every significant decision made so far (Postgres, Prisma, REST-over-GraphQL, Connector SDK, event-driven architecture, URI versioning, UUIDv7, two-level tenancy, modular monolith, Telegram Bot API only) - added to the plan per user direction on 2026-07-17, see Notes on Sequencing
 - [x] `docs/DECISIONS.md` - quick-reference index of all ADRs, added alongside `docs/adr/` per user direction on 2026-07-17
-- [ ] `UI_GUIDE.md` - expand PRODUCT.md's UI Principles into concrete screen-level guidance (inbox layout, rule builder canvas, morning briefing)
-- [ ] `DESIGN_SYSTEM.md` - tokens (color, type, spacing), component inventory on top of shadcn/ui, expand PRODUCT.md's Brand section into implementable specs
+- [x] `ADR-0011` - repository layout decided (`apps/`+`packages/` via pnpm workspaces + Turborepo, over `backend/`+`frontend/`+`connectors/`), evaluated against scalability, DX, code sharing, connector architecture, desktop/mobile support, CI/CD, testing, build performance, and future microservices - see [adr/0011-monorepo-layout.md](adr/0011-monorepo-layout.md). Repository restructured to match immediately, not deferred to Phase 1.
 - [x] `ROADMAP.md` - this file
 - [ ] `SECURITY.md` - threat model, credential storage, secrets management, audit logging spec, GDPR data handling
 - [ ] `AUTOMATION_ENGINE.md` - formal spec of the trigger/condition/action data model, expand PRODUCT.md's Automation Engine section into an implementable schema (JSON shape, validation rules, execution semantics)
+- [ ] `UI_GUIDE.md` - expand PRODUCT.md's UI Principles into concrete screen-level guidance (inbox layout, rule builder canvas, morning briefing)
+- [ ] `DESIGN_SYSTEM.md` - tokens (color, type, spacing), component inventory on top of shadcn/ui, expand PRODUCT.md's Brand section into implementable specs
 
 Output: no code. Product and technical design only. **Phase 0 is not done until every box above is checked.**
 

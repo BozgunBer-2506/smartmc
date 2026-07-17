@@ -16,11 +16,26 @@ This repository is currently in **Phase 0 - Product Foundation** (see [docs/ROAD
 
 ## Repository Layout
 
+Finalized via [ADR-0011](docs/adr/0011-monorepo-layout.md) - a pnpm workspace + Turborepo monorepo:
+
 ```
-docs/          product and technical design documents, ADRs
-backend/        (Phase 1) NestJS API
-frontend/        (Phase 1) Next.js web app
-connectors/       (Phase 4+) Connector SDK and per-provider connectors
+docs/            product and technical design documents, ADRs
+apps/
+  web/            (Phase 1) Next.js unified inbox UI
+  api/            (Phase 1) NestJS backend
+  desktop/          (Phase 15) Tauri wrapper
+  mobile/           (Phase 14) React Native
+packages/
+  connector-sdk/       (Phase 4) Connector interface + registry
+  automation-engine/    (Phase 10) Trigger/condition/action evaluation
+  database/          Prisma schema, client, migrations
+  auth/             Auth.js integration, JWT/session logic
+  shared/            Canonical domain types
+  ui/              shadcn/ui-based component library
+  ai/              (Phase 13) AI feature integrations
+  config/            eslint, tsconfig, tailwind presets
+infrastructure/         Docker, Docker Compose, Kubernetes, Terraform
+scripts/             CI-support and one-off scripts
 ```
 
 ## Working Rules

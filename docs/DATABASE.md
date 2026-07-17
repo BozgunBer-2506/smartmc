@@ -1,6 +1,21 @@
 # Smart Message Center - DATABASE.md
 
-Version 0.1 - 2026-07-17
+```yaml
+Title: DATABASE.md
+Version: 1.0
+Status: Approved
+Owner: Architecture
+Last Updated: 2026-07-17
+Depends On:
+  - PRODUCT.md
+  - ARCHITECTURE.md
+Related ADRs:
+  - ADR-0001
+  - ADR-0002
+  - ADR-0007
+  - ADR-0008
+```
+
 Author role: Principal Database Architect
 Scope: PostgreSQL schema design for a multi-tenant SaaS expected to scale to millions of users. No SQL, no Prisma models - this document defines the design that SQL/Prisma will later implement.
 

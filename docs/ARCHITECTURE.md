@@ -1,12 +1,29 @@
-# PulseHub - Software Architecture Document
+# Smart Message Center - Software Architecture Document
 
-Version 0.1 (MVP Architecture) - 2026-07-17
+```yaml
+Title: ARCHITECTURE.md
+Version: 1.1
+Status: Living
+Owner: Architecture
+Last Updated: 2026-07-18
+Depends On:
+  - PRODUCT.md
+Related ADRs:
+  - ADR-0001
+  - ADR-0004
+  - ADR-0005
+  - ADR-0009
+  - ADR-0010
+  - ADR-0011
+```
+
+Note: this document was originally drafted under the project's working name "PulseHub" before the product was named Smart Message Center; all references have been updated for consistency.
 
 ---
 
 ## 0. Executive Summary
 
-PulseHub is a unified communication operating system. It connects existing messaging services (Telegram, Discord, Slack, Email) into a single inbox and layers automation and notification intelligence on top, using only official APIs and ToS-compliant integration methods. AI is an optional enhancement layer added after the automation core is solid, not a dependency of the MVP.
+Smart Message Center is a unified communication operating system. It connects existing messaging services (Telegram, Discord, Slack, Email) into a single inbox and layers automation and notification intelligence on top, using only official APIs and ToS-compliant integration methods. AI is an optional enhancement layer added after the automation core is solid, not a dependency of the MVP.
 
 Three pillars drive every architecture decision below:
 
@@ -83,7 +100,7 @@ Three pillars drive every architecture decision below:
 
 ## 2. Folder Structure
 
-Monorepo, managed with pnpm workspaces + Turborepo (or Nx - see Section 11 for tradeoff).
+Monorepo, managed with pnpm workspaces + Turborepo. This layout is formally ratified in [ADR-0011](adr/0011-monorepo-layout.md), which also resolves Turborepo vs. Nx in Turborepo's favor and supersedes a provisional `backend/`+`frontend/`+`connectors/` structure that briefly existed between 2026-07-17 and 2026-07-18.
 
 ```
 pulsehub/
@@ -259,7 +276,7 @@ Canonical flow for an inbound message triggering automation and a notification:
    - if suppressed, stores as pending digest entry
    - else dispatches via Web Push / FCM / APNs / email
 
-7. Outbound path (user replies from PulseHub):
+7. Outbound path (user replies from Smart Message Center):
    API -> "message.send" command -> routed to the correct
    Connector Worker -> provider API call -> on success,
    Message row updated to status=sent, "message.sent" event emitted
@@ -347,7 +364,7 @@ All endpoints sit behind the API Gateway: JWT auth guard, per-user rate limiting
    (Telegram uses bot token / login widget, Discord/Slack use OAuth2).
    These tokens are exchanged server-side, immediately written to the
    secrets manager, and only a reference id is persisted in Postgres.
-   PulseHub's own JWT never carries provider credentials.
+   Smart Message Center's own JWT never carries provider credentials.
 
 4. Authorization: RBAC at the workspace level (Owner/Admin/Member,
    for future team accounts) + resource-level ownership checks
@@ -502,8 +519,13 @@ SSO (SAML/OIDC), granular RBAC, per-workspace data residency options, SLA-backed
 
 ---
 
-## 12. Open Decisions (flagged, not resolved)
+## 12. Decisions Formalized as ADRs
 
-- **Monorepo tool**: Turborepo (simpler, faster to adopt) vs Nx (richer generators/graph, better for eventual mobile app addition). Recommendation: start Turborepo, revisit at Phase 3 when React Native is added.
-- **Modular monolith vs microservices at MVP**: recommendation is a modular monolith (NestJS modules) for the core API, with connector workers already split out as separate deployables from day one - this gets the scaling/isolation benefit where it actually matters (flaky third-party APIs) without paying full microservices tax on the core domain before product-market fit.
-- **Telegram integration method**: Bot API (simpler, ToS-safe, but bot must be added to chats/channels explicitly) vs MTProto user API (full inbox visibility but higher ToS/ban risk, explicitly against the "use official APIs" and "no ToS violation" constraints). Recommendation: Bot API only for MVP; document the UX limitation (users must add the PulseHub bot rather than getting silent full-inbox mirroring) rather than risk account bans.
+The following were originally flagged here as open; all have since been formally decided and recorded in [docs/adr/](adr/) (see [DECISIONS.md](DECISIONS.md) for the full index). This section is kept as a historical pointer, not a live open-questions list - **there are no unresolved architectural decisions at the monorepo/deployment-topology level as of ADR-0011.**
+
+- **Monorepo tool**: Turborepo, over Nx. Decided in [ADR-0011](adr/0011-monorepo-layout.md).
+- **Repository layout**: `apps/` + `packages/` via pnpm workspaces. Decided in [ADR-0011](adr/0011-monorepo-layout.md).
+- **Modular monolith vs microservices at MVP**: modular monolith for the core API, connector workers split out as independent deployables from day one. Decided in [ADR-0009](adr/0009-modular-monolith-with-connector-workers.md).
+- **Telegram integration method**: Bot API only, never MTProto. Decided in [ADR-0010](adr/0010-telegram-bot-api-only.md).
+
+Any future open decision at this level gets its own entry in [docs/DECISIONS.md](DECISIONS.md) and, once resolved, its own ADR - not a line added back to this section.

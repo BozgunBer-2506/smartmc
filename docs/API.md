@@ -1,6 +1,20 @@
 # Smart Message Center - API.md
 
-Version 0.1 - 2026-07-17
+```yaml
+Title: API.md
+Version: 1.0
+Status: Approved
+Owner: Architecture
+Last Updated: 2026-07-17
+Depends On:
+  - PRODUCT.md
+  - ARCHITECTURE.md
+  - DATABASE.md
+Related ADRs:
+  - ADR-0003
+  - ADR-0006
+```
+
 Author role: Principal API Architect
 Scope: the API as product contract - the thing every client (our own web/desktop/mobile apps, third-party integrations, and eventually the Phase 18 marketplace) depends on for a decade. No controller code, no OpenAPI YAML - this document is the contract those artifacts will later implement.
 
