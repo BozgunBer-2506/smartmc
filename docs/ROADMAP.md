@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 1.6
+Version: 1.7
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -37,6 +37,7 @@ This file is the single source of truth for project sequencing. If context is lo
 - A repository-layout or deployment-topology decision is never left open past the document that depends on it - it gets resolved (ADR + updated ARCHITECTURE.md/ROADMAP.md/STATUS.md, and the repository restructured to match) before moving to the next document, not deferred to "whenever Phase 1 starts." Adopted 2026-07-18 after the `backend/`+`frontend/`+`connectors/` layout was correctly called out as something that shouldn't have been left provisional.
 - Every living document in `docs/` (not the ADRs, which have their own header convention) carries a metadata block directly under its title: `Title`, `Version`, `Status` (Draft/Review/Approved/Living), `Owner`, `Last Updated`, `Depends On` (other docs), `Related ADRs`. This is what lets a human or an AI resuming cold tell, at a glance, whether a document is current and what it would break to change. Adopted 2026-07-18, backfilled onto every existing document the same day.
 - **Every phase ends with working, demonstrable software** - not just checked boxes. Adopted 2026-07-18. Each phase below now states an explicit Definition of Done that someone can actually open and click through, starting from Phase 1. A phase whose only output is "the code compiles" or "the tests pass in CI" is not done - it's done when there is something a human can run and see behave correctly. This is what keeps architectural decisions honest (a design that only looks right on paper gets caught the first time it has to actually run) and keeps momentum visible.
+- **Every phase gets a Phase Review before the next phase starts, and a release tag when it's done.** Adopted 2026-07-18. The review compares the actual implementation against `PRODUCT.md`/`ARCHITECTURE.md`/the ADRs/`ROADMAP.md`, reports deviations/technical debt/shortcuts/TODOs/architectural violations, and is saved to `docs/reviews/phase-N-review.md` - a report first, with a separate, explicit decision afterward about what gets fixed immediately versus deferred to its already-assigned phase (the rule: fix now only what gets more expensive to retrofit later; everything else stays on the roadmap). The tag (e.g. `v0.1.0-phase1`, and a follow-up `v0.1.1-phase1-hardening` if the review's immediate fixes warrant one) is what lets a future regression, a wrong ADR, or a bad refactor be rolled back to a known-good point with one command.
 
 ---
 
@@ -145,6 +146,8 @@ Extended 2026-07-18 per user direction to prove the *whole* heartbeat of the pro
 5. A real WebSocket client (`scripts/verify-realtime.mjs`, run via `pnpm --filter @smc/scripts verify:realtime`) joins the workspace room, triggers the Mock Connector, and receives both `message.received` and `notification.created` over the actual socket.io transport within the same test run - **the user will see it, and the notification will arrive**, proven over the wire, not just inferred from server logs.
 
 This is `ARCHITECTURE.md` Section 1's entire pipeline diagram, felt end-to-end with fake data and stubbed intelligence, before a single line of Telegram-specific code or a single real automation rule exists.
+
+**Phase Review completed 2026-07-18** - full report at [reviews/phase-1-review.md](reviews/phase-1-review.md). 3 findings fixed same-day and re-verified live: an RFC 7807 (`API.md` Section 5) global error filter, soft-delete columns + a Prisma Client extension enforcing them (`DATABASE.md` Section 7/20), and a production guard on `/dev/mock-connector/send` (404 outside development). 9 other findings deliberately deferred to their already-assigned phases, recorded in the review, not silently dropped. Tagged `v0.1.0-phase1` then `v0.1.1-phase1-hardening`.
 
 ---
 

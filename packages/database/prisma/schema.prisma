@@ -17,10 +17,11 @@ datasource db {
 }
 
 model Workspace {
-  id        String   @id @db.Uuid
+  id        String    @id @db.Uuid
   name      String
-  timezone  String   @default("UTC")
-  createdAt DateTime @default(now()) @map("created_at")
+  timezone  String    @default("UTC")
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7, enforced via packages/database/src/soft-delete.ts
 
   contacts      Contact[]
   conversations Conversation[]
@@ -47,11 +48,12 @@ model Provider {
 /// only (docs/ROADMAP.md Phase 3 scope) - confidence scoring and the
 /// merge-suggestion queue are Phase 9 additions.
 model Contact {
-  id          String   @id @db.Uuid
-  workspaceId String   @map("workspace_id") @db.Uuid
-  displayName String   @map("display_name")
-  isVip       Boolean  @default(false) @map("is_vip")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id          String    @id @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  displayName String    @map("display_name")
+  isVip       Boolean   @default(false) @map("is_vip")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
 
   workspace  Workspace         @relation(fields: [workspaceId], references: [id])
   identities ContactIdentity[]
@@ -83,8 +85,9 @@ model Conversation {
   providerId    String   @map("provider_id") @db.Uuid
   externalId    String   @map("external_id")
   title         String?
-  lastMessageAt DateTime? @map("last_message_at")
-  createdAt     DateTime @default(now()) @map("created_at")
+  lastMessageAt DateTime?  @map("last_message_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  deletedAt     DateTime?  @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
 
   workspace Workspace @relation(fields: [workspaceId], references: [id])
   provider  Provider  @relation(fields: [providerId], references: [id])
@@ -100,10 +103,11 @@ model Message {
   conversationId   String   @map("conversation_id") @db.Uuid
   externalId       String   @map("external_id")
   senderContactId  String?  @map("sender_contact_id") @db.Uuid
-  direction        String   // "inbound" | "outbound" - docs/DATABASE.md Section 6.8
-  bodyText         String   @map("body_text")
-  receivedAt       DateTime @map("received_at")
-  createdAt        DateTime @default(now()) @map("created_at")
+  direction        String    // "inbound" | "outbound" - docs/DATABASE.md Section 6.8
+  bodyText         String    @map("body_text")
+  receivedAt       DateTime  @map("received_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  deletedAt        DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
 
   workspace    Workspace     @relation(fields: [workspaceId], references: [id])
   conversation Conversation  @relation(fields: [conversationId], references: [id])

@@ -3,9 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "verify:realtime": "node verify-realtime.mjs"
+    "verify:realtime": "node verify-realtime.mjs",
+    "verify:soft-delete": "node verify-soft-delete.cjs"
   },
   "dependencies": {
+    "@smc/database": "workspace:*",
     "socket.io-client": "^4.8.0"
   }
 }

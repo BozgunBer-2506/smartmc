@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from "@nestjs/common";
+import { Body, Controller, NotFoundException, Post } from "@nestjs/common";
 import { generateMockMessage, MOCK_PROVIDER_KEY } from "@smc/connector-sdk";
 import { createEvent, EventType } from "@smc/event-model";
 import { DEV_WORKSPACE_ID } from "@smc/shared";
@@ -25,6 +25,16 @@ export class MockConnectorController {
 
   @Post("send")
   async send(@Body() dto: SendMockMessageDto) {
+    // This entire controller is dev-only scaffolding (docs/ROADMAP.md Phase 1
+    // Sprint 2) - it must never be reachable outside development, per the
+    // Phase 1 review. A 404, not a 403: this endpoint doesn't exist as a
+    // concept outside dev, it isn't a real resource being hidden from
+    // unauthorized callers (docs/SECURITY.md's 404-vs-403 policy, Section
+    // "Application Security" - existence-sensitive vs not).
+    if (process.env.NODE_ENV === "production") {
+      throw new NotFoundException();
+    }
+
     const payload = generateMockMessage({ workspaceId: DEV_WORKSPACE_ID, ...dto });
 
     const event = createEvent({

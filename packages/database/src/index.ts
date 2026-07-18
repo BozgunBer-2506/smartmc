@@ -1,14 +1,27 @@
 import { PrismaClient } from "@prisma/client";
+import { withSoftDeletes } from "./soft-delete";
 
 export * from "@prisma/client";
 export { newId } from "./ids";
 
-let prismaSingleton: PrismaClient | undefined;
+function createExtendedClient() {
+  return withSoftDeletes(new PrismaClient());
+}
 
-/** A shared PrismaClient instance per process - avoids exhausting Postgres connections in dev's hot-reload cycles. */
-export function getPrismaClient(): PrismaClient {
+type ExtendedPrismaClient = ReturnType<typeof createExtendedClient>;
+
+let prismaSingleton: ExtendedPrismaClient | undefined;
+
+/**
+ * A shared, soft-delete-enforcing PrismaClient instance per process
+ * (docs/DATABASE.md Section 20) - avoids exhausting Postgres connections
+ * in dev's hot-reload cycles, and ensures every consumer (apps/api,
+ * packages/identity) gets the extended client, never a raw PrismaClient
+ * that could accidentally bypass soft-delete filtering.
+ */
+export function getPrismaClient(): ExtendedPrismaClient {
   if (!prismaSingleton) {
-    prismaSingleton = new PrismaClient();
+    prismaSingleton = createExtendedClient();
   }
   return prismaSingleton;
 }
