@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "verify:realtime": "node verify-realtime.mjs",
     "verify:soft-delete": "node verify-soft-delete.cjs",
-    "verify:auth": "node verify-auth.mjs"
+    "verify:auth": "node verify-auth.mjs",
+    "verify:phase3": "node verify-phase3.mjs"
   },
   "dependencies": {
     "@smc/database": "workspace:*",

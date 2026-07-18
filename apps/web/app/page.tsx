@@ -1,175 +1,59 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@smc/ui";
-import { DEV_WORKSPACE_ID } from "@smc/shared";
-import { getSocket } from "../lib/socket";
-
-interface InboxMessage {
-  id: string;
-  conversationTitle: string | null;
-  sender: { displayName: string; isVip: boolean };
-  bodyText: string;
-  receivedAt: string;
-}
-
-interface ToastNotification {
-  id: string;
-  title: string;
-  body: string;
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { AuthForm } from "../components/AuthForm";
+import { Inbox } from "../components/Inbox";
+import { fetchMe, tryRefresh, type AuthResponse, type PublicUser } from "../lib/api";
 
 /**
- * Phase 1 Sprint 2's dev Inbox (docs/ROADMAP.md Phase 1 Sprint 2) - a
- * stand-in for the real unified inbox (Phase 9). Proves the full pipeline
- * end to end: a button here triggers the Mock Connector, which flows
- * through the event bus, IdentityGraph, the database, and back out over
- * WebSocket to this page - including a stub automation rule producing a
- * stub notification toast.
+ * Orchestrates Phase 3's demo script (docs/ROADMAP.md Phase 3): shows the
+ * login/register form until authenticated, then the real Inbox. On mount,
+ * attempts a silent refresh from the httpOnly cookie alone - a page
+ * reload doesn't force a fresh login if a valid session already exists,
+ * matching real session semantics (docs/SECURITY.md Section 4.3).
  */
-export default function InboxPage() {
-  const [messages, setMessages] = useState<InboxMessage[]>([]);
-  const [toasts, setToasts] = useState<ToastNotification[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [senderName, setSenderName] = useState("Deniz");
-  const [body, setBody] = useState("Hey, are we still on for tomorrow?");
-  const [sending, setSending] = useState(false);
+export default function HomePage() {
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [user, setUser] = useState<PublicUser | null>(null);
+  const [booting, setBooting] = useState(true);
 
   useEffect(() => {
-    const socket = getSocket();
-
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
-    const onMessage = (msg: InboxMessage) => setMessages((prev) => [msg, ...prev]);
-    const onNotification = (notification: ToastNotification) => {
-      setToasts((prev) => [notification, ...prev]);
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== notification.id));
-      }, 6000);
-    };
-
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("message.received", onMessage);
-    socket.on("notification.created", onNotification);
-
-    return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off("message.received", onMessage);
-      socket.off("notification.created", onNotification);
-    };
+    tryRefresh().then(async (result) => {
+      if (!result) {
+        setBooting(false);
+        return;
+      }
+      try {
+        const me = await fetchMe(result.accessToken);
+        setAccessToken(result.accessToken);
+        setUser(me.user);
+      } finally {
+        setBooting(false);
+      }
+    });
   }, []);
 
-  async function sendMockMessage() {
-    setSending(true);
-    try {
-      await fetch(`${API_URL}/dev/mock-connector/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderDisplayName: senderName,
-          senderExternalId: senderName.toLowerCase().replace(/\s+/g, "-"),
-          bodyText: body,
-        }),
-      });
-    } finally {
-      setSending(false);
-    }
+  function handleAuthenticated(result: AuthResponse) {
+    setAccessToken(result.accessToken);
+    setUser(result.user);
   }
 
-  return (
-    <main style={{ maxWidth: 640, margin: "0 auto", padding: 32 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 600 }}>Smart Message Center - Dev Inbox</h1>
-      <p style={{ color: "#9AA5B1", fontSize: 13 }}>
-        Workspace: <code>{DEV_WORKSPACE_ID}</code> · WebSocket:{" "}
-        <strong style={{ color: connected ? "#3FB27F" : "#E05252" }}>
-          {connected ? "connected" : "disconnected"}
-        </strong>
-      </p>
+  function handleLoggedOut() {
+    setAccessToken(null);
+    setUser(null);
+  }
 
-      <section style={{ display: "flex", gap: 8, margin: "20px 0" }}>
-        <input
-          value={senderName}
-          onChange={(e) => setSenderName(e.target.value)}
-          placeholder="Sender name"
-          style={inputStyle({ flex: "0 0 160px" })}
-        />
-        <input
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Message body"
-          style={inputStyle({ flex: 1 })}
-        />
-        <Button onClick={sendMockMessage} disabled={sending}>
-          {sending ? "Sending..." : "Send mock message"}
-        </Button>
-      </section>
+  if (booting) {
+    return (
+      <main style={{ maxWidth: 420, margin: "80px auto", padding: 24, color: "#9AA5B1" }}>
+        Loading...
+      </main>
+    );
+  }
 
-      <section>
-        {messages.length === 0 && (
-          <p style={{ color: "#9AA5B1" }}>
-            No messages yet - trigger the Mock Connector above and watch the full pipeline run.
-          </p>
-        )}
-        {messages.map((m) => (
-          <article key={m.id} style={cardStyle}>
-            <strong>{m.sender.displayName}</strong>{" "}
-            <span style={{ color: "#9AA5B1", fontSize: 12 }}>
-              {new Date(m.receivedAt).toLocaleTimeString()}
-            </span>
-            <p style={{ margin: "4px 0 0" }}>{m.bodyText}</p>
-          </article>
-        ))}
-      </section>
+  if (!accessToken || !user) {
+    return <AuthForm onAuthenticated={handleAuthenticated} />;
+  }
 
-      <div style={toastContainerStyle}>
-        {toasts.map((t) => (
-          <div key={t.id} style={toastStyle}>
-            <strong>{t.title}</strong>
-            <p style={{ margin: "2px 0 0", fontSize: 13 }}>{t.body}</p>
-          </div>
-        ))}
-      </div>
-    </main>
-  );
+  return <Inbox accessToken={accessToken} user={user} onLoggedOut={handleLoggedOut} />;
 }
-
-function inputStyle(extra: Record<string, string | number>): Record<string, string | number> {
-  return {
-    padding: 8,
-    borderRadius: 6,
-    border: "1px solid #2A3441",
-    background: "#111726",
-    color: "#F5F7FA",
-    ...extra,
-  };
-}
-
-const cardStyle: Record<string, string | number> = {
-  border: "1px solid #2A3441",
-  borderRadius: 8,
-  padding: 12,
-  marginBottom: 8,
-  background: "#111726",
-};
-
-const toastContainerStyle: Record<string, string | number> = {
-  position: "fixed",
-  top: 16,
-  right: 16,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
-
-const toastStyle: Record<string, string | number> = {
-  background: "#E0A458",
-  color: "#1B2333",
-  borderRadius: 8,
-  padding: "10px 14px",
-  minWidth: 220,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-};

@@ -6,18 +6,24 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
+import { TokenService } from "../auth/token.service";
 
 function workspaceRoom(workspaceId: string): string {
   return `workspace:${workspaceId}`;
 }
 
 /**
- * The realtime transport for Phase 1's vertical slice - per docs/API.md
- * Section 11, WebSocket is the primary realtime transport for
- * message.received/notification.created-style events. A client connects
- * with ?workspaceId=... (Phase 1 has no auth yet, docs/ROADMAP.md Phase 2)
- * and joins that workspace's room; the event processor (../events/events.processor.ts)
- * broadcasts into that room.
+ * The realtime transport (docs/API.md Section 11): "Connection
+ * authenticates via the same JWT as REST, passed at connect time... a
+ * client cannot subscribe to a workspace it isn't authorized for." Phase 1
+ * shipped a shortcut (a client-supplied `?workspaceId=` query param, no
+ * verification) to prove the pipeline shape cheaply; Phase 3 replaces it
+ * with the real mechanism this section always specified - not a new
+ * design, the one that was deferred.
+ *
+ * The workspace a connection joins is *always* derived from the verified
+ * token's claims, never from anything the client asserts - a connection
+ * with no token, or an invalid one, is disconnected immediately.
  */
 @WebSocketGateway({ cors: { origin: true, credentials: true } })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -26,13 +32,25 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   @WebSocketServer()
   server!: Server;
 
-  handleConnection(client: Socket): void {
-    const workspaceId = client.handshake.query.workspaceId;
-    if (typeof workspaceId === "string" && workspaceId.length > 0) {
-      client.join(workspaceRoom(workspaceId));
-      this.logger.log(`Client ${client.id} joined ${workspaceRoom(workspaceId)}`);
-    } else {
-      this.logger.warn(`Client ${client.id} connected without a workspaceId`);
+  constructor(private readonly tokenService: TokenService) {}
+
+  async handleConnection(client: Socket): Promise<void> {
+    const token = this.extractToken(client);
+
+    if (!token) {
+      this.logger.warn(`Client ${client.id} connected without a token - disconnecting`);
+      client.disconnect(true);
+      return;
+    }
+
+    try {
+      const claims = await this.tokenService.verify(token);
+      client.data.workspaceId = claims.workspaceId;
+      client.join(workspaceRoom(claims.workspaceId));
+      this.logger.log(`Client ${client.id} authenticated, joined ${workspaceRoom(claims.workspaceId)}`);
+    } catch {
+      this.logger.warn(`Client ${client.id} presented an invalid/expired token - disconnecting`);
+      client.disconnect(true);
     }
   }
 
@@ -42,5 +60,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   emitToWorkspace(workspaceId: string, event: string, payload: unknown): void {
     this.server.to(workspaceRoom(workspaceId)).emit(event, payload);
+  }
+
+  /** socket.io's documented convention (`auth.token`) is preferred over a query string - a token belongs in the connection handshake payload, not a URL that can end up in logs/proxies. */
+  private extractToken(client: Socket): string | undefined {
+    const authToken = (client.handshake.auth as { token?: string } | undefined)?.token;
+    if (authToken) return authToken;
+    return this.tokenService.extractBearerToken(client.handshake.headers.authorization);
   }
 }

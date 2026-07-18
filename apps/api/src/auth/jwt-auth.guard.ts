@@ -1,9 +1,8 @@
 import { CanActivate, ExecutionContext, HttpStatus, Injectable } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
 import type { Request } from "express";
-import { authConfig } from "../config/auth.config";
-import { authError } from "./auth.exceptions";
+import { httpError } from "../common/http-error";
 import type { JwtPayload } from "./jwt-payload";
+import { TokenService } from "./token.service";
 
 declare module "express" {
   interface Request {
@@ -20,30 +19,21 @@ declare module "express" {
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(private readonly tokenService: TokenService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const token = this.extractToken(request);
+    const token = this.tokenService.extractBearerToken(request.headers.authorization);
 
     if (!token) {
-      throw authError(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Missing bearer token.");
+      throw httpError(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Missing bearer token.");
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
-        secret: authConfig.jwtSecret,
-      });
-      request.user = payload;
+      request.user = await this.tokenService.verify(token);
       return true;
     } catch {
-      throw authError(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid or expired access token.");
+      throw httpError(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid or expired access token.");
     }
-  }
-
-  private extractToken(request: Request): string | undefined {
-    const header = request.headers.authorization;
-    if (!header?.startsWith("Bearer ")) return undefined;
-    return header.slice("Bearer ".length).trim();
   }
 }

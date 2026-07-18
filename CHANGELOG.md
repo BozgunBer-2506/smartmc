@@ -4,7 +4,26 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 3 - Identity & Messaging Foundation (renamed from "Core Platform") is next: the `Mock Connector → Message → IdentityGraph → Conversation → Inbox → Realtime → Notification` pipeline, run for the first time behind real authentication instead of the `DEV_WORKSPACE_ID` dev fixture.
+Phase 4 - Connector SDK is next: the full `CONNECTOR_SDK.md` contract (lifecycle, registry, webhook/polling/hybrid ingestion, health checks, checkpointed recovery, retry/backoff), with the Mock Connector becoming the certification-checklist reference implementation.
+
+## [0.3.0] - 2026-07-18 - Phase 3: Identity & Messaging Foundation (`v0.3.0-phase3`)
+
+### Added
+- Real Postgres-backed Inbox read model: `GET /v1/conversations`, `GET /v1/conversations/{id}/messages`
+- `GET /v1/notifications` - a real, queryable notification list
+- A shared `TokenService` centralizing JWT verification for the HTTP guard, the WebSocket gateway, and the mock connector's optional-auth path
+- A real login/register form and an authenticated Inbox UI in `apps/web` (conversation list, message history, notifications, live toasts)
+- `pnpm --filter @smc/scripts verify:phase3` regression check (11 assertions), including a workspace-isolation proof and an unauthenticated-socket-rejected proof
+- ADR-0015: REST (not GraphQL) for the Phase 3 inbox read path - no GraphQL server exists yet, and standing one up now would be new infrastructure
+
+### Changed
+- `POST /dev/mock-connector/send` now accepts an optional Bearer token: present and valid ingests into that user's real workspace; absent falls back to the `DEV_WORKSPACE_ID` dev fixture; present and invalid returns `401`
+- WebSocket connections are now authenticated via JWT at connect time (`handshake.auth.token`); unauthenticated or invalid-token connections are disconnected immediately - replaces the client-supplied `?workspaceId=` query parameter
+- The Mock Connector's dev-fixture Organization/Workspace upsert is now scoped to `DEV_WORKSPACE_ID` only, no longer running unconditionally for every inbound message
+- `AuthException`/`authError` renamed to `httpError()` and moved from `auth/` to `common/http-error.ts`, since Phase 3 needed the same RFC 7807 helper in non-auth modules
+
+### Removed
+- `scripts/verify-realtime.mjs` - fully superseded by `verify-phase3.mjs`, which tests the same pipeline shape against real authentication instead of an unauthenticated, unscoped dev room
 
 ## [0.2.0] - 2026-07-18 - Phase 2: Authentication (`v0.2.0-phase2`)
 
@@ -56,7 +75,8 @@ Phase 3 - Identity & Messaging Foundation (renamed from "Core Platform") is next
 - GitHub Actions CI (`lint` / `typecheck` / `build`)
 - `scripts/verify-realtime.mjs` regression check
 
-[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.2.0-phase2...HEAD
+[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.3.0-phase3...HEAD
+[0.3.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.2.0-phase2...v0.3.0-phase3
 [0.2.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.1.1-phase1-hardening...v0.2.0-phase2
 [0.1.1]: https://github.com/BozgunBer-2506/smartmc/compare/v0.1.0-phase1...v0.1.1-phase1-hardening
 [0.1.0]: https://github.com/BozgunBer-2506/smartmc/releases/tag/v0.1.0-phase1

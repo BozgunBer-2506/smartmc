@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, HttpStatus, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
-import { authError } from "./auth.exceptions";
+import { httpError } from "../common/http-error";
 import { ROLES_KEY } from "./roles.decorator";
 
 /**
@@ -29,7 +29,7 @@ export class RolesGuard implements CanActivate {
     const role = request.user?.role;
 
     if (!role || !requiredRoles.includes(role)) {
-      throw authError(
+      throw httpError(
         HttpStatus.FORBIDDEN,
         "INSUFFICIENT_ROLE",
         `This action requires one of the following roles: ${requiredRoles.join(", ")}.`,

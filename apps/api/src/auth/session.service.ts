@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { getPrismaClient, newId, type Session } from "@smc/database";
 import { authConfig } from "../config/auth.config";
 import { AuditLogService } from "../audit/audit-log.service";
-import { authError } from "./auth.exceptions";
+import { httpError } from "../common/http-error";
 
 export interface SessionClaims {
   userId: string;
@@ -103,7 +103,7 @@ export class SessionService {
     const existing = await prisma.session.findFirst({ where: { refreshTokenHash: presentedHash } });
 
     if (!existing) {
-      throw authError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_INVALID", "Refresh token is invalid.");
+      throw httpError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_INVALID", "Refresh token is invalid.");
     }
 
     if (existing.revokedAt) {
@@ -123,7 +123,7 @@ export class SessionService {
         ipAddress: ctx.ipAddress,
         metadata: { familyId: existing.familyId },
       });
-      throw authError(
+      throw httpError(
         HttpStatus.UNAUTHORIZED,
         "REFRESH_TOKEN_REUSE_DETECTED",
         "This refresh token has already been used. All sessions for this account have been revoked as a precaution.",
@@ -131,7 +131,7 @@ export class SessionService {
     }
 
     if (existing.expiresAt.getTime() < Date.now()) {
-      throw authError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_EXPIRED", "Refresh token has expired.");
+      throw httpError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_EXPIRED", "Refresh token has expired.");
     }
 
     // Rotate: revoke the presented session but keep its row (its hash is

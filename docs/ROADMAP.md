@@ -16,6 +16,7 @@ Related ADRs:
   - ADR-0012
   - ADR-0013
   - ADR-0014
+  - ADR-0015
 ```
 
 This file is the single source of truth for project sequencing. If context is lost between sessions, work resumes by reading this file plus [STATUS.md](STATUS.md), never by guessing.
@@ -169,7 +170,7 @@ Also implemented, beyond the original checklist, because the Definition of Done 
 
 ---
 
-## Phase 3 - Identity & Messaging Foundation
+## Phase 3 - Identity & Messaging Foundation - COMPLETE as of 2026-07-18
 
 Renamed from "Core Platform" on 2026-07-18 per user direction - "Core Platform" was vague about what actually mattered; this phase is where the product's real heart (IdentityGraph-mediated messaging, not just infrastructure) starts running behind real authentication instead of Phase 1's `DEV_WORKSPACE_ID` convenience and Phase 2's internal-only workspace creation.
 
@@ -181,19 +182,19 @@ Mock Connector → Message → IdentityGraph → Conversation → Inbox → Real
 
 Concretely: a real person registers or logs in (Phase 2), triggers (or receives) a message through the Mock Connector, and sees that message appear in *their own* real inbox, tied to *their own* real workspace - not the shared dev-mode `DEV_WORKSPACE_ID` fixture, not a mock-seeded list. Telegram is still not part of this phase (that's Phase 5) - the pipeline is proven with the same Mock Connector as Phase 1, but for the first time driven by a real authenticated identity instead of a hardcoded constant.
 
-- [ ] Workspace/account model as real CRUD (`POST /v1/workspaces`, `GET /v1/workspaces/{id}/members`, per `API.md` Section 10.1) - Phase 2 deliberately scoped workspace creation to an internal side effect of registration only; this phase gives workspaces their own public endpoints
-- [x] IdentityGraph exact-match resolver (`packages/identity`) - already built and verified in Phase 1/2's vertical slice; this phase is where it starts resolving identities for *real, authenticated* workspaces, not just the dev fixture
-- [ ] Real Inbox read model: `GET /v1/conversations`, `GET /v1/conversations/{id}/messages` (`API.md` Section 10.3), backed by real Postgres data scoped to the authenticated user's workspace - replacing Phase 1's dev-only Inbox page that rendered whatever arrived on a shared WebSocket room
-- [ ] Mock Connector ingestion tied to a real, authenticated workspace (via `JwtAuthGuard`) instead of (or alongside, for continued dev convenience) the fixed `DEV_WORKSPACE_ID` - this is the specific change that makes "the user sees *their* first message" true rather than "a shared dev room shows *a* message"
-- [ ] WebSocket realtime scoped to the authenticated user's workspace via their JWT, not a client-supplied `workspaceId` query parameter (Phase 1's shortcut, fine for a shared dev fixture, not fine once real per-user workspaces exist)
-- [ ] Notifications shell backed by real, queryable data (`GET /v1/notifications`) - replacing Phase 1's toast-only, unpersisted-to-the-client stub with an actual notification center a user can revisit
-- [ ] Linked Accounts model (structure only, no real provider yet - Phase 4-5 territory)
-- [ ] Tags
-- [ ] Folders
-- [ ] Search shell (structure, indexing not required yet)
-- [ ] User preferences (silent hours, VIP list structure)
+- [ ] Workspace/account model as real CRUD (`POST /v1/workspaces`, `GET /v1/workspaces/{id}/members`, per `API.md` Section 10.1) - **deferred**, not required by this phase's Definition of Done; Phase 2's internal registration-time creation remains the only way a workspace comes into existence for now
+- [x] IdentityGraph exact-match resolver (`packages/identity`) - already built and verified in Phase 1/2's vertical slice; now resolving identities for *real, authenticated* workspaces, not just the dev fixture, verified live via `verify-phase3.mjs`
+- [x] Real Inbox read model: `GET /v1/conversations`, `GET /v1/conversations/{id}/messages` (`ConversationsController`, ADR-0015: REST, not GraphQL, for now), backed by real Postgres data scoped to the authenticated user's workspace - replaces Phase 1's dev-only Inbox page that rendered whatever arrived on a shared WebSocket room
+- [x] Mock Connector ingestion tied to a real, authenticated workspace (optional Bearer token on `POST /dev/mock-connector/send`; falls back to `DEV_WORKSPACE_ID` only when no token is presented, rejects with 401 if a token is presented but invalid) - this is the specific change that makes "the user sees *their* first message" true rather than "a shared dev room shows *a* message"
+- [x] WebSocket realtime scoped to the authenticated user's workspace via their JWT (`handshake.auth.token`, verified server-side by `TokenService`), not a client-supplied `workspaceId` query parameter (Phase 1's shortcut) - unauthenticated connections are disconnected immediately, verified live
+- [x] Notifications shell backed by real, queryable data (`GET /v1/notifications`) - replaces Phase 1's toast-only, unpersisted-to-the-client stub with an actual notification list a user can revisit (no cursor pagination or read/unread state yet - `Notification` has no `readAt` column, a disclosed simplification vs `DATABASE.md` Section 6.14, deferred to whichever phase first needs it)
+- [ ] Linked Accounts model (structure only, no real provider yet - Phase 4-5 territory) - **deferred**, not required by this phase's Definition of Done
+- [ ] Tags - **deferred**
+- [ ] Folders - **deferred**
+- [ ] Search shell (structure, indexing not required yet) - **deferred**
+- [ ] User preferences (silent hours, VIP list structure) - **deferred**
 
-**Definition of Done**: a real person registers or logs in (Phase 2's real auth, not a dev fixture), a message flows through the Mock Connector → IdentityGraph → Conversation → their real Inbox → over a realtime channel scoped to them → surfaces as a real, persisted Notification they can see and revisit - **the user can genuinely try this**, not just observe it in server logs or a shared dev room. Per the user's own framing: this is the phase where "the user can go into the system and see their first message."
+**Definition of Done - verified live, not just typechecked, via `pnpm --filter @smc/scripts verify:phase3` (11/11 checks passing)**: a real person registers or logs in (Phase 2's real auth, not a dev fixture), a message flows through the Mock Connector → IdentityGraph → Conversation → their real Inbox → over a realtime channel scoped to them → surfaces as a real, persisted Notification they can see and revisit - **the user can genuinely try this**, not just observe it in server logs or a shared dev room. Per the user's own framing: this is the phase where "the user can go into the system and see their first message." `verify-phase3.mjs` also proves workspace isolation (a second, unrelated user's `GET /v1/conversations` is empty) and that an unauthenticated WebSocket connection is rejected. `verify:auth` (16/16) and `verify:soft-delete` re-run clean, confirming no regressions.
 
 **Demo script, added 2026-07-18 per user direction** - the concrete, recordable scenario Phase 3's Definition of Done is judged against, not just a checklist of endpoints:
 
@@ -206,6 +207,8 @@ Concretely: a real person registers or logs in (Phase 2), triggers (or receives)
 7. Opening the conversation shows its message history, not just the single latest message.
 
 This is the project's first genuinely shareable demo (technical progress and something an early user, investor, or partner could actually be shown) - worth being deliberate about, not an afterthought once the checklist above is done.
+
+**Phase Review completed 2026-07-18** - full report at [reviews/phase-3-review.md](reviews/phase-3-review.md). See [ADR-0015](adr/0015-rest-inbox-read-path-for-phase-3.md) for the one real architectural deviation this phase required (`API.md` frames the inbox read path as GraphQL-first; no GraphQL server exists anywhere yet, so Phase 3 implements it as plain REST - GraphQL remains the Phase 9 target). Tagged `v0.3.0-phase3`.
 
 ---
 

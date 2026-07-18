@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { getPrismaClient, newId } from "@smc/database";
 import { AuditLogService } from "../audit/audit-log.service";
-import { authError } from "./auth.exceptions";
+import { httpError } from "../common/http-error";
 import { normalizeEmail, makeSlug, toPublicUser, type PublicUser } from "./auth.utils";
 import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
@@ -42,12 +42,12 @@ export class AuthService {
 
     const policyErrors = this.passwordService.validatePolicy(dto.password);
     if (policyErrors.length > 0) {
-      throw authError(HttpStatus.BAD_REQUEST, "WEAK_PASSWORD", policyErrors.join(" "));
+      throw httpError(HttpStatus.BAD_REQUEST, "WEAK_PASSWORD", policyErrors.join(" "));
     }
 
     const existing = await prisma.user.findFirst({ where: { email } });
     if (existing) {
-      throw authError(
+      throw httpError(
         HttpStatus.CONFLICT,
         "EMAIL_ALREADY_REGISTERED",
         "An account with this email already exists.",
@@ -55,7 +55,7 @@ export class AuthService {
     }
 
     if (await this.passwordService.isKnownBreached(dto.password)) {
-      throw authError(
+      throw httpError(
         HttpStatus.UNPROCESSABLE_ENTITY,
         "PASSWORD_BREACHED",
         "This password has appeared in a known data breach. Please choose a different one.",
@@ -125,7 +125,7 @@ export class AuthService {
     const prisma = getPrismaClient();
 
     if (await this.loginThrottle.isLocked(email, ctx.ipAddress)) {
-      throw authError(
+      throw httpError(
         HttpStatus.TOO_MANY_REQUESTS,
         "ACCOUNT_LOCKED",
         "Too many failed login attempts. Please try again later.",
@@ -147,7 +147,7 @@ export class AuthService {
         ipAddress: ctx.ipAddress,
         metadata: { email },
       });
-      throw authError(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Invalid email or password.");
+      throw httpError(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Invalid email or password.");
     }
 
     await this.loginThrottle.reset(email, ctx.ipAddress);
@@ -161,7 +161,7 @@ export class AuthService {
     if (!membership) {
       // Every user created via register() always gets one - defensive,
       // not an expected runtime path.
-      throw authError(HttpStatus.FORBIDDEN, "NO_WORKSPACE", "This account has no workspace.");
+      throw httpError(HttpStatus.FORBIDDEN, "NO_WORKSPACE", "This account has no workspace.");
     }
 
     const tokens = await this.sessionService.issue(
@@ -199,7 +199,7 @@ export class AuthService {
     });
 
     if (!membership) {
-      throw authError(HttpStatus.FORBIDDEN, "NO_WORKSPACE", "This account has no workspace.");
+      throw httpError(HttpStatus.FORBIDDEN, "NO_WORKSPACE", "This account has no workspace.");
     }
 
     const accessToken = this.sessionService.signAccessToken({

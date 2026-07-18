@@ -3,7 +3,7 @@ import { Job, Worker } from "bullmq";
 import { getPrismaClient, newId, type Contact, type Message } from "@smc/database";
 import { resolveIdentity } from "@smc/identity";
 import { createEvent, EventType, type EventEnvelope } from "@smc/event-model";
-import { DEV_ORGANIZATION_ID, type InboundMessagePayload } from "@smc/shared";
+import { DEV_ORGANIZATION_ID, DEV_WORKSPACE_ID, type InboundMessagePayload } from "@smc/shared";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EVENTS_QUEUE_NAME } from "./events.service";
 import { redisConnection } from "./redis-connection";
@@ -61,28 +61,32 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
     const prisma = getPrismaClient();
     const payload = event.payload;
 
-    // Dev-mode convenience: the Mock Connector's debug endpoint writes
-    // into a fixed dev Workspace/Organization (docs/ROADMAP.md Phase 1
-    // Sprint 2) rather than requiring a real registered user - real users
-    // get real Organizations/Workspaces via POST /v1/auth/register
-    // (Phase 2). Both are upserted here since Workspace now requires a
-    // real organizationId (Phase 2's schema addition).
-    await prisma.organization.upsert({
-      where: { id: DEV_ORGANIZATION_ID },
-      update: {},
-      create: { id: DEV_ORGANIZATION_ID, name: "Dev Organization", slug: "dev-organization" },
-    });
+    // Dev-mode convenience, scoped narrowly (Phase 3): only the fixed
+    // DEV_WORKSPACE_ID fixture gets auto-provisioned here. A real,
+    // authenticated user's workspace is created once, transactionally, by
+    // AuthService.register() (Phase 2) - it must already exist by the
+    // time a message for it arrives. If it doesn't, the Message/Contact
+    // writes below fail with a clear FK error rather than this processor
+    // silently manufacturing a workspace (and, worse, a fabricated
+    // Organization) as a side effect of unrelated message traffic.
+    if (payload.workspaceId === DEV_WORKSPACE_ID) {
+      await prisma.organization.upsert({
+        where: { id: DEV_ORGANIZATION_ID },
+        update: {},
+        create: { id: DEV_ORGANIZATION_ID, name: "Dev Organization", slug: "dev-organization" },
+      });
 
-    await prisma.workspace.upsert({
-      where: { id: payload.workspaceId },
-      update: {},
-      create: {
-        id: payload.workspaceId,
-        organizationId: DEV_ORGANIZATION_ID,
-        name: "Dev Workspace",
-        timezone: "UTC",
-      },
-    });
+      await prisma.workspace.upsert({
+        where: { id: payload.workspaceId },
+        update: {},
+        create: {
+          id: payload.workspaceId,
+          organizationId: DEV_ORGANIZATION_ID,
+          name: "Dev Workspace",
+          timezone: "UTC",
+        },
+      });
+    }
 
     const provider = await prisma.provider.upsert({
       where: { key: payload.providerKey },

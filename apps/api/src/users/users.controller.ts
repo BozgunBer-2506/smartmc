@@ -4,7 +4,7 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { toPublicUser } from "../auth/auth.utils";
-import { authError } from "../auth/auth.exceptions";
+import { httpError } from "../common/http-error";
 import { HttpStatus } from "@nestjs/common";
 
 /**
@@ -21,7 +21,7 @@ export class UsersController {
     const user = await prisma.user.findFirst({ where: { id: claims.sub } });
 
     if (!user) {
-      throw authError(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User not found.");
+      throw httpError(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User not found.");
     }
 
     const memberships = await prisma.workspaceMember.findMany({

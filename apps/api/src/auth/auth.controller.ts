@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from "@nes
 import type { Request, Response } from "express";
 import { authConfig } from "../config/auth.config";
 import { AuthService } from "./auth.service";
-import { authError } from "./auth.exceptions";
+import { httpError } from "../common/http-error";
 import { CurrentUser } from "./current-user.decorator";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
@@ -43,7 +43,7 @@ export class AuthController {
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const presented = req.cookies?.[authConfig.refreshCookieName];
     if (!presented) {
-      throw authError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_MISSING", "No refresh token cookie present.");
+      throw httpError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_MISSING", "No refresh token cookie present.");
     }
 
     const result = await this.authService.refresh(presented, this.buildContext(req));

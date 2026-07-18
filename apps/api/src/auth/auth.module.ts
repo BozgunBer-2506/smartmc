@@ -9,6 +9,7 @@ import { LoginThrottleService } from "./login-throttle.service";
 import { PasswordService } from "./password.service";
 import { RolesGuard } from "./roles.guard";
 import { SessionService } from "./session.service";
+import { TokenService } from "./token.service";
 
 @Module({
   imports: [
@@ -24,9 +25,14 @@ import { SessionService } from "./session.service";
     SessionService,
     PasswordService,
     LoginThrottleService,
+    TokenService,
     JwtAuthGuard,
     RolesGuard,
   ],
-  exports: [JwtAuthGuard, RolesGuard, JwtModule],
+  // TokenService (verification) and JwtModule (signing, via SessionService)
+  // are both exported so any module needing to authenticate a token -
+  // RealtimeModule's gateway, MockConnectorModule's optional-auth path -
+  // can do so identically, without re-deriving the secret/config itself.
+  exports: [JwtAuthGuard, RolesGuard, JwtModule, TokenService],
 })
 export class AuthModule {}
