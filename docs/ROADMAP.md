@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 1.9
+Version: 2.0
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -194,6 +194,18 @@ Concretely: a real person registers or logs in (Phase 2), triggers (or receives)
 - [ ] User preferences (silent hours, VIP list structure)
 
 **Definition of Done**: a real person registers or logs in (Phase 2's real auth, not a dev fixture), a message flows through the Mock Connector → IdentityGraph → Conversation → their real Inbox → over a realtime channel scoped to them → surfaces as a real, persisted Notification they can see and revisit - **the user can genuinely try this**, not just observe it in server logs or a shared dev room. Per the user's own framing: this is the phase where "the user can go into the system and see their first message."
+
+**Demo script, added 2026-07-18 per user direction** - the concrete, recordable scenario Phase 3's Definition of Done is judged against, not just a checklist of endpoints:
+
+1. A user registers.
+2. They log in.
+3. A message arrives via the Mock Connector.
+4. It appears in their Inbox in real time (no page refresh).
+5. A notification surfaces.
+6. The sender resolves through IdentityGraph and is visibly attributed as a person (name shown), not a raw provider id - demonstrating IdentityGraph is real, even though a dedicated People/Identity profile screen (`UI_GUIDE.md` Section 7) is not Phase 3 scope; the same data is visible inline wherever the sender is shown.
+7. Opening the conversation shows its message history, not just the single latest message.
+
+This is the project's first genuinely shareable demo (technical progress and something an early user, investor, or partner could actually be shown) - worth being deliberate about, not an afterthought once the checklist above is done.
 
 ---
 
