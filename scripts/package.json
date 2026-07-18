@@ -1,0 +1,11 @@
+{
+  "name": "@smc/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "verify:realtime": "node verify-realtime.mjs"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.0"
+  }
+}

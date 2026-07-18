@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 2.0
+Version: 2.1
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -20,67 +20,98 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 - Product Foundation: COMPLETE as of 2026-07-18.** Every box on `ROADMAP.md`'s Phase 0 checklist is checked. **Phase 1 - Project Bootstrap has not yet started** - no application code exists in this repository yet, deliberately.
+**Phase 0 - Product Foundation: COMPLETE.** **Phase 1 - Project Bootstrap: COMPLETE and verified end-to-end** as of 2026-07-18 (Sprint 1 infrastructure + Sprint 2 vertical slice - see below). **Phase 2 - Authentication has not started.**
+
+## What Actually Runs Right Now
+
+This is no longer a documentation-only repository. From a clean checkout:
+
+```
+pnpm install          # see the environment note below - must run from real WSL, not a Windows UNC path
+docker compose up -d   # Postgres (host port 5433), Redis, mailhog
+pnpm db:generate && pnpm db:push
+pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc --watch
+```
+
+Then, with `pnpm dev` running:
+- `GET http://localhost:4000/health` → `{"status":"ok","checks":{"database":"ok","redis":"ok"}}`
+- Opening `http://localhost:3000` shows a dev Inbox with a "Send mock message" control
+- Clicking it (or `POST /dev/mock-connector/send`) drives the full pipeline live: Mock Connector → `message.received` event (BullMQ) → IdentityGraph exact-match resolution → Postgres write (Contact/Conversation/Message) → WebSocket push → the Inbox page renders the message → a hardcoded stub rule fires → a Notification row is created → a toast appears
+- `pnpm --filter @smc/scripts verify:realtime` is a standing regression check: connects a real socket.io client, triggers the Mock Connector, and asserts both `message.received` and `notification.created` arrive over the wire - this is what was actually run to verify Sprint 2's Definition of Done, not just server logs
+
+**Environment note (read before re-running `pnpm install`)**: this repo sits on a WSL filesystem reached from Windows via a `\\wsl.localhost\...` UNC path. Windows-native pnpm crashes on that path (`Error: ...: is not a valid disk on Windows`, a pnpm bug, not a project misconfiguration - `package-import-method=copy` in `.npmrc` does not fix it). Run `pnpm`/`docker`/`node` commands from inside real WSL instead: `wsl.exe -d Ubuntu -- bash -lc 'cd /home/.../smartmc && <command>'`. Editing files across the UNC path from Windows-side tools is fine; it's specifically pnpm's Windows install machinery that can't handle it.
 
 ## Repository
 
-**Structure finalized 2026-07-18 via [ADR-0011](adr/0011-monorepo-layout.md).**
+**Structure finalized 2026-07-18 via [ADR-0011](adr/0011-monorepo-layout.md), populated 2026-07-18 (Phase 1):**
 ```
 smartmc/
-├── docs/ (PRODUCT.md, ARCHITECTURE.md, DATABASE.md, API.md, SECURITY.md, AUTOMATION_ENGINE.md,
-│         CONNECTOR_SDK.md, EVENT_MODEL.md, UI_GUIDE.md, DESIGN_SYSTEM.md, ROADMAP.md, STATUS.md,
-│         DECISIONS.md, adr/ [0001-0013])
-├── apps/         (web, api, desktop, mobile - all empty, reserved per phase)
-├── packages/       (connector-sdk, automation-engine, database, auth, shared, design-tokens, ui, ai, config - all empty)
-├── infrastructure/   (empty, reserved for Docker/K8s/Terraform)
-├── scripts/       (empty, reserved for CI-support scripts)
-├── LICENSE        (all-rights-reserved, added 2026-07-18)
+├── docs/          (14 documents, adr/ [0001-0013])
+├── apps/
+│   ├── web/         Next.js dev Inbox - real, running (apps/desktop, apps/mobile still empty, reserved)
+│   └── api/         NestJS - health, events (BullMQ), realtime gateway (socket.io), mock-connector trigger
+├── packages/
+│   ├── database/      Prisma schema (pragmatic initial subset of DATABASE.md) + client
+│   ├── shared/       Canonical domain types + DEV_WORKSPACE_ID
+│   ├── event-model/    EventEnvelope + EventType, per EVENT_MODEL.md
+│   ├── identity/      IdentityGraph exact-match resolver, per ARCHITECTURE.md Section 13
+│   ├── connector-sdk/   Mock Connector generator (full CONNECTOR_SDK.md contract is Phase 4)
+│   ├── ui/          Minimal Button primitive (full DESIGN_SYSTEM.md build-out is later)
+│   │                (automation-engine, auth, ai, config, design-tokens still empty, reserved per phase)
+├── infrastructure/   (empty, reserved)
+├── scripts/        @smc/scripts - verify-realtime.mjs (WebSocket regression check)
+├── docker-compose.yml (Postgres @ 5433 - not 5432, to avoid a collision with an unrelated local project)
+├── LICENSE        (all-rights-reserved)
 ```
-GitHub remote: `https://github.com/BozgunBer-2506/smartmc` - public, connected, all work pushed to `main`. No secrets have ever been tracked; `.gitignore` hardened 2026-07-18.
+GitHub remote: `https://github.com/BozgunBer-2506/smartmc` - public, connected. `pnpm-lock.yaml` now exists and is tracked.
 
-## Phase 0 - Complete Document Set (13 documents, 13 ADRs)
+## Phase 1 - What's Done and What's Honestly Not
+
+**Sprint 1 (infrastructure)** - done, with two items open, not glossed over:
+- [x] Monorepo (pnpm + Turborepo), Next.js + NestJS scaffolds, Docker Compose, Prisma init + push, CI (`lint`/`typecheck`/`build`, no `test` yet per explicit user direction - added when tests exist)
+- [ ] **Real ESLint/Prettier config (`packages/config`) - not done.** Every `lint` script is currently a stub. This is the most concrete near-term gap.
+- [ ] **Husky pre-commit hooks - not done**, blocked on the item above.
+
+**Sprint 2 (vertical slice)** - done and verified (not just claimed): message → bus → IdentityGraph → DB → WebSocket → stub inbox → stub rule → stub notification, proven via `/health`, direct Postgres queries, and a real WebSocket client round-trip. Full detail in `ROADMAP.md`'s Phase 1 section.
+
+## Phase 0 - Complete Document Set (14 documents, 13 ADRs)
 
 | Document | Core content |
 |---|---|
 | `PRODUCT.md` | Vision, personas, 100 problems/solutions, competitor analysis, MVP/V2, pricing, brand, IdentityGraph-sharpened moat argument, Never Build list |
-| `ARCHITECTURE.md` | System architecture, folder structure, DB schema draft, event flow, API design draft, auth flow, infra, CI/CD, tech-choice rationale, **Section 13: IdentityGraph** (responsibilities, moat argument, worked "two Ahmets" example, risks, privacy, data ownership) |
-| `DATABASE.md` | Full PostgreSQL schema: 22+ entity groups, IdentityGraph persistence (`contacts`/`contact_identities`/`identity_merge_suggestions`/`identity_merge_log`/`identity_split_log`), partitioning/archiving/search/GDPR/RLS strategy |
-| `API.md` | Full REST+GraphQL contract: versioning, error model, pagination, auth, webhooks, WebSockets/SSE, idempotency, 10 capability groups |
-| `SECURITY.md` | Threat model, credential/secrets management, GDPR operational policy, audit logging spec, OWASP-mapped mitigations |
-| `AUTOMATION_ENGINE.md` | The flagship differentiator: trigger/condition/action models, IdentityGraph-powered Context Object, execution engine, simulator/debugger, marketplace, 208 examples across 16 categories |
-| `CONNECTOR_SDK.md` | The contract any provider integration conforms to: lifecycle, hybrid ingestion (required), certification checklist, Mock Connector as reference implementation |
-| `EVENT_MODEL.md` | The canonical ~40-event registry: envelope, ordering, idempotency, retry/DLQ, naming/versioning |
-| `UI_GUIDE.md` | Complete UX philosophy: mental model, information architecture, every core screen, empty/loading/error states, confirmation-vs-instant rules |
-| `DESIGN_SYSTEM.md` | Implementation-ready design system on shadcn/ui + Tailwind: token layer (shared with future React Native), primitives, IdentityGraph-specific components (Identity Avatar, Merge Suggestion Card, etc.) |
-| `ROADMAP.md` | 19 phases, working rules, Phase 1 split into two sprints with explicit Definitions of Done through Phase 5 |
+| `ARCHITECTURE.md` | System architecture, folder structure, DB schema draft, event flow, API design draft, auth flow, infra, CI/CD, tech-choice rationale, **Section 13: IdentityGraph** |
+| `DATABASE.md` | Full PostgreSQL schema (spec - Phase 1 implements a pragmatic initial subset, see above) |
+| `API.md` | Full REST+GraphQL contract |
+| `SECURITY.md` | Threat model, credential/secrets management, GDPR operational policy, audit logging spec |
+| `AUTOMATION_ENGINE.md` | The flagship differentiator - trigger/condition/action models, IdentityGraph-powered Context Object, 208 examples |
+| `CONNECTOR_SDK.md` | The contract any provider integration conforms to (Phase 4 - Phase 1's Mock Connector is a minimal precursor, not yet conformant) |
+| `EVENT_MODEL.md` | The canonical ~40-event registry (Phase 1 implements 4 of them - message.received, rule.triggered, rule.action_executed, notification.created) |
+| `UI_GUIDE.md` | Complete UX philosophy |
+| `DESIGN_SYSTEM.md` | Implementation-ready design system (Phase 1's `@smc/ui` is a placeholder, not yet built against this spec) |
+| `ROADMAP.md` | 19 phases, working rules, Phase 1's two sprints with verified Definitions of Done |
 | `STATUS.md` | This file |
 | `DECISIONS.md` | Index of all 13 ADRs |
 
-**ADRs 0001-0013**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout (`apps/`+`packages/`), **IdentityGraph as a first-class capability**, **identity merge safety over matching cleverness**.
+**ADRs 0001-0013**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness.
 
-**Milestones worth remembering, not just the file list:**
-- **IdentityGraph** (ADR-0012/0013) is the named, formalized technical moat - every consuming system (Automation Engine, Search, AI, Notifications) reasons about identities, never raw provider accounts; merges require human approval via a persisted, reviewable suggestion queue; every merge is reversible; strictly workspace-scoped, never cross-tenant.
-- **Repository layout** was resolved deliberately before Phase 1 (ADR-0011), not deferred - a provisional `backend/`+`frontend/`+`connectors/` split existed for about 24 hours before being fully replaced.
-- **Licensing**: repo is public but unlicensed beyond an explicit all-rights-reserved `LICENSE` - open-sourcing (MIT/Apache) is deferred as a deliberate future decision, not a default.
-- **Working rule adopted**: every phase from here ends with working, demonstrable software, not just checked boxes - Phase 1 is split into Sprint 1 (infra only) and Sprint 2 (a mock-connector-only slice proving the *entire* pipeline: message → bus → IdentityGraph exact-match resolution → DB → WebSocket → stub inbox → stub rule → stub notification), before any real connector or the real Automation Engine/Notification Service exist.
+## Known Open Decisions / Gaps (tracked so they aren't lost)
 
-## Known Open Decisions (unresolved, tracked so they aren't lost)
+1. **Pricing numbers** ($12/mo Pro, $18/seat Business) - a starting hypothesis (`PRODUCT.md`), not a blocker.
+2. **LinkedIn DM integration** feasibility (no public API) - deferred to Phase 16-17.
+3. **Real lint/format config + pre-commit hooks** - Sprint 1's two open items, above. Recommended next action before Phase 2 starts, since it's cheap now and gets more disruptive to retrofit the more code exists.
+4. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - grows toward it incrementally as later phases need more of it (soft deletes, audit logs, IdentityGraph confidence scoring/merge suggestions, RLS, etc. are all specified but not yet implemented in the actual schema).
 
-1. **Pricing numbers** ($12/mo Pro, $18/seat Business) are a starting hypothesis (`PRODUCT.md`), likely to need adjustment post-launch based on conversion data. Not a blocker.
-2. **LinkedIn DM integration** feasibility (no public API) - unresolved, deferred to Phase 16-17 timeframe. May end up in the Never Build list.
-
-All other previously-open decisions are resolved - see [DECISIONS.md](DECISIONS.md) for the full ADR index.
+All other previously-open decisions are resolved - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-**Begin Phase 1 - Project Bootstrap**, directly against the `apps/`+`packages/` structure ratified in ADR-0011, no further reconciliation needed:
-
-1. Sprint 1: monorepo setup (pnpm + Turborepo), `apps/web`/`apps/api` scaffolds, Docker Compose (Postgres/Redis/mailhog), Prisma init, lint/typecheck/CI skeleton - no connector, no product surface yet.
-2. Sprint 2: the Mock Connector (`CONNECTOR_SDK.md` Section 18) and the full stubbed end-to-end slice (`ROADMAP.md` Phase 1's Definition of Done) - message ingestion through to a felt notification, entirely with fake data and stub logic, before Telegram or the real Automation Engine exist.
+1. Close Sprint 1's two open items: real ESLint/Prettier config (`packages/config`) and Husky pre-commit hooks.
+2. Begin Phase 2 - Authentication (register/login, OAuth, passkeys, 2FA, session management) - the dev-mode fixed `DEV_WORKSPACE_ID` and unauthenticated `/dev/mock-connector/send` endpoint are Phase 1 conveniences to be replaced, not permanent design.
 
 ## How to Resume From Zero Context
 
 1. Read this file (`STATUS.md`).
-2. Read `ROADMAP.md` for the full phase plan and working rules.
+2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1's exact verification steps.
 3. Read `PRODUCT.md`, `ARCHITECTURE.md` (especially Section 13, IdentityGraph), and `DECISIONS.md` for decisions already made - do not re-derive or re-litigate anything documented there.
-4. Continue from "Next Action" above, or from wherever the user redirects.
+4. To actually run the app: see "What Actually Runs Right Now" above, including the WSL environment note - don't rediscover that the hard way.
+5. Continue from "Next Action" above, or from wherever the user redirects.

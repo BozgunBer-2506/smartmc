@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 1.5
+Version: 1.6
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -70,6 +70,8 @@ smartmc/
 
 This is not provisional. Phase 1 bootstrap (below) proceeds directly against this structure with no further reconciliation needed.
 
+**Phase 1 populated a subset of this layout, 2026-07-18**: `apps/web`, `apps/api`, `packages/database`, `packages/shared`, `packages/connector-sdk`, `packages/ui`, plus two packages not originally named in ADR-0011 - `packages/event-model` (a home for `EVENT_MODEL.md`'s envelope/event-type code, split out from `shared` because it's a distinct enough concern to version and consume independently) and `packages/identity` (IdentityGraph's exact-match resolver, `ARCHITECTURE.md` Section 13) - and `scripts` (promoted from a reserved empty directory to a real workspace package, `@smc/scripts`, holding dev/verification tooling). `apps/desktop`, `apps/mobile`, `packages/automation-engine`, `packages/auth`, `packages/ai`, `packages/config`, `packages/design-tokens`, and `infrastructure/` remain empty, reserved for their originally-planned phases (15, 14, 10, 2, 13, 2, Design System's future implementation, and later deployment work respectively) - not built ahead of need.
+
 ---
 
 ## Phase 0 - Product Foundation
@@ -104,32 +106,45 @@ Goal: a working, empty project. Split into two sprints so "working software at t
 
 ### Sprint 1 - Infrastructure, No Product Surface Yet
 
-- [ ] Monorepo setup (pnpm workspaces + Turborepo, per ARCHITECTURE.md section 11 / ADR-0011)
-- [ ] Next.js app scaffold (`apps/web`)
-- [ ] NestJS app scaffold (`apps/api`)
-- [ ] Docker + Docker Compose for local dev (Postgres, Redis, mailhog)
-- [ ] Prisma initialized against `DATABASE.md` schema
-- [ ] PostgreSQL + Redis wired into local dev
-- [ ] ESLint + Prettier shared config (`packages/config`)
-- [ ] Husky pre-commit hooks (lint, typecheck)
-- [ ] GitHub Actions CI skeleton (lint, typecheck, build - per ARCHITECTURE.md section 9)
+**Complete as of 2026-07-18, with two items honestly still open (see below) - not glossed over as done.**
+
+- [x] Monorepo setup (pnpm workspaces + Turborepo, per ARCHITECTURE.md section 11 / ADR-0011)
+- [x] Next.js app scaffold (`apps/web`)
+- [x] NestJS app scaffold (`apps/api`)
+- [x] Docker + Docker Compose for local dev (Postgres, Redis, mailhog) - Postgres remapped to host port 5433, not 5432, to avoid colliding with an unrelated local project already using 5432
+- [x] Prisma initialized against a pragmatic initial subset of `DATABASE.md`'s schema (Workspace, Provider, Contact, ContactIdentity, Conversation, Message, Notification) - grows toward the full spec as later phases actually need more of it, not implemented speculatively ahead of need
+- [x] PostgreSQL + Redis wired into local dev, verified live via `GET /health`
+- [ ] ESLint + Prettier shared config (`packages/config`) - **not done yet**. Every package's `lint` script is currently a stub (`echo "(no lint configured yet)"`). Real linting is the next concrete gap to close, before Phase 2.
+- [ ] Husky pre-commit hooks (lint, typecheck) - **not done yet**, blocked on the item above (no real lint config to hook into yet).
+- [x] GitHub Actions CI skeleton (`pnpm lint` / `pnpm typecheck` / `pnpm build`, no `pnpm test` yet since no tests exist - per explicit user direction) - runs today, though the `lint` step is currently only exercising the stub scripts above until real linting exists.
 
 **Not a single connector is written in this sprint - not even the mock connector.** This sprint is infrastructure only.
 
-### Sprint 2 - The First End-to-End Slice (Mock Connector Only, Never Telegram)
+**Verified**: `pnpm install` (must run from a genuine Linux filesystem path - see the environment note below), `docker compose up -d`, `pnpm db:generate && pnpm db:push`, then `pnpm dev` - all 8 workspace packages start (6 in `tsc --watch`, `apps/api` via `nodemon`+`ts-node`, `apps/web` via `next dev`), and `pnpm lint`/`pnpm typecheck`/`pnpm build` all pass cleanly across every package.
+
+**Environment note, recorded so it isn't rediscovered painfully later**: this repo lives on a WSL filesystem accessed from Windows via a `\\wsl.localhost\...` UNC path. Running `pnpm install` through a Windows-native Node/pnpm against that UNC path crashes with `Error: ...: is not a valid disk on Windows` (a pnpm bug in its Windows disk-type-detection code, unrelated to `package-import-method`). The fix is to run `pnpm`/`node`/`docker` commands from inside real WSL (`wsl.exe -d Ubuntu -- bash -lc '...'`, operating on `/home/.../smartmc`, not the Windows-side UNC path) - Windows-side tools can still edit files across the UNC path without issue; it's specifically pnpm's Windows install machinery that can't handle it.
+
+### Sprint 2 - The First End-to-End Slice (Mock Connector Only, Never Telegram) - COMPLETE and VERIFIED, 2026-07-18
 
 Extended 2026-07-18 per user direction to prove the *whole* heartbeat of the product - ingestion through to a felt notification - not just message delivery. Every piece below is a deliberately minimal stub, not the real system: a hardcoded single rule, not the Phase 10 rule builder; an in-app toast, not the Phase 11 Notification Service. The point of Sprint 2 is proving the shape of the full loop end-to-end as cheaply as possible; each stub is properly built out in its own later phase (Phase 9-11) without changing the shape proven here.
 
-- [ ] `packages/connector-sdk` scaffolded per `CONNECTOR_SDK.md`'s contract (interface, registry, lifecycle state machine)
-- [ ] The Mock Connector (`CONNECTOR_SDK.md` Section 18) - not Telegram, not any real provider
-- [ ] Event bus wired per `EVENT_MODEL.md`'s envelope + `message.received` event
-- [ ] Minimal `apps/api` handler: Mock Connector event → IdentityGraph exact-match resolution (Phase 3's scaffold) → Postgres (`packages/database`) write
-- [ ] WebSocket push (`API.md` Section 11) from that write to a connected client
-- [ ] A bare-bones `apps/web` screen that connects over WebSocket and renders an incoming mock message live - a stand-in for the real unified inbox (Phase 9)
-- [ ] **One hardcoded stub rule** (not the visual builder, not the rule engine's full trigger/condition/action model - a single, literal `if message.received then create notification` check) reacting to the mock message via `rule.triggered`/`rule.action_executed` events (`EVENT_MODEL.md` Section 7.5) - a stand-in for the real Automation Engine (Phase 10)
-- [ ] **One stub notification** (an in-app toast, not push/email, not the Notification Service's silent-hours/VIP logic) appearing as a result of the stub rule firing - a stand-in for the real Notification Service (Phase 11)
+- [x] `packages/connector-sdk` scaffolded (Mock Connector generator only at this stage - the full lifecycle/capability-manifest/certification-suite contract from `CONNECTOR_SDK.md` is Phase 4 scope, not retrofitted here ahead of need)
+- [x] The Mock Connector (`CONNECTOR_SDK.md` Section 18) - not Telegram, not any real provider; exposed via a debug-only `POST /dev/mock-connector/send` endpoint
+- [x] Event bus wired: a single BullMQ `events` queue (per-type queue/consumer fan-out is a later scaling concern, not needed to prove the shape) carrying the `EVENT_MODEL.md` envelope, including `correlationId`/`causationId` propagated through the whole causal chain
+- [x] `apps/api` handler: Mock Connector event → IdentityGraph exact-match resolution (`packages/identity`, Phase 3's scaffold) → Postgres (`packages/database`) write
+- [x] WebSocket push (`API.md` Section 11, via `socket.io`) from that write to a connected client, joined to a per-workspace room
+- [x] `apps/web` Inbox screen that connects over WebSocket and renders an incoming mock message live - a stand-in for the real unified inbox (Phase 9)
+- [x] **One hardcoded stub rule** (`if message.received then create notification`, not the visual builder, not the real trigger/condition/action model) - emits `rule.triggered` → `rule.action_executed` → `notification.created` events (`EVENT_MODEL.md` Section 7.5/7.6), each carrying the prior event as its `causationId` - a stand-in for the real Automation Engine (Phase 10)
+- [x] **One stub notification** (an in-app toast, not push/email, not the Notification Service's silent-hours/VIP logic) appearing as a result of the stub rule firing - a stand-in for the real Notification Service (Phase 11)
 
-**Definition of Done for Phase 1**: `docker compose up`, register an account (Phase 2's auth, or a seeded dev-mode user if auth isn't ready yet), open the web app, trigger the Mock Connector to emit a synthetic message - and watch the full loop happen live: the message appears in the (stub) inbox, the stub rule fires, and a notification toast appears. This is `ARCHITECTURE.md` Section 1's entire pipeline diagram, felt end-to-end with fake data and stubbed intelligence, before a single line of Telegram-specific code or a single real automation rule exists. If this doesn't work smoothly with a mock connector and a trivial stub rule, it will not work smoothly once Telegram (Phase 5) and the real Automation Engine (Phase 10) replace those stubs - this sprint is where the pipeline's *shape* gets validated cheaply, before any of its pieces get complicated.
+**Definition of Done for Phase 1 - verified, not just asserted:**
+1. `GET /health` returns `{"status":"ok","checks":{"database":"ok","redis":"ok"}}`.
+2. `POST /dev/mock-connector/send` with a synthetic sender/body returns `202`-equivalent `{"status":"queued", eventId, correlationId}`.
+3. Server-side log trace confirms the full causal chain fired in order: `message.received` → `rule.triggered` → `rule.action_executed` → `notification.created`.
+4. Direct Postgres query confirms real rows: a `Contact` ("Deniz"), a `Message` (inbound, correct body), a `Notification` ("New message from Deniz") - **it fell into the DB**, per the Turkish spec's literal bitiş criteria.
+5. A real WebSocket client (`scripts/verify-realtime.mjs`, run via `pnpm --filter @smc/scripts verify:realtime`) joins the workspace room, triggers the Mock Connector, and receives both `message.received` and `notification.created` over the actual socket.io transport within the same test run - **the user will see it, and the notification will arrive**, proven over the wire, not just inferred from server logs.
+
+This is `ARCHITECTURE.md` Section 1's entire pipeline diagram, felt end-to-end with fake data and stubbed intelligence, before a single line of Telegram-specific code or a single real automation rule exists.
 
 ---
 

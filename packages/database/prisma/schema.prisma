@@ -1,0 +1,130 @@
+// Minimal initial subset of docs/DATABASE.md's full schema - just enough
+// to support Phase 1's vertical slice (docs/ROADMAP.md Phase 1 Sprint 2).
+// Grows toward the full spec (soft deletes, audit logs, RLS-readiness,
+// IdentityGraph's confidence-score/merge-suggestion tables, etc.) as later
+// phases actually need those pieces - not implemented speculatively ahead
+// of need. IDs are UUIDv7 (ADR-0007), generated application-side (see
+// packages/database/src/ids.ts) rather than via Prisma's @default(uuid()),
+// which only generates UUIDv4.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id        String   @id @db.Uuid
+  name      String
+  timezone  String   @default("UTC")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  contacts      Contact[]
+  conversations Conversation[]
+  messages      Message[]
+  notifications Notification[]
+
+  @@map("workspaces")
+}
+
+model Provider {
+  id          String @id @db.Uuid
+  key         String @unique
+  displayName String @map("display_name")
+
+  contactIdentities ContactIdentity[]
+  conversations     Conversation[]
+
+  @@map("providers")
+}
+
+/// A deduplicated real person, independent of channel - IdentityGraph's
+/// persistence layer (docs/ARCHITECTURE.md Section 13, docs/DATABASE.md
+/// Section 6.6). This Phase 1 version implements exact-match resolution
+/// only (docs/ROADMAP.md Phase 3 scope) - confidence scoring and the
+/// merge-suggestion queue are Phase 9 additions.
+model Contact {
+  id          String   @id @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  displayName String   @map("display_name")
+  isVip       Boolean  @default(false) @map("is_vip")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id])
+  identities ContactIdentity[]
+  messages   Message[]
+
+  @@map("contacts")
+}
+
+model ContactIdentity {
+  id          String   @id @db.Uuid
+  contactId   String   @map("contact_id") @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  providerId  String   @map("provider_id") @db.Uuid
+  externalId  String   @map("external_id")
+  handle      String?
+  matchType   String   @default("exact") @map("match_type") // "exact" | "confirmed_manual" - docs/DATABASE.md Section 6.6
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  contact  Contact  @relation(fields: [contactId], references: [id])
+  provider Provider @relation(fields: [providerId], references: [id])
+
+  @@unique([providerId, externalId, workspaceId], name: "uq_contact_identities_provider_external")
+  @@map("contact_identities")
+}
+
+model Conversation {
+  id            String   @id @db.Uuid
+  workspaceId   String   @map("workspace_id") @db.Uuid
+  providerId    String   @map("provider_id") @db.Uuid
+  externalId    String   @map("external_id")
+  title         String?
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  provider  Provider  @relation(fields: [providerId], references: [id])
+  messages  Message[]
+
+  @@unique([providerId, externalId, workspaceId], name: "uq_conversations_provider_external")
+  @@map("conversations")
+}
+
+model Message {
+  id               String   @id @db.Uuid
+  workspaceId      String   @map("workspace_id") @db.Uuid
+  conversationId   String   @map("conversation_id") @db.Uuid
+  externalId       String   @map("external_id")
+  senderContactId  String?  @map("sender_contact_id") @db.Uuid
+  direction        String   // "inbound" | "outbound" - docs/DATABASE.md Section 6.8
+  bodyText         String   @map("body_text")
+  receivedAt       DateTime @map("received_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id])
+  conversation Conversation  @relation(fields: [conversationId], references: [id])
+  sender       Contact?      @relation(fields: [senderContactId], references: [id])
+  notifications Notification[]
+
+  @@unique([conversationId, externalId], name: "uq_messages_conversation_external")
+  @@map("messages")
+}
+
+model Notification {
+  id          String   @id @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  messageId   String?  @map("message_id") @db.Uuid
+  type        String   @default("message") // "message" | "reminder" | "digest" | "system" - docs/DATABASE.md Section 6.14
+  title       String
+  body        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  message   Message?  @relation(fields: [messageId], references: [id])
+
+  @@map("notifications")
+}
