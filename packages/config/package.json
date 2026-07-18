@@ -1,0 +1,19 @@
+{
+  "name": "@smc/config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "eslint-preset.js",
+  "files": [
+    "eslint-preset.js",
+    "prettier-preset.js"
+  ],
+  "peerDependencies": {
+    "eslint": "^8.57.0",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint-config-prettier": "^9.1.0"
+  }
+}

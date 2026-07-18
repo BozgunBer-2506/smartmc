@@ -8,12 +8,13 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"(no lint configured yet)\""
+    "lint": "eslint . --ext .ts,.tsx"
   },
   "peerDependencies": {
     "react": "^18.3.0"
   },
   "devDependencies": {
+    "@smc/config": "workspace:*",
     "@types/react": "^18.3.0",
     "typescript": "^5.6.0"
   }

@@ -83,6 +83,10 @@ Full detail in `ROADMAP.md`'s Phase 3 section and [docs/reviews/phase-3-review.m
 
 Tagged `v0.3.0-phase3`.
 
+## Lint / Husky gap - closed 2026-07-18 (before Phase 4)
+
+The project's oldest open item (flagged unresolved in both the Phase 1 and Phase 2 reviews) is now closed. `packages/config` (previously reserved/empty) now holds a real shared ESLint preset (`eslint-preset.js`, `eslint:recommended` + `plugin:@typescript-eslint/recommended` + `eslint-config-prettier`, non-type-aware for speed) and a shared Prettier preset (`prettier-preset.js`). All 7 non-Next code-bearing packages extend it via `.eslintrc.js` (`extends: [require.resolve("@smc/config/eslint-preset")]` - a plain string `"@smc/config/eslint-preset"` does not resolve correctly through ESLint's `eslint-config-*` naming-convention resolver once a shareable config name has a subpath, so `require.resolve()` is used to bypass that resolution and hand ESLint an absolute path directly). `apps/web` uses `next lint` + `eslint-config-next` instead, matching Next.js's own convention. A Husky pre-commit hook (`.husky/pre-commit`) now runs `pnpm lint && pnpm typecheck` before every commit. `pnpm lint`/`pnpm typecheck`/`pnpm build` all verified clean across all 8 code-bearing packages after the change (2 pre-existing `no-explicit-any` warnings in `packages/database/src/soft-delete.ts`, no errors).
+
 ## Phase 2 - Authentication (backend complete, verified live)
 
 Full detail in `ROADMAP.md`'s Phase 2 section and [docs/reviews/phase-2-review.md](reviews/phase-2-review.md). Summary:
@@ -97,7 +101,7 @@ Tagged `v0.2.0-phase2`.
 
 ## Phase 1 - Project Bootstrap (complete, reviewed, hardened)
 
-**Sprint 1 (infrastructure)** - complete except two still-open items: real ESLint/Prettier config (`packages/config`) and Husky pre-commit hooks - every `lint` script is still a stub. **This is now the single oldest open item in the project** (flagged in the Phase 1 review, still not closed after Phase 2 - worth prioritizing before Phase 3 adds much more code to eventually lint).
+**Sprint 1 (infrastructure)** - now fully complete. Real ESLint/Prettier config and Husky pre-commit hooks were closed 2026-07-18, before Phase 4 - see "Lint / Husky gap - closed" above.
 
 **Sprint 2 (vertical slice)** - complete and re-verified after Phase 2's schema changes.
 
@@ -127,17 +131,15 @@ Tagged `v0.2.0-phase2`.
 
 1. **Pricing numbers** ($12/mo Pro, $18/seat Business) - a starting hypothesis (`PRODUCT.md`), not a blocker.
 2. **LinkedIn DM integration** feasibility (no public API) - deferred to Phase 16-17.
-3. **Real lint/format config + pre-commit hooks** - still open since Phase 1, now the project's oldest unresolved item across three phases. Recommended before Phase 4.
-4. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - soft deletes and the auth core (Organization/User/Session/AuditLog/etc.) are now implemented; `LinkedAccount`, IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
-5. **Six Phase 2 simplifications on record** (citext→app-level email normalization, no timing-attack mitigation on login, no `trust proxy` config, raw device/IP in session listing, untuned Argon2id parameters, 15-min role-change propagation delay) - all reasoned and disclosed in `docs/reviews/phase-2-review.md`, none hidden.
-6. **`Notification` has no `readAt` column** - `GET /v1/notifications` (Phase 3) is read-only, no mark-read/unread state yet. Disclosed in `docs/reviews/phase-3-review.md`, deferred to whichever phase first needs it (likely Phase 11).
+3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - soft deletes and the auth core (Organization/User/Session/AuditLog/etc.) are now implemented; `LinkedAccount`, IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
+4. **Six Phase 2 simplifications on record** (citext→app-level email normalization, no timing-attack mitigation on login, no `trust proxy` config, raw device/IP in session listing, untuned Argon2id parameters, 15-min role-change propagation delay) - all reasoned and disclosed in `docs/reviews/phase-2-review.md`, none hidden.
+5. **`Notification` has no `readAt` column** - `GET /v1/notifications` (Phase 3) is read-only, no mark-read/unread state yet. Disclosed in `docs/reviews/phase-3-review.md`, deferred to whichever phase first needs it (likely Phase 11).
 
-All other previously-open decisions are resolved - see [DECISIONS.md](DECISIONS.md).
+All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-1. Close the lint/Husky gap (item 3 above) - it's been open since Phase 1, survived Phase 2 and Phase 3 unaddressed, and should not survive Phase 4 too.
-2. Begin Phase 4 - Connector SDK: build out `CONNECTOR_SDK.md`'s full contract (lifecycle, registry, webhook/polling/hybrid ingestion, health checks, checkpointed recovery, retry/backoff, the Mock Connector as certification-checklist reference implementation). Definition of Done: the Mock Connector passes its own certification checklist, including a simulated worker-restart-mid-sync test and a webhook-loss-then-reconciliation test.
+Begin Phase 4 - Connector SDK: build out `CONNECTOR_SDK.md`'s full contract (lifecycle, registry, webhook/polling/hybrid ingestion, health checks, checkpointed recovery, retry/backoff, the Mock Connector as certification-checklist reference implementation). Definition of Done: the Mock Connector passes its own certification checklist, including a simulated worker-restart-mid-sync test and a webhook-loss-then-reconciliation test.
 
 ## How to Resume From Zero Context
 

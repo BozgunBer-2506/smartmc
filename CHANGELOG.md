@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 Phase 4 - Connector SDK is next: the full `CONNECTOR_SDK.md` contract (lifecycle, registry, webhook/polling/hybrid ingestion, health checks, checkpointed recovery, retry/backoff), with the Mock Connector becoming the certification-checklist reference implementation.
 
+### Added
+- Real ESLint + Prettier configuration (`packages/config`, populating the previously-reserved package), replacing every package's `echo "(no lint configured yet)"` stub - `pnpm lint` now runs `eslint` across all 8 code-bearing packages (7 via a shared `@smc/config/eslint-preset`, `apps/web` via `next lint` + `eslint-config-next`)
+- Husky pre-commit hook (`.husky/pre-commit`) running `pnpm lint && pnpm typecheck` before every commit
+- `pnpm format` / `pnpm format:check` (Prettier, via `@smc/config/prettier-preset`)
+
+This closes the project's oldest open technical-debt item, flagged unresolved in both the Phase 1 and Phase 2 reviews.
+
 ## [0.3.0] - 2026-07-18 - Phase 3: Identity & Messaging Foundation (`v0.3.0-phase3`)
 
 ### Added

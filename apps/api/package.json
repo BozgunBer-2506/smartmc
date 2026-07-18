@@ -7,7 +7,7 @@
     "dev": "nodemon --watch src --watch ../../packages --ext ts,json --exec \"ts-node src/main.ts\"",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"(no lint configured yet)\""
+    "lint": "eslint . --ext .ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
@@ -33,6 +33,7 @@
     "uuid": "^11.0.0"
   },
   "devDependencies": {
+    "@smc/config": "workspace:*",
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^4.17.0",
     "@types/node": "^22.0.0",

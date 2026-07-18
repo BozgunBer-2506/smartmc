@@ -117,9 +117,9 @@ Goal: a working, empty project. Split into two sprints so "working software at t
 - [x] Docker + Docker Compose for local dev (Postgres, Redis, mailhog) - Postgres remapped to host port 5433, not 5432, to avoid colliding with an unrelated local project already using 5432
 - [x] Prisma initialized against a pragmatic initial subset of `DATABASE.md`'s schema (Workspace, Provider, Contact, ContactIdentity, Conversation, Message, Notification) - grows toward the full spec as later phases actually need more of it, not implemented speculatively ahead of need
 - [x] PostgreSQL + Redis wired into local dev, verified live via `GET /health`
-- [ ] ESLint + Prettier shared config (`packages/config`) - **not done yet**. Every package's `lint` script is currently a stub (`echo "(no lint configured yet)"`). Real linting is the next concrete gap to close, before Phase 2.
-- [ ] Husky pre-commit hooks (lint, typecheck) - **not done yet**, blocked on the item above (no real lint config to hook into yet).
-- [x] GitHub Actions CI skeleton (`pnpm lint` / `pnpm typecheck` / `pnpm build`, no `pnpm test` yet since no tests exist - per explicit user direction) - runs today, though the `lint` step is currently only exercising the stub scripts above until real linting exists.
+- [x] ESLint + Prettier shared config (`packages/config`) - closed 2026-07-18, before Phase 4 (the project's oldest open item, flagged unresolved in the Phase 1 and Phase 2 reviews). Every package's `lint` script now runs real `eslint` (7 packages via a shared `@smc/config/eslint-preset`, `apps/web` via `next lint`).
+- [x] Husky pre-commit hooks (lint, typecheck) - closed alongside the item above; `.husky/pre-commit` runs `pnpm lint && pnpm typecheck`.
+- [x] GitHub Actions CI skeleton (`pnpm lint` / `pnpm typecheck` / `pnpm build`, no `pnpm test` yet since no tests exist - per explicit user direction) - the `lint` step now exercises real ESLint, not the stub scripts it started with.
 
 **Not a single connector is written in this sprint - not even the mock connector.** This sprint is infrastructure only.
 
