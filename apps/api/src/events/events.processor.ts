@@ -3,7 +3,7 @@ import { Job, Worker } from "bullmq";
 import { getPrismaClient, newId, type Contact, type Message } from "@smc/database";
 import { resolveIdentity } from "@smc/identity";
 import { createEvent, EventType, type EventEnvelope } from "@smc/event-model";
-import type { InboundMessagePayload } from "@smc/shared";
+import { DEV_ORGANIZATION_ID, type InboundMessagePayload } from "@smc/shared";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EVENTS_QUEUE_NAME } from "./events.service";
 import { redisConnection } from "./redis-connection";
@@ -61,13 +61,27 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
     const prisma = getPrismaClient();
     const payload = event.payload;
 
-    // Dev-mode convenience: Phase 1 has no auth/onboarding flow yet
-    // (docs/ROADMAP.md Phase 2), so the workspace and provider are
-    // upserted here rather than assumed to pre-exist.
+    // Dev-mode convenience: the Mock Connector's debug endpoint writes
+    // into a fixed dev Workspace/Organization (docs/ROADMAP.md Phase 1
+    // Sprint 2) rather than requiring a real registered user - real users
+    // get real Organizations/Workspaces via POST /v1/auth/register
+    // (Phase 2). Both are upserted here since Workspace now requires a
+    // real organizationId (Phase 2's schema addition).
+    await prisma.organization.upsert({
+      where: { id: DEV_ORGANIZATION_ID },
+      update: {},
+      create: { id: DEV_ORGANIZATION_ID, name: "Dev Organization", slug: "dev-organization" },
+    });
+
     await prisma.workspace.upsert({
       where: { id: payload.workspaceId },
       update: {},
-      create: { id: payload.workspaceId, name: "Dev Workspace", timezone: "UTC" },
+      create: {
+        id: payload.workspaceId,
+        organizationId: DEV_ORGANIZATION_ID,
+        name: "Dev Workspace",
+        timezone: "UTC",
+      },
     });
 
     const provider = await prisma.provider.upsert({

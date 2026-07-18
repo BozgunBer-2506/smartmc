@@ -3,8 +3,19 @@ import { HealthModule } from "./health/health.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { EventsModule } from "./events/events.module";
 import { MockConnectorModule } from "./mock-connector/mock-connector.module";
+import { AuditLogModule } from "./audit/audit-log.module";
+import { AuthModule } from "./auth/auth.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
-  imports: [HealthModule, RealtimeModule, EventsModule, MockConnectorModule],
+  imports: [
+    HealthModule,
+    RealtimeModule,
+    EventsModule,
+    MockConnectorModule,
+    AuditLogModule,
+    AuthModule,
+    UsersModule,
+  ],
 })
 export class AppModule {}

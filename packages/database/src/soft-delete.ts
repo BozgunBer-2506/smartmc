@@ -7,7 +7,15 @@ import type { PrismaClient } from "@prisma/client";
  * ContactIdentity, and Notification are intentionally excluded, per
  * DATABASE.md Section 7's own exceptions list).
  */
-const SOFT_DELETE_MODELS = new Set(["Workspace", "Contact", "Conversation", "Message"]);
+const SOFT_DELETE_MODELS = new Set([
+  "Organization",
+  "Workspace",
+  "Contact",
+  "Conversation",
+  "Message",
+  "User",
+  "WorkspaceMember",
+]);
 
 function uncapitalize(model: string): string {
   return model.charAt(0).toLowerCase() + model.slice(1);

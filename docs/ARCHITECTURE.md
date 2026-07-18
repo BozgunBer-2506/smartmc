@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ARCHITECTURE.md
-Version: 1.2
+Version: 1.3
 Status: Living
 Owner: Architecture
 Last Updated: 2026-07-18
@@ -17,6 +17,7 @@ Related ADRs:
   - ADR-0011
   - ADR-0012
   - ADR-0013
+  - ADR-0014
 ```
 
 Note: this document was originally drafted under the project's working name "PulseHub" before the product was named Smart Message Center; all references have been updated for consistency.
@@ -349,14 +350,18 @@ All endpoints sit behind the API Gateway: JWT auth guard, per-user rate limiting
 
 ## 6. Authentication Flow
 
-```
-1. Sign-up/login via Auth.js (NestJS-integrated) supporting:
-   - Email + password (Argon2id hashing)
-   - OAuth (Google, GitHub) for platform account creation
-   - Passkeys (WebAuthn) as the preferred passwordless path
-   - TOTP-based 2FA as a mandatory-optional second factor
+Corrected 2026-07-18 via [ADR-0014](adr/0014-custom-jwt-session-auth.md): "Auth.js" (this section's original wording) has no NestJS integration and cannot implement `DATABASE.md` Section 6.20's `family_id` reuse-detection design - authentication is a custom implementation of the exact behavior below, not a redesign of it.
 
-2. On success, issue:
+```
+1. Sign-up/login via custom NestJS auth services supporting:
+   - Email + password (Argon2id hashing) - implemented Phase 2
+   - OAuth (Google, GitHub) for platform account creation - Phase 2 checklist, not yet implemented
+   - Passkeys (WebAuthn) as the preferred passwordless path - Phase 2 checklist, not yet implemented;
+     schema already accommodates it (`user_credentials.password_hash` is nullable)
+   - TOTP-based 2FA as a mandatory-optional second factor - Phase 2 checklist, not yet implemented
+
+2. On success, issue (Phase 2, direct issuance - not the OAuth2+PKCE flow `API.md` Section 7.1
+   describes for Phase 18's external/marketplace clients, per ADR-0014):
    - short-lived JWT access token (15 min), signed, stored in memory/client
    - httpOnly, Secure, SameSite=Strict refresh token cookie (7-30 days)
    - refresh rotation: each refresh call invalidates the prior token

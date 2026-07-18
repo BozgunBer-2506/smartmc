@@ -1,9 +1,13 @@
-// Minimal initial subset of docs/DATABASE.md's full schema - just enough
-// to support Phase 1's vertical slice (docs/ROADMAP.md Phase 1 Sprint 2).
-// Grows toward the full spec (soft deletes, audit logs, RLS-readiness,
-// IdentityGraph's confidence-score/merge-suggestion tables, etc.) as later
-// phases actually need those pieces - not implemented speculatively ahead
-// of need. IDs are UUIDv7 (ADR-0007), generated application-side (see
+// A growing subset of docs/DATABASE.md's full schema - implemented as
+// later phases actually need more of it, not speculatively ahead of need.
+// Phase 1 added the messaging core (Workspace/Provider/Contact/
+// ContactIdentity/Conversation/Message/Notification). Phase 2 adds
+// Organization, User, UserCredentials, WorkspaceMember, Session, and
+// AuditLog for authentication (docs/ROADMAP.md Phase 2, ADR-0014).
+// Still deferred: IdentityGraph's confidence-score/merge-suggestion
+// tables (Phase 9), LinkedAccount (Phase 4-5), RLS, DB role separation
+// (DATABASE.md Section 21) - all tracked in docs/reviews/.
+// IDs are UUIDv7 (ADR-0007), generated application-side (see
 // packages/database/src/ids.ts) rather than via Prisma's @default(uuid()),
 // which only generates UUIDv4.
 
@@ -16,19 +20,146 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Workspace {
+/// The billing/identity root - one per customer (docs/DATABASE.md Section 6.1).
+/// Added Phase 2: every registration creates one automatically, per
+/// docs/API.md Section 10.1 ("even solo signups get one automatically").
+model Organization {
   id        String    @id @db.Uuid
   name      String
-  timezone  String    @default("UTC")
+  slug      String    @unique
+  planTier  String    @default("free") @map("plan_tier")
   createdAt DateTime  @default(now()) @map("created_at")
-  deletedAt DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7, enforced via packages/database/src/soft-delete.ts
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
 
+  workspaces Workspace[]
+
+  @@map("organizations")
+}
+
+model Workspace {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  timezone       String    @default("UTC")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  deletedAt      DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7, enforced via packages/database/src/soft-delete.ts
+
+  organization  Organization      @relation(fields: [organizationId], references: [id])
+  members       WorkspaceMember[]
   contacts      Contact[]
   conversations Conversation[]
   messages      Message[]
   notifications Notification[]
 
   @@map("workspaces")
+}
+
+/// Global identity, independent of any workspace (docs/DATABASE.md Section 6.3).
+/// Auth secrets live in UserCredentials, not here - see that model's comment.
+model User {
+  id          String    @id @db.Uuid
+  email       String    @unique // lower-cased at the application layer for case-insensitivity - see AuthService; docs/DATABASE.md's citext suggestion is deliberately simplified here, recorded in docs/reviews/phase-2-review.md
+  displayName String?   @map("display_name")
+  avatarUrl   String?   @map("avatar_url")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
+
+  credentials UserCredentials?
+  memberships WorkspaceMember[]
+  sessions    Session[]
+
+  @@map("users")
+}
+
+/// Auth secrets, deliberately separate from `users` (docs/DATABASE.md
+/// Section 6.3's stated reasoning: reduces the blast radius of an
+/// accidental over-fetch on the frequently-joined User row).
+/// `passwordHash` is nullable specifically so a future passkey-only or
+/// OAuth-only user (ROADMAP.md Phase 2's remaining checklist items) never
+/// requires a password row - this is the concrete schema property that
+/// makes Passkeys additive later, not a redesign.
+model UserCredentials {
+  id           String   @id @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  passwordHash String?  @map("password_hash")
+  totpSecret   String?  @map("totp_secret") // reserved for 2FA (ROADMAP.md Phase 2 checklist, not implemented yet)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_credentials")
+}
+
+/// Which Users belong to which Workspace, with what role (docs/DATABASE.md
+/// Section 6.3) - the RBAC foundation (Owner/Admin/Member, ARCHITECTURE.md
+/// Section 6 step 4).
+model WorkspaceMember {
+  id              String    @id @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  role            String    @default("owner") // "owner" | "admin" | "member" - docs/DATABASE.md Section 6.3
+  invitedByUserId String?   @map("invited_by_user_id") @db.Uuid
+  joinedAt        DateTime  @default(now()) @map("joined_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId], name: "uq_workspace_members_workspace_user")
+  @@map("workspace_members")
+}
+
+/// Refresh-token session state (docs/DATABASE.md Section 6.20). `familyId`
+/// implements the rotation + reuse-detection scheme (ARCHITECTURE.md
+/// Section 6, SECURITY.md Section 4.3): presenting an already-rotated
+/// token from a family revokes every session in it.
+model Session {
+  id               String    @id @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @map("refresh_token_hash")
+  familyId         String    @map("family_id") @db.Uuid
+  userAgent        String?   @map("user_agent")
+  ipAddress        String?   @map("ip_address") @db.Inet
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], name: "idx_sessions_user_id")
+  @@index([familyId], name: "idx_sessions_family_id")
+  @@map("sessions")
+}
+
+/// Append-only audit trail (docs/DATABASE.md Section 6.21). No `updatedAt`/
+/// `deletedAt` - application code only ever creates rows here (see
+/// AuditLogService), never updates or deletes them. Postgres-role-level
+/// enforcement (REVOKE UPDATE, DELETE) is deferred - DATABASE.md Section 21,
+/// tracked as an already-deferred gap since the Phase 1 review.
+/// No FK relations to Workspace/User: DATABASE.md's cascading rules keep
+/// audit history independent of whether its subject still exists.
+model AuditLog {
+  id             String   @id @db.Uuid
+  workspaceId    String?  @map("workspace_id") @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  actorType      String   @map("actor_type") // "user" | "system" | "rule" | "api_key"
+  action         String
+  resourceType   String?  @map("resource_type")
+  resourceId     String?  @map("resource_id") @db.Uuid
+  metadata       Json?
+  ipAddress      String?  @map("ip_address") @db.Inet
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], name: "idx_audit_logs_workspace_id_created_at")
+  @@index([actorUserId, createdAt], name: "idx_audit_logs_actor_user_id_created_at")
+  @@index([resourceType, resourceId], name: "idx_audit_logs_resource_type_resource_id")
+  @@map("audit_logs")
 }
 
 model Provider {

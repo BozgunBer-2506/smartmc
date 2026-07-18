@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 1.7
+Version: 1.8
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -15,6 +15,7 @@ Related ADRs:
   - ADR-0011
   - ADR-0012
   - ADR-0013
+  - ADR-0014
 ```
 
 This file is the single source of truth for project sequencing. If context is lost between sessions, work resumes by reading this file plus [STATUS.md](STATUS.md), never by guessing.
@@ -151,16 +152,20 @@ This is `ARCHITECTURE.md` Section 1's entire pipeline diagram, felt end-to-end w
 
 ---
 
-## Phase 2 - Authentication
+## Phase 2 - Authentication - COMPLETE (backend) as of 2026-07-18
 
-- [ ] Register / login (email + password, Argon2id)
-- [ ] OAuth (Google, GitHub)
-- [ ] Passkeys (WebAuthn)
-- [ ] 2FA (TOTP)
-- [ ] Session management (JWT access + rotating refresh cookie)
-- [ ] User settings (profile, password/2FA management)
+- [x] Register / login (email + password, Argon2id) - `POST /v1/auth/register`, `POST /v1/auth/login`, plus password policy (12+ chars), HIBP breach-check (verified live - correctly rejected a known-breached password during testing), and Redis-backed account lockout (SECURITY.md Section 4.1)
+- [ ] OAuth (Google, GitHub) - **not implemented**, deliberately deferred (ADR-0014) - no external client exists yet to justify it ahead of need
+- [ ] Passkeys (WebAuthn) - **not implemented**, deliberately deferred - schema is ready for it (`user_credentials.password_hash` is nullable), per explicit user direction to make this additive later, not a redesign
+- [ ] 2FA (TOTP) - **not implemented**, deliberately deferred - `user_credentials.totp_secret` column reserved
+- [x] Session management (JWT access + rotating refresh cookie) - 15-min JWT, 30-day httpOnly/Secure/SameSite=Strict refresh cookie, full `family_id` rotation + reuse detection (DATABASE.md Section 6.20) verified live end-to-end including the family-wide revocation cascade; logout, logout-all, and session listing (`GET /v1/auth/sessions`) all implemented
+- [ ] User settings (profile, password/2FA management) - **not implemented**, `PATCH /v1/users/me` and the narrow security-sensitive endpoints (`API.md` Section 10.2) are Phase 3-adjacent, not required by this pass's Definition of Done
 
-**Definition of Done**: a real person can sign up, log out, log back in, and land on the (still mostly empty) app as themselves - a login-able application, not just an API that accepts credentials.
+Also implemented, beyond the original checklist, because the Definition of Done required them: workspace/organization auto-creation on registration, `RolesGuard`+`@Roles()` RBAC foundation (owner/admin/member - no role-gated resource exists yet to apply it to, Phase 3 scope), `JwtAuthGuard` protecting `GET /v1/users/me` and the session endpoints, RFC 7807-shaped errors for every auth failure mode (`INVALID_CREDENTIALS`, `EMAIL_ALREADY_REGISTERED`, `WEAK_PASSWORD`, `PASSWORD_BREACHED`, `ACCOUNT_LOCKED`, `REFRESH_TOKEN_INVALID`/`_EXPIRED`/`_REUSE_DETECTED`), and audit logging for every auth event (`user.registered`, `user.login_succeeded`/`_failed`, `user.logout`/`_all`, `session.refreshed`, `session.reuse_detected`).
+
+**Definition of Done**: a real person can register, log in, and log out via the API; JWT authentication and the full refresh-rotation flow work; protected endpoints reject unauthorized requests; a workspace is automatically created for the first user - all verified live (not just typechecked) via `pnpm --filter @smc/scripts verify:auth` (16/16 checks passing) plus direct Postgres inspection of the family-wide revocation cascade. **No UI was built** - the Definition of Done was stated entirely in terms of API-observable behavior, matching Phase 1's precedent of verifying via scripts rather than requiring a UI; a login screen is a later increment.
+
+**Phase Review completed 2026-07-18** - full report at [reviews/phase-2-review.md](reviews/phase-2-review.md). See [ADR-0014](adr/0014-custom-jwt-session-auth.md) for the one real architectural correction this phase required (Auth.js named in ARCHITECTURE.md doesn't fit NestJS or DATABASE.md's session design; direct token issuance instead of the OAuth2+PKCE flow API.md describes for Phase 18's external clients).
 
 ---
 

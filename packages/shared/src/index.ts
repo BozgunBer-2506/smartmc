@@ -7,8 +7,17 @@
  * authoritative, full schema this will eventually match in full.
  */
 
-/** Fixed dev workspace id - Phase 1 has no auth/workspace-creation flow yet (docs/ROADMAP.md Phase 2). Shared between apps/api and apps/web so both sides agree on it without duplicating the literal. */
+/**
+ * Fixed dev workspace/organization ids for the Mock Connector's debug
+ * endpoint (docs/CONNECTOR_SDK.md Section 18, docs/ROADMAP.md Phase 1
+ * Sprint 2) - kept even after Phase 2 introduced real registration-driven
+ * Organizations/Workspaces, so the existing verify-realtime.mjs script and
+ * manual mock-connector testing keep working without requiring a login
+ * first. Real users get real Organization/Workspace ids via
+ * POST /v1/auth/register (docs/ROADMAP.md Phase 2).
+ */
 export const DEV_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001";
+export const DEV_ORGANIZATION_ID = "00000000-0000-0000-0000-0000000000f1";
 
 export type Direction = "inbound" | "outbound";
 

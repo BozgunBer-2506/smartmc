@@ -66,10 +66,15 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       if (typeof body === "object" && body !== null) {
         const b = body as Record<string, unknown>;
         const message = b.message;
+        // A thrown exception can supply its own specific `code` (e.g.
+        // AuthException in apps/api/src/auth/auth.exceptions.ts) - preferred
+        // over the generic status-derived one wherever present, per
+        // API.md Section 5's per-error `code` design.
+        const code = typeof b.code === "string" ? b.code : this.codeForStatus(status);
         return {
           status,
-          code: this.codeForStatus(status),
-          title: exception.message,
+          code,
+          title: typeof b.error === "string" ? b.error : exception.message,
           detail: Array.isArray(message) ? undefined : (message as string | undefined),
           errors: Array.isArray(message) ? (message as unknown[]) : undefined,
         };
