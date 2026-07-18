@@ -4,14 +4,28 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 4 - Connector SDK is next: the full `CONNECTOR_SDK.md` contract (lifecycle, registry, webhook/polling/hybrid ingestion, health checks, checkpointed recovery, retry/backoff), with the Mock Connector becoming the certification-checklist reference implementation.
+Phase 4 Sprint 2 - Telegram Connector is next: the first real connector built on Sprint 1's SDK (Bot API authentication, a real webhook receiver plus the required reconciliation poll, `LinkedAccount` persistence).
+
+## [0.4.0] - 2026-07-19 - Phase 4 Sprint 1: Connector SDK Foundation (`v0.4.0-phase4-sprint1`)
 
 ### Added
+- The `Connector` interface (`packages/connector-sdk`) - capability manifest, credential validation/authentication with a structural ordering guarantee (`BaseConnector`), bounded/resumable initial sync, a distinct reconciliation pass, a pure normalization mapper, standardized error mapping, an optional outbound `send`, and a lifecycle state machine per account
+- Capability Manifest (`defineCapabilityManifest()`) - enforces the hybrid-by-default reconciliation rule at declaration time
+- The full 9-state connector lifecycle state machine (`ConnectorLifecycle`), shared by every connector, with a graph-integrity check verifying no unreachable or dead-end states
+- A standardized 7-code error taxonomy (`ConnectorError`) with automatic credential redaction built into its constructor
+- An in-process Connector Registry
+- The Connector Certification Suite (`certifyConnector()`) - a shared, provider-agnostic conformance test mechanically exercising 16 checks drawn from the certification checklist, including a simulated worker-restart checkpoint-resume test and a rate-limit backpressure test
+- `pnpm --filter @smc/scripts certify:mock-connector` - the standing regression check (16/16 passing)
+- `direction` added to `InboundMessagePayload` (`packages/shared`) - a previously-hardcoded normalization field is now real
 - Real ESLint + Prettier configuration (`packages/config`, populating the previously-reserved package), replacing every package's `echo "(no lint configured yet)"` stub - `pnpm lint` now runs `eslint` across all 8 code-bearing packages (7 via a shared `@smc/config/eslint-preset`, `apps/web` via `next lint` + `eslint-config-next`)
 - Husky pre-commit hook (`.husky/pre-commit`) running `pnpm lint && pnpm typecheck` before every commit
 - `pnpm format` / `pnpm format:check` (Prettier, via `@smc/config/prettier-preset`)
 
-This closes the project's oldest open technical-debt item, flagged unresolved in both the Phase 1 and Phase 2 reviews.
+### Changed
+- The Mock Connector migrated onto the new SDK as a real `Connector` implementation (`MockConnector extends BaseConnector`); `generateMockMessage()` is kept as a thin backward-compatible adapter over `MockConnector.mapMessage()` - `apps/api`'s mock-connector controller needed no changes
+- `events.processor.ts` now reads `payload.direction` instead of hardcoding `"inbound"`
+
+This release also closes the project's oldest open technical-debt item (real lint/Husky config), flagged unresolved in both the Phase 1 and Phase 2 reviews.
 
 ## [0.3.0] - 2026-07-18 - Phase 3: Identity & Messaging Foundation (`v0.3.0-phase3`)
 
@@ -82,7 +96,8 @@ This closes the project's oldest open technical-debt item, flagged unresolved in
 - GitHub Actions CI (`lint` / `typecheck` / `build`)
 - `scripts/verify-realtime.mjs` regression check
 
-[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.3.0-phase3...HEAD
+[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.4.0-phase4-sprint1...HEAD
+[0.4.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.3.0-phase3...v0.4.0-phase4-sprint1
 [0.3.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.2.0-phase2...v0.3.0-phase3
 [0.2.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.1.1-phase1-hardening...v0.2.0-phase2
 [0.1.1]: https://github.com/BozgunBer-2506/smartmc/compare/v0.1.0-phase1...v0.1.1-phase1-hardening

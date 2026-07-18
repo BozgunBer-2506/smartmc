@@ -78,7 +78,7 @@ export interface Notification {
   createdAt: string;
 }
 
-/** A canonical, provider-agnostic inbound message, as produced by a Connector (docs/CONNECTOR_SDK.md Section 11) before IdentityGraph resolution. */
+/** A canonical, provider-agnostic message, as produced by a Connector's mapper (docs/CONNECTOR_SDK.md Section 11) before IdentityGraph resolution. */
 export interface InboundMessagePayload {
   workspaceId: string;
   providerKey: string;
@@ -90,4 +90,6 @@ export interface InboundMessagePayload {
   messageExternalId: string;
   bodyText: string;
   receivedAt: string;
+  /** Required per docs/CONNECTOR_SDK.md Section 11's normalization contract - added Phase 4 Sprint 1, previously implicitly always "inbound". */
+  direction: Direction;
 }

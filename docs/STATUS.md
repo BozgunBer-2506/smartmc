@@ -22,7 +22,7 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 (Product Foundation), Phase 1 (Project Bootstrap), and Phase 2 (Authentication, backend): COMPLETE.** **Phase 3 (Identity & Messaging Foundation) - COMPLETE and verified live** as of 2026-07-18.
+**Phase 0 (Product Foundation), Phase 1 (Project Bootstrap), Phase 2 (Authentication, backend), and Phase 3 (Identity & Messaging Foundation): COMPLETE.** **Phase 4 Sprint 1 (Connector SDK Foundation) - COMPLETE and verified live** as of 2026-07-19. Phase 4 Sprint 2 (first real connector, Telegram) not started.
 
 ## What Actually Runs Right Now
 
@@ -35,7 +35,9 @@ pnpm db:generate && pnpm db:push
 pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc --watch
 ```
 
-**A real person can now**: open `http://localhost:3000`, register or log in, click "Send mock message," and watch it appear in their own Inbox in real time - no page refresh - with the sender resolved by name through IdentityGraph, and see a notification surface for it. This is the Phase 3 demo script end to end, in the actual browser UI, not just via scripts.
+**A real person can now**: open `http://localhost:3000`, register or log in, click "Send mock message," and watch it appear in their own Inbox in real time - no page refresh - with the sender resolved by name through IdentityGraph, and see a notification surface for it. This is the Phase 3 demo script end to end, in the actual browser UI, not just via scripts. (Phase 4 Sprint 1 is SDK-internal - it changes nothing about this user-visible flow, only what's underneath the Mock Connector's send path; see below.)
+
+**Connector SDK (new, Phase 4 Sprint 1)**: `pnpm --filter @smc/scripts certify:mock-connector` runs the Connector Certification Suite against the Mock Connector (16/16 checks passing) - the same mechanical bar every future connector (Telegram, Discord, Slack, Email) will be held to.
 
 **Auth (Phase 2)**: `POST /v1/auth/register`, `POST /v1/auth/login`, `POST /v1/auth/refresh`, `POST /v1/auth/logout`, `POST /v1/auth/logout-all`, `GET /v1/auth/sessions`, `GET /v1/users/me`. Registering auto-creates an Organization + Workspace + owner `WorkspaceMember`. `pnpm --filter @smc/scripts verify:auth` is the standing regression check (16/16 passing, re-confirmed clean after Phase 3).
 
@@ -47,29 +49,44 @@ pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc
 
 ## Repository
 
-**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 3 added `apps/api/src/conversations/`, `apps/api/src/notifications/`, `apps/api/src/auth/token.service.ts`, `apps/api/src/common/http-error.ts` (renamed from `auth/auth.exceptions.ts`), and `apps/web/components/` + `apps/web/lib/` - no new top-level packages.**
+**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 4 Sprint 1 populated `packages/connector-sdk/src/{lifecycle,capability-manifest,errors,connector,registry}.ts` and `packages/connector-sdk/src/certification/`, and `packages/config` (previously reserved) was populated in the lint/Husky closure below - no new top-level packages.**
 ```
 smartmc/
-├── docs/          (15 documents, adr/ [0001-0015], reviews/ [phase-1, phase-2, phase-3])
+├── docs/          (15 documents, adr/ [0001-0015], reviews/ [phase-1, phase-2, phase-3, phase-4-sprint-1])
 ├── apps/
-│   ├── web/         Next.js - real login/register form + real authenticated Inbox (new, Phase 3)
+│   ├── web/         Next.js - real login/register form + real authenticated Inbox (Phase 3)
 │   └── api/         NestJS - health, events, realtime, mock-connector, auth, users, audit,
-│   │                conversations (new), notifications (new)
+│   │                conversations, notifications
 ├── packages/
 │   ├── database/      Prisma schema: messaging core (Phase 1) + Organization/User/UserCredentials/
 │   │                  WorkspaceMember/Session/AuditLog (Phase 2) + soft-delete extension
 │   ├── shared/       Canonical domain types, DEV_WORKSPACE_ID/DEV_ORGANIZATION_ID
 │   ├── event-model/    EventEnvelope + EventType
 │   ├── identity/      IdentityGraph exact-match resolver
-│   ├── connector-sdk/   Mock Connector generator
+│   ├── connector-sdk/   Connector interface, lifecycle, capability manifest, error taxonomy,
+│   │                  registry, certification suite, Mock Connector (new, Phase 4 Sprint 1)
+│   ├── config/       Real ESLint + Prettier presets (closed the lint/Husky gap, below)
 │   ├── ui/          Minimal Button primitive
-│   │                (automation-engine, auth, ai, config, design-tokens still empty, reserved per phase)
+│   │                (automation-engine, auth, ai, design-tokens still empty, reserved per phase)
 ├── infrastructure/   (empty, reserved)
-├── scripts/        @smc/scripts - verify-phase3.mjs, verify-soft-delete.cjs, verify-auth.mjs
+├── scripts/        @smc/scripts - verify-phase3.mjs, verify-soft-delete.cjs, verify-auth.mjs,
+│                   certify-mock-connector.mjs (new)
 ├── docker-compose.yml (Postgres @ 5433, not 5432)
 ├── LICENSE        (all-rights-reserved)
 ```
 GitHub remote: `https://github.com/BozgunBer-2506/smartmc` - public, connected.
+
+## Phase 4 Sprint 1 - Connector SDK Foundation (complete, verified live)
+
+Full detail in `ROADMAP.md`'s Phase 4 Sprint 1 section and [docs/reviews/phase-4-sprint-1-review.md](reviews/phase-4-sprint-1-review.md). Summary:
+
+**Implemented**: the `Connector` interface (`packages/connector-sdk`), a Capability Manifest that structurally enforces the hybrid-by-default reconciliation rule, the full 9-state lifecycle state machine shared by every connector, a standardized error taxonomy with automatic credential redaction, an in-process connector registry, and the Connector Certification Suite (`certifyConnector()`) - a mechanical, CI-runnable conformance test exercising 16 checks drawn from `CONNECTOR_SDK.md`'s certification checklist. The Mock Connector is migrated onto the SDK as a real `Connector` implementation; `generateMockMessage()` (Phase 1's original helper) is kept as a thin backward-compatible adapter, so `apps/api`'s mock-connector controller needed no changes.
+
+**No ADR required** - this sprint implements `CONNECTOR_SDK.md` as already documented (it has gated Phase 1 since 2026-07-18), not a deviation from it.
+
+**Deliberately out of Sprint 1 scope** (a real provider is needed to make these meaningful, so they're Sprint 2/Telegram's job): real webhook/polling transport, OAuth/credential-entry auth flows, `LinkedAccount` persistence, attachment abstraction, health monitoring, and real outbound retry/backoff. Full reasoning per item in the phase review.
+
+Verified live via `pnpm --filter @smc/scripts certify:mock-connector` (16/16). `verify:phase3` (11/11), `verify:auth` (16/16), `verify:soft-delete` all re-confirmed clean against the migrated Mock Connector - no regressions.
 
 ## Phase 3 - Identity & Messaging Foundation (complete, verified live)
 
@@ -121,30 +138,31 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 19 phases, working rules, Phase 1-3 verified Definitions of Done |
+| `ROADMAP.md` | 19 phases, working rules, Phase 1-4 Sprint 1 verified Definitions of Done |
 | `STATUS.md` | This file |
 | `DECISIONS.md` | Index of all 15 ADRs |
 
-**ADRs 0001-0015**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, **REST (not GraphQL) for the Phase 3 inbox read path**.
+**ADRs 0001-0015**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path. No new ADR this sprint - Phase 4 Sprint 1 implements already-documented architecture.
 
 ## Known Open Decisions / Gaps (tracked so they aren't lost)
 
 1. **Pricing numbers** ($12/mo Pro, $18/seat Business) - a starting hypothesis (`PRODUCT.md`), not a blocker.
 2. **LinkedIn DM integration** feasibility (no public API) - deferred to Phase 16-17.
-3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - soft deletes and the auth core (Organization/User/Session/AuditLog/etc.) are now implemented; `LinkedAccount`, IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
+3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - soft deletes and the auth core (Organization/User/Session/AuditLog/etc.) are now implemented; `LinkedAccount` (needed once Sprint 2/Telegram persists connector state), IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
 4. **Six Phase 2 simplifications on record** (citext→app-level email normalization, no timing-attack mitigation on login, no `trust proxy` config, raw device/IP in session listing, untuned Argon2id parameters, 15-min role-change propagation delay) - all reasoned and disclosed in `docs/reviews/phase-2-review.md`, none hidden.
 5. **`Notification` has no `readAt` column** - `GET /v1/notifications` (Phase 3) is read-only, no mark-read/unread state yet. Disclosed in `docs/reviews/phase-3-review.md`, deferred to whichever phase first needs it (likely Phase 11).
+6. **Connector SDK's real webhook/polling transport, OAuth flows, `LinkedAccount` persistence, attachment abstraction, and health monitoring are not yet implemented** - disclosed in `docs/reviews/phase-4-sprint-1-review.md` with per-item reasoning; all are Sprint 2 (Telegram) scope, since a real provider is what makes each of them meaningful to build.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-Begin Phase 4 - Connector SDK: build out `CONNECTOR_SDK.md`'s full contract (lifecycle, registry, webhook/polling/hybrid ingestion, health checks, checkpointed recovery, retry/backoff, the Mock Connector as certification-checklist reference implementation). Definition of Done: the Mock Connector passes its own certification checklist, including a simulated worker-restart-mid-sync test and a webhook-loss-then-reconciliation test.
+Begin Phase 4 Sprint 2 (Phase 5 - Telegram Connector): the first real connector built on the Sprint 1 SDK - Bot API authentication (`validateCredential`/`authenticate` against a real `getMe` call), a real webhook receiver plus the required reconciliation poll (`CONNECTOR_SDK.md` Section 4.3), `LinkedAccount` persistence (`DATABASE.md` Section 6.5, not yet in `packages/database/prisma/schema.prisma`), and the SDK's lifecycle/error-taxonomy/certification machinery proven against a real, rate-limited, occasionally-flaky external API instead of synthetic data. Definition of Done (per `ROADMAP.md` Phase 5): a real person connects their own real Telegram bot, sends themselves a real message from their phone, and watches it appear in the Smart Message Center inbox live.
 
 ## How to Resume From Zero Context
 
 1. Read this file (`STATUS.md`).
-2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-3's exact verification steps.
+2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-4 Sprint 1's exact verification steps.
 3. Read `PRODUCT.md`, `ARCHITECTURE.md` (Section 6 for auth, Section 13 for IdentityGraph), and `DECISIONS.md` for decisions already made - do not re-derive or re-litigate anything documented there.
 4. To actually run the app: see "What Actually Runs Right Now" above, including the WSL environment note and the local-DB-reset note.
 5. Continue from "Next Action" above, or from wherever the user redirects.

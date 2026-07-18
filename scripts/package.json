@@ -5,9 +5,11 @@
   "scripts": {
     "verify:soft-delete": "node verify-soft-delete.cjs",
     "verify:auth": "node verify-auth.mjs",
-    "verify:phase3": "node verify-phase3.mjs"
+    "verify:phase3": "node verify-phase3.mjs",
+    "certify:mock-connector": "node certify-mock-connector.mjs"
   },
   "dependencies": {
+    "@smc/connector-sdk": "workspace:*",
     "@smc/database": "workspace:*",
     "socket.io-client": "^4.8.0"
   }

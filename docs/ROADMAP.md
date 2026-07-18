@@ -216,19 +216,33 @@ This is the project's first genuinely shareable demo (technical progress and som
 
 The reason a new provider should someday take days, not weeks. Builds out `CONNECTOR_SDK.md`'s full contract (Sprint 2 of Phase 1 only proved the thinnest possible slice of it).
 
-- [ ] `Connector` interface (`packages/connector-sdk`) - full implementation of `CONNECTOR_SDK.md` Sections 2-15, not just the lifecycle skeleton from Phase 1 Sprint 2
-- [ ] Connector registry (how the platform discovers/loads connectors)
-- [ ] Canonical event contract fully wired per `EVENT_MODEL.md` Section 7.1-7.4, not just `message.received`
-- [ ] Webhook-based ingestion support
-- [ ] Polling-based ingestion support (for providers without webhooks, e.g. IMAP)
-- [ ] Hybrid reconciliation pass (`CONNECTOR_SDK.md` Section 4.3) - required, not optional
-- [ ] Health checks per connector (`CONNECTOR_SDK.md` Section 6)
-- [ ] Checkpointed offline recovery (`CONNECTOR_SDK.md` Section 9)
-- [ ] Retry/backoff logic for outbound provider calls
-- [ ] The Mock Connector extended to full certification-checklist conformance (`CONNECTOR_SDK.md` Section 16-18) - it becomes the reference implementation, not just Phase 1's proof-of-pipeline stub
-- [ ] The conformance test harness itself (`CONNECTOR_SDK.md` Section 17)
+**Split into two sprints 2026-07-19 per user direction**, mirroring Phase 1's Sprint 1/Sprint 2 pattern: Sprint 1 builds the SDK contract itself and proves it against the Mock Connector; Sprint 2 is the first real connector proving the same SDK against a real, rate-limited, ToS-bound provider (Phase 5 - Telegram Connector, unchanged in its own section below - Sprint 2 is not a duplicate phase, it's Phase 5 read as this phase's proving ground).
 
-**Definition of Done**: the Mock Connector passes its own certification checklist end-to-end, including a simulated worker-restart-mid-sync test and a simulated webhook-loss-then-reconciliation test - the system demonstrably survives the failure modes `CONNECTOR_SDK.md` designed for, proven against fake infrastructure before it's ever risked against a real provider's flakiness.
+### Sprint 1 - Connector SDK Foundation - COMPLETE as of 2026-07-19
+
+- [x] `Connector` interface (`packages/connector-sdk/src/connector.ts`) - lifecycle, credential validation/authentication ordering, initial sync, reconciliation, message normalization, error mapping, an optional outbound `send` - not the full Sections 2-15 (webhook/OAuth/attachment-storage wiring needs a real provider to be meaningful, see Sprint 2 note below), but the actual, testable contract a real connector implements
+- [x] Capability Manifest (`packages/connector-sdk/src/capability-manifest.ts`, `CONNECTOR_SDK.md` Section 5) - `defineCapabilityManifest()` enforces Section 4.3's hybrid-by-default rule at declaration time (a webhook/hybrid manifest without a reconciliation interval throws immediately, not just at certification time)
+- [x] Lifecycle state machine (`packages/connector-sdk/src/lifecycle.ts`, `CONNECTOR_SDK.md` Section 2) - the exact 9-state table, shared by every connector so "no unreachable or skipped states" is a property of the SDK, not something each connector author has to get right independently; persisting it onto a real `LinkedAccount` row (`DATABASE.md` Section 6.5) is Sprint 2 work, once a real connector needs a persisted account
+- [x] Connector registry (`packages/connector-sdk/src/registry.ts`) - in-process, keyed by provider key
+- [x] Standardized error taxonomy with automatic credential redaction (`packages/connector-sdk/src/errors.ts`, `CONNECTOR_SDK.md` Section 15) - redaction happens inside `ConnectorError`'s constructor, so it's structural, not a per-connector convention to remember
+- [x] Connector Certification Suite (`packages/connector-sdk/src/certification/`, `CONNECTOR_SDK.md` Sections 16-17) - a shared, provider-agnostic `certifyConnector()` mechanically exercising manifest completeness, the hybrid requirement, lifecycle integrity and a full happy-path run, credential-validation-before-authentication ordering, mapper determinism and the required-field contract, checkpoint-resume across a simulated worker restart, a bounded/complete initial sync, a distinct reconciliation pass, the full error taxonomy, credential redaction, and rate-limit backpressure (skipped, not failed, for a connector that exposes no failure-simulation hook)
+- [x] The Mock Connector migrated onto the new SDK (`packages/connector-sdk/src/mock-connector.ts`) - a real `Connector` implementation now, not a bare `generateMockMessage()` helper; `generateMockMessage()` is kept as a thin backward-compatible adapter over `MockConnector.mapMessage()` so `apps/api`'s existing mock-connector controller needed zero changes
+- [x] `direction` added to `InboundMessagePayload` (`packages/shared`, `CONNECTOR_SDK.md` Section 11's required-field contract) - previously implicitly always `"inbound"` (hardcoded in `events.processor.ts`); now a real field the connector's mapper populates
+
+**Deliberately out of Sprint 1 scope** (not part of this sprint's Definition of Done, not silently dropped - real webhook/polling transport, OAuth/credential-entry flows, attachment storage, and `LinkedAccount` persistence all require a real provider to be meaningful and are Sprint 2's job to add against Telegram):
+- Webhook-based and polling-based ingestion transport (the `Connector` interface's `initialSync`/`reconcile` are provider-agnostic sync *results*; wiring an actual webhook receiver or poll scheduler is connector-specific integration work)
+- OAuth2/credential-entry auth flows (`CONNECTOR_SDK.md` Section 3.1) - `validateCredential`/`authenticate` exist and are ordering-safe, but no real auth method is wired yet
+- `LinkedAccount` persistence (`DATABASE.md` Section 6.5) - the lifecycle state machine is real and certified, but nothing writes its state to Postgres yet
+- Attachment abstraction (Section 12) and platform-level identity-mapping integration (Section 13) - connector-adjacent but not part of the `Connector` interface itself
+- Health monitoring surfaced via API (Section 6), retry/backoff for real outbound provider calls (Section 7) - meaningful once a real provider exists to retry against
+
+**Definition of Done - verified live via `pnpm --filter @smc/scripts certify:mock-connector` (16/16 checks passing)**: the Connector SDK package exists, the Capability Manifest and lifecycle state machine are implemented and certified, the Connector Certification Suite exists and mechanically verifies the certification checklist, the Mock Connector is migrated onto it, and existing functionality continues to work - `verify:phase3` (11/11), `verify:auth` (16/16), and `verify:soft-delete` were all re-run against the migrated Mock Connector with no regressions. `pnpm typecheck`/`pnpm lint`/`pnpm build` all pass clean across the whole monorepo.
+
+**Phase Review completed 2026-07-19** - full report at [reviews/phase-4-sprint-1-review.md](reviews/phase-4-sprint-1-review.md).
+
+### Sprint 2 - First Real Connector
+
+See Phase 5 - Telegram Connector below. Not started.
 
 ---
 
@@ -357,10 +371,11 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 ## Phase 15 - Desktop
 
-- [ ] Tauri app (wraps the web app, per ARCHITECTURE.md)
-- [ ] System tray
-- [ ] Native notifications
-- [ ] Background sync
+**Desktop Strategy, added 2026-07-19 per user direction**: the initial desktop experience is delivered as a Progressive Web App (PWA), not a native Tauri client. A native desktop client (Tauri, as originally specified in `ARCHITECTURE.md`) is only built if real customer demand or a genuine technical limitation of the PWA approach justifies the added maintenance cost of a second build target. This is the lower-risk, more cost-effective strategy for the product's current stage: it delivers an "app-like" experience from day one on a single codebase, while keeping Tauri available as a later, deliberate upgrade rather than a default.
+
+- [ ] PWA packaging of `apps/web` (installable, offline-capable shell, app icon) - the actual Phase 15 starting point, not Tauri
+- [ ] System tray / native notifications / background sync - evaluated against what the PWA platform APIs can already deliver before treating any of them as a reason to build Tauri
+- [ ] Tauri app (wraps the web app, per `ARCHITECTURE.md`) - **deferred**, built only if the PWA approach proves insufficient
 
 ---
 

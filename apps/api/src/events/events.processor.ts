@@ -131,7 +131,7 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
         conversationId: conversation.id,
         externalId: payload.messageExternalId,
         senderContactId: contact.id,
-        direction: "inbound",
+        direction: payload.direction,
         bodyText: payload.bodyText,
         receivedAt: new Date(payload.receivedAt),
       },
