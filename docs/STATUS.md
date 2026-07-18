@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.0
+Version: 3.1
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-18
@@ -21,7 +21,7 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 (Product Foundation) and Phase 1 (Project Bootstrap): COMPLETE.** **Phase 2 (Authentication) - backend COMPLETE and verified** as of 2026-07-18. **Phase 3 (Core Platform) has not started.**
+**Phase 0 (Product Foundation) and Phase 1 (Project Bootstrap): COMPLETE.** **Phase 2 (Authentication) - backend COMPLETE and verified** as of 2026-07-18. **Phase 3 (Identity & Messaging Foundation, renamed 2026-07-18 from "Core Platform") has not started.**
 
 ## What Actually Runs Right Now
 
@@ -120,7 +120,7 @@ All other previously-open decisions are resolved - see [DECISIONS.md](DECISIONS.
 ## Next Action
 
 1. Close the lint/Husky gap (item 3 above) - it's been open since Phase 1 and Phase 3 will add meaningfully more code on top of an unlinted codebase if this keeps slipping.
-2. Begin Phase 3 - Core Platform (workspace/account model as real CRUD endpoints, inbox shell, Linked Accounts model structure, notifications shell, tags, folders, search shell, user preferences, and IdentityGraph's exact-match-only scaffold per `ARCHITECTURE.md` Section 13.6).
+2. Begin Phase 3 - Identity & Messaging Foundation: the pipeline `Mock Connector → Message → IdentityGraph → Conversation → Inbox → Realtime → Notification`, run for the first time behind real authentication (Phase 2) instead of the `DEV_WORKSPACE_ID` fixture - workspace/account model as real CRUD endpoints, a real Inbox read model, Linked Accounts model structure, a real notifications shell, tags, folders, search shell, user preferences. Definition of Done: a real logged-in user sees their first real message in their own inbox.
 
 ## How to Resume From Zero Context
 
