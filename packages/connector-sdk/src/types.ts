@@ -68,6 +68,23 @@ export interface SyncCheckpoint {
   processedCount: number;
 }
 
+/**
+ * Per-call context for sync/send operations (added Phase 4 Sprint 2 - a
+ * real implementation constraint the Mock Connector's design didn't
+ * surface: a real connector needs its resolved credential at sync/send
+ * time, not just at authenticate() time, and needs to know which
+ * LinkedAccount it's acting on behalf of). Optional and additive - every
+ * Sprint 1 call site that doesn't pass one still compiles and behaves
+ * identically, preserving backward compatibility with the Sprint 1 SDK.
+ */
+export interface ConnectorContext {
+  /** The already-resolved credential (e.g. a decrypted bot token) - fetched fresh by the caller for each call, never cached longer than needed. */
+  credential?: unknown;
+  linkedAccountId?: string;
+  /** Provider-specific extra data a connector's own orchestration needs (e.g. Telegram's webhook secret for reconcile()'s drain-and-restore, ADR-0017) - opaque to the SDK itself. */
+  metadata?: Record<string, unknown>;
+}
+
 export interface SyncResult {
   messages: NormalizedMessage[];
   checkpoint: SyncCheckpoint;

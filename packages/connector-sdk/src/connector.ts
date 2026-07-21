@@ -1,8 +1,9 @@
 import { ConnectorError } from "./errors";
-import { ConnectorLifecycle, type LifecycleTransitionListener } from "./lifecycle";
+import { ConnectorLifecycle, type LifecycleState, type LifecycleTransitionListener } from "./lifecycle";
 import type {
   AuthenticationResult,
   CapabilityManifest,
+  ConnectorContext,
   CredentialValidationResult,
   NormalizedMessage,
   OutboundMessage,
@@ -42,14 +43,14 @@ export interface Connector {
    * again with the checkpoint from a previous, incomplete result, it
    * continues rather than restarting from zero.
    */
-  initialSync(checkpoint?: SyncCheckpoint): Promise<SyncResult>;
+  initialSync(checkpoint?: SyncCheckpoint, context?: ConnectorContext): Promise<SyncResult>;
 
   /**
    * The hybrid pattern's periodic correctness backstop (docs/CONNECTOR_SDK.md
    * Section 4.3 / 8.3) - required for any connector whose manifest declares
    * "webhook" or "hybrid" ingestion.
    */
-  reconcile(checkpoint?: SyncCheckpoint): Promise<SyncResult>;
+  reconcile(checkpoint?: SyncCheckpoint, context?: ConnectorContext): Promise<SyncResult>;
 
   /**
    * A pure function: the same raw provider payload always produces the
@@ -60,15 +61,15 @@ export interface Connector {
   /** Maps a provider-native error into the standardized taxonomy (Section 15). */
   mapError(rawError: unknown): ConnectorError;
 
-  /** A fresh lifecycle state machine for one LinkedAccount (Section 2). */
-  createLifecycle(listener?: LifecycleTransitionListener): ConnectorLifecycle;
+  /** A lifecycle state machine for one LinkedAccount (Section 2) - resumes from `initialState` if given, otherwise starts fresh at "registered". */
+  createLifecycle(listener?: LifecycleTransitionListener, initialState?: LifecycleState): ConnectorLifecycle;
 
   /**
    * Outbound send (docs/CONNECTOR_SDK.md Section 14) - optional because not
    * every connector implementation exists yet, but required to produce
    * backpressure (queue/retry), never a silent drop, wherever implemented.
    */
-  send?(message: OutboundMessage): Promise<SendResult>;
+  send?(message: OutboundMessage, context?: ConnectorContext): Promise<SendResult>;
 }
 
 /**
@@ -84,8 +85,8 @@ export abstract class BaseConnector implements Connector {
   abstract readonly capabilityManifest: CapabilityManifest;
 
   abstract validateCredential(credential: unknown): Promise<CredentialValidationResult>;
-  abstract initialSync(checkpoint?: SyncCheckpoint): Promise<SyncResult>;
-  abstract reconcile(checkpoint?: SyncCheckpoint): Promise<SyncResult>;
+  abstract initialSync(checkpoint?: SyncCheckpoint, context?: ConnectorContext): Promise<SyncResult>;
+  abstract reconcile(checkpoint?: SyncCheckpoint, context?: ConnectorContext): Promise<SyncResult>;
   abstract mapMessage(rawPayload: unknown): NormalizedMessage;
   abstract mapError(rawError: unknown): ConnectorError;
 
@@ -100,7 +101,7 @@ export abstract class BaseConnector implements Connector {
   /** Called only after validateCredential has already succeeded. */
   protected abstract onCredentialValidated(credential: unknown): Promise<AuthenticationResult>;
 
-  createLifecycle(listener?: LifecycleTransitionListener): ConnectorLifecycle {
-    return new ConnectorLifecycle(listener);
+  createLifecycle(listener?: LifecycleTransitionListener, initialState?: LifecycleState): ConnectorLifecycle {
+    return new ConnectorLifecycle(listener, initialState);
   }
 }

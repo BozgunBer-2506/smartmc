@@ -2,6 +2,7 @@ export type {
   AttachmentType,
   AuthenticationResult,
   CapabilityManifest,
+  ConnectorContext,
   CredentialValidationResult,
   IngestionMode,
   NormalizedMessage,
@@ -29,6 +30,9 @@ export { BaseConnector } from "./connector";
 export type { Connector } from "./connector";
 
 export { ConnectorRegistry } from "./registry";
+export { defaultConnectorRegistry } from "./default-registry";
+
+export * from "./telegram";
 
 export { MockConnector, MOCK_PROVIDER_KEY, generateMockMessage, mockConnector } from "./mock-connector";
 export type { GenerateMockMessageOptions } from "./mock-connector";

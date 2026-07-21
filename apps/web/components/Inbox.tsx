@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@smc/ui";
 import {
+  connectTelegram,
   fetchConversations,
   fetchMessages,
   fetchNotifications,
   logout,
+  sendMessage,
   triggerMockMessage,
   type ConversationMessage,
   type ConversationSummary,
@@ -39,6 +41,11 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
   const [senderName, setSenderName] = useState("Deniz");
   const [body, setBody] = useState("Hey, are we still on for tomorrow?");
   const [sending, setSending] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replying, setReplying] = useState(false);
+  const [botToken, setBotToken] = useState("");
+  const [connectingTelegram, setConnectingTelegram] = useState(false);
+  const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
 
@@ -71,12 +78,14 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("message.received", onMessage);
+    socket.on("message.sent", onMessage);
     socket.on("notification.created", onNotification);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("message.received", onMessage);
+      socket.off("message.sent", onMessage);
       socket.off("notification.created", onNotification);
       disconnectSocket();
     };
@@ -98,6 +107,37 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
       });
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleReply() {
+    if (!selectedId || !replyText.trim()) return;
+    setReplying(true);
+    try {
+      await sendMessage(accessToken, selectedId, replyText);
+      setReplyText("");
+      const msgs = await fetchMessages(accessToken, selectedId).catch(() => []);
+      setMessages(msgs);
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      alert(err instanceof Error ? err.message : "Failed to send reply.");
+    } finally {
+      setReplying(false);
+    }
+  }
+
+  async function handleConnectTelegram() {
+    if (!botToken.trim()) return;
+    setConnectingTelegram(true);
+    setTelegramStatus(null);
+    try {
+      const result = await connectTelegram(accessToken, botToken.trim());
+      setTelegramStatus(`Connected (status: ${result.status}, webhook: ${result.webhookRegistered ? "registered" : "reconciliation-only"})`);
+      setBotToken("");
+    } catch (err) {
+      setTelegramStatus(err instanceof Error ? err.message : "Failed to connect Telegram bot.");
+    } finally {
+      setConnectingTelegram(false);
     }
   }
 
@@ -129,6 +169,19 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
         </Button>
       </section>
 
+      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center" }}>
+        <input
+          value={botToken}
+          onChange={(e) => setBotToken(e.target.value)}
+          placeholder="Telegram bot token (from @BotFather)"
+          style={inputStyle({ flex: 1 })}
+        />
+        <Button onClick={handleConnectTelegram} disabled={connectingTelegram}>
+          {connectingTelegram ? "Connecting..." : "Connect Telegram"}
+        </Button>
+        {telegramStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{telegramStatus}</span>}
+      </section>
+
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         <section>
           <h2 style={sectionHeading}>Conversations</h2>
@@ -154,11 +207,25 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
           {!selectedId && <p style={{ color: "#9AA5B1", fontSize: 13 }}>Select a conversation to see its history.</p>}
           {messages.map((m) => (
             <article key={m.id} style={cardStyle}>
-              <strong>{m.sender?.displayName ?? "Me"}</strong>{" "}
+              <strong>{m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}</strong>{" "}
               <span style={{ color: "#9AA5B1", fontSize: 12 }}>{new Date(m.receivedAt).toLocaleTimeString()}</span>
               <p style={{ margin: "4px 0 0" }}>{m.bodyText}</p>
             </article>
           ))}
+          {selectedId && (
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleReply()}
+                placeholder="Reply..."
+                style={inputStyle({ flex: 1 })}
+              />
+              <Button onClick={handleReply} disabled={replying || !replyText.trim()}>
+                {replying ? "Sending..." : "Reply"}
+              </Button>
+            </div>
+          )}
         </section>
       </div>
 

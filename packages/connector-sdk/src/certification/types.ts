@@ -1,3 +1,4 @@
+import type { ConnectorContext } from "../types";
 import type { ConnectorErrorCode } from "../errors";
 
 export interface CertificationErrorFixture {
@@ -14,6 +15,14 @@ export interface CertificationOptions {
   errorFixtures: readonly CertificationErrorFixture[];
   validCredential: unknown;
   invalidCredential: unknown;
+  /**
+   * Passed through to every initialSync/reconcile/send call (added Phase 4
+   * Sprint 2 - a real connector needs its resolved credential at sync/send
+   * time, not just at authenticate() time; see packages/connector-sdk's
+   * ConnectorContext). Optional and additive - omitting it behaves exactly
+   * as Sprint 1's certification suite did.
+   */
+  context?: ConnectorContext;
 }
 
 export interface CertificationCheckResult {

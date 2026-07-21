@@ -2,10 +2,10 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.0
+Version: 2.1
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-18
+Last Updated: 2026-07-21
 Depends On:
   - PRODUCT.md
   - ARCHITECTURE.md
@@ -17,6 +17,9 @@ Related ADRs:
   - ADR-0013
   - ADR-0014
   - ADR-0015
+  - ADR-0016
+  - ADR-0017
+  - ADR-0018
 ```
 
 This file is the single source of truth for project sequencing. If context is lost between sessions, work resumes by reading this file plus [STATUS.md](STATUS.md), never by guessing.
@@ -240,25 +243,30 @@ The reason a new provider should someday take days, not weeks. Builds out `CONNE
 
 **Phase Review completed 2026-07-19** - full report at [reviews/phase-4-sprint-1-review.md](reviews/phase-4-sprint-1-review.md).
 
-### Sprint 2 - First Real Connector
+### Sprint 2 - First Real Connector - COMPLETE as of 2026-07-21
 
-See Phase 5 - Telegram Connector below. Not started.
+See Phase 5 - Telegram Connector below, now complete. Sprint 2 discovered three real implementation constraints the Sprint 1 SDK didn't anticipate, each resolved via ADR rather than silently worked around: no external secrets manager exists yet ([ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)), Telegram's Bot API has no history endpoint and `getUpdates`/`setWebhook` are mutually exclusive ([ADR-0017](adr/0017-telegram-sync-and-reconciliation-strategy.md)), and `DATABASE.md`'s original `LinkedAccount.status` sketch conflicts with the SDK's already-certified 9-state lifecycle ([ADR-0018](adr/0018-linked-account-status-uses-connector-sdk-lifecycle.md)). The SDK itself gained two small, backward-compatible extensions: an optional `ConnectorContext` parameter on `initialSync`/`reconcile`/`send` (a real connector needs its credential at call time, not just at `authenticate()` time - Mock Connector and Sprint 1 call sites are unaffected), and an optional `initialState` on `ConnectorLifecycle` (so platform code can resume a lifecycle from a persisted `LinkedAccount.status` across separate HTTP requests, not just within one connect flow's in-memory instance).
+
+**Phase Review completed 2026-07-21** - full report at [reviews/phase-4-sprint-2-review.md](reviews/phase-4-sprint-2-review.md). Tagged `v0.4.1-phase4-sprint2`.
 
 ---
 
-## Phase 5 - Telegram Connector
+## Phase 5 - Telegram Connector - COMPLETE as of 2026-07-21
 
-First real integration, built entirely on the Phase 4 SDK.
+First real integration, built entirely on the Phase 4 Sprint 1 SDK.
 
-- [ ] Bot API authentication (per ARCHITECTURE.md section 12 decision / ADR-0010: Bot API only, not MTProto)
-- [ ] Receive messages
-- [ ] Send messages
-- [ ] Media/attachments
-- [ ] Groups
-- [ ] Channels
-- [ ] Sync (backfill on connect)
-- [ ] Connection status surfaced in UI
-- [ ] Passes the full `CONNECTOR_SDK.md` Section 16 certification checklist - the same bar the Mock Connector was held to in Phase 4, now against a real, rate-limited, occasionally-flaky external API
+- [x] Bot API authentication (per ARCHITECTURE.md section 12 decision / ADR-0010: Bot API only, not MTProto) - `POST /v1/connectors/telegram/connect` makes a real `getMe` call before ever persisting a token (`CONNECTOR_SDK.md` Section 3.2), verified live against a real bot token and a real invalid one
+- [x] Receive messages - a real webhook receiver (`POST /v1/connectors/telegram/webhook/{linkedAccountId}`, secret-token-verified) plus reconciliation via `getUpdates` (ADR-0017), both feeding the same `message.received` event pipeline the Mock Connector uses
+- [x] Send messages - `POST /v1/conversations/{id}/messages` (`API.md` Section 10.3's documented route, with a disclosed synchronous-not-202-async simplification - see the phase review), verified live: a real reply was delivered to a real Telegram chat and confirmed received
+- [ ] Media/attachments - **deferred**, not required by this sprint's Definition of Done (`CONNECTOR_SDK.md` Section 12 remains platform-level, unbuilt)
+- [ ] Groups / Channels - **deferred**; the connector's manifest declares `groupManagement: "read_write"` but group-specific UI/flows aren't built yet
+- [x] Sync (backfill on connect) - a real, documented no-op (ADR-0017: the Bot API has no history endpoint, so there is nothing to backfill) - not silently skipped, structurally correct for this provider
+- [ ] Connection status surfaced in UI - **deferred**; `apps/web`'s Inbox has a minimal "Connect Telegram" control (bot token in, connect out) but no dedicated LinkedAccount health/status screen yet (`API.md` Section 10.5, not yet built)
+- [x] Passes the full `CONNECTOR_SDK.md` Section 16 certification checklist - `pnpm --filter @smc/scripts certify:telegram-connector` (14/14 applicable checks passing, 2 correctly skipped - see the phase review for why those two are legitimate skips, not gaps) - the same bar the Mock Connector was held to in Phase 4 Sprint 1, now against a connector making real HTTP calls to a real, rate-limited external API
+
+**Definition of Done - verified live, not just typechecked**: a real Telegram bot token was configured via `POST /v1/connectors/telegram/connect` (real `getMe` validation against the actual Telegram network); a real Telegram user sent a real message to the bot; the message was fetched via `getUpdates`, pushed through the real webhook receiver, and appeared in the real Inbox with the sender resolved by name through IdentityGraph; a reply was sent from the Inbox and delivered to the real Telegram chat - confirmed received by the human on the other end. `certify:telegram-connector`, `verify:telegram` (real-network negative-path + simulated-webhook checks), `verify:phase3`, `verify:auth`, `verify:soft-delete`, and `certify:mock-connector` all pass with no regressions. `pnpm typecheck`/`pnpm lint`/`pnpm build` pass clean across the whole monorepo.
+
+**Phase Review completed 2026-07-21** - full report at [reviews/phase-4-sprint-2-review.md](reviews/phase-4-sprint-2-review.md). Tagged `v0.4.1-phase4-sprint2`.
 
 **Definition of Done**: a real person connects their own real Telegram bot, sends themselves a real message from their phone, and watches it appear in the Smart Message Center inbox live - the first moment in the project where the product does the thing PRODUCT.md's Vision describes, with a real external system, not a mock or a diagram.
 

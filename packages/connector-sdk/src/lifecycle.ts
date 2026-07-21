@@ -76,10 +76,23 @@ export class IllegalLifecycleTransitionError extends Error {
  * only owns the state machine itself, not its event-bus wiring.
  */
 export class ConnectorLifecycle {
-  private state: LifecycleState = "registered";
+  private state: LifecycleState;
   private readonly history: LifecycleTransitionRecord[] = [];
 
-  constructor(private readonly onTransition?: LifecycleTransitionListener) {}
+  /**
+   * `initialState` (added Phase 4 Sprint 2, default "registered" -
+   * backward compatible with Sprint 1 call sites) lets platform code
+   * resume a lifecycle from whatever state is durably persisted
+   * (`LinkedAccount.status`, ADR-0018) across separate HTTP requests,
+   * rather than only being usable within a single connect flow's
+   * in-memory instance.
+   */
+  constructor(
+    private readonly onTransition?: LifecycleTransitionListener,
+    initialState: LifecycleState = "registered",
+  ) {
+    this.state = initialState;
+  }
 
   get current(): LifecycleState {
     return this.state;

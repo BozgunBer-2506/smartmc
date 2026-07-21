@@ -8,6 +8,8 @@ import { AuthModule } from "./auth/auth.module";
 import { UsersModule } from "./users/users.module";
 import { ConversationsModule } from "./conversations/conversations.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { CredentialsStoreModule } from "./credentials-store/credentials-store.module";
+import { TelegramModule } from "./telegram/telegram.module";
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { NotificationsModule } from "./notifications/notifications.module";
     UsersModule,
     ConversationsModule,
     NotificationsModule,
+    CredentialsStoreModule,
+    TelegramModule,
   ],
 })
 export class AppModule {}

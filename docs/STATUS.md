@@ -2,10 +2,10 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.1
+Version: 3.2
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-18
+Last Updated: 2026-07-21
 Depends On:
   - ROADMAP.md
 Related ADRs:
@@ -14,6 +14,9 @@ Related ADRs:
   - ADR-0013
   - ADR-0014
   - ADR-0015
+  - ADR-0016
+  - ADR-0017
+  - ADR-0018
 ```
 
 Living status file. Updated at the end of every work session. If a new session starts cold (context lost, new machine, new day), read this file first, then [ROADMAP.md](ROADMAP.md), before doing anything else.
@@ -22,7 +25,7 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 (Product Foundation), Phase 1 (Project Bootstrap), Phase 2 (Authentication, backend), and Phase 3 (Identity & Messaging Foundation): COMPLETE.** **Phase 4 Sprint 1 (Connector SDK Foundation) - COMPLETE and verified live** as of 2026-07-19. Phase 4 Sprint 2 (first real connector, Telegram) not started.
+**Phase 0 (Product Foundation) through Phase 4 Sprint 1 (Connector SDK Foundation): COMPLETE.** **Phase 4 Sprint 2 / Phase 5 (Telegram Connector) - COMPLETE and verified live, including a human-confirmed real end-to-end message exchange over the real Telegram network** as of 2026-07-21.
 
 ## What Actually Runs Right Now
 
@@ -35,9 +38,11 @@ pnpm db:generate && pnpm db:push
 pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc --watch
 ```
 
-**A real person can now**: open `http://localhost:3000`, register or log in, click "Send mock message," and watch it appear in their own Inbox in real time - no page refresh - with the sender resolved by name through IdentityGraph, and see a notification surface for it. This is the Phase 3 demo script end to end, in the actual browser UI, not just via scripts. (Phase 4 Sprint 1 is SDK-internal - it changes nothing about this user-visible flow, only what's underneath the Mock Connector's send path; see below.)
+**A real person can now**: open `http://localhost:3000`, register or log in, connect a real Telegram bot (a token from @BotFather), and have real Telegram messages sent to that bot appear in their own Inbox in real time, sender resolved by name through IdentityGraph - then reply from the Inbox and have that reply actually delivered back to the real Telegram chat. This is genuinely the first time an external, real-world message source reaches the product, not a mock or a diagram. Sending a mock message (Phase 3's demo path) still works unchanged alongside it.
 
-**Connector SDK (new, Phase 4 Sprint 1)**: `pnpm --filter @smc/scripts certify:mock-connector` runs the Connector Certification Suite against the Mock Connector (16/16 checks passing) - the same mechanical bar every future connector (Telegram, Discord, Slack, Email) will be held to.
+**Connector SDK (Phase 4 Sprint 1)**: `pnpm --filter @smc/scripts certify:mock-connector` runs the Connector Certification Suite against the Mock Connector (16/16 checks passing) - the same mechanical bar every connector is held to.
+
+**Telegram Connector (new, Phase 4 Sprint 2 / Phase 5)**: `POST /v1/connectors/telegram/connect` (real `getMe` validation before persistence), `POST /v1/connectors/telegram/webhook/{linkedAccountId}` (the real webhook receiver, secret-token-verified), `POST /v1/connectors/telegram/{id}/disconnect`, `POST /v1/conversations/{id}/messages` (the reply path, provider-agnostic - looked up through the Connector Registry). `pnpm --filter @smc/scripts certify:telegram-connector` (14/14 applicable, 2 legitimate skips) and `pnpm --filter @smc/scripts verify:telegram` (real-network negative-path + simulated-webhook checks) are the standing regression checks. Credentials are stored via an interim envelope-encrypted secrets store (`apps/api/src/credentials-store/`, [ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production gap versus `SECURITY.md`'s target external-secrets-manager design, tracked below.
 
 **Auth (Phase 2)**: `POST /v1/auth/register`, `POST /v1/auth/login`, `POST /v1/auth/refresh`, `POST /v1/auth/logout`, `POST /v1/auth/logout-all`, `GET /v1/auth/sessions`, `GET /v1/users/me`. Registering auto-creates an Organization + Workspace + owner `WorkspaceMember`. `pnpm --filter @smc/scripts verify:auth` is the standing regression check (16/16 passing, re-confirmed clean after Phase 3).
 
@@ -49,32 +54,45 @@ pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc
 
 ## Repository
 
-**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 4 Sprint 1 populated `packages/connector-sdk/src/{lifecycle,capability-manifest,errors,connector,registry}.ts` and `packages/connector-sdk/src/certification/`, and `packages/config` (previously reserved) was populated in the lint/Husky closure below - no new top-level packages.**
+**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 4 Sprint 2 added `packages/connector-sdk/src/telegram/`, `apps/api/src/telegram/`, and `apps/api/src/credentials-store/` - no new top-level packages.**
 ```
 smartmc/
-├── docs/          (15 documents, adr/ [0001-0015], reviews/ [phase-1, phase-2, phase-3, phase-4-sprint-1])
+├── docs/          (15 documents, adr/ [0001-0018], reviews/ [phase-1, phase-2, phase-3, phase-4-sprint-1, phase-4-sprint-2])
 ├── apps/
-│   ├── web/         Next.js - real login/register form + real authenticated Inbox (Phase 3)
+│   ├── web/         Next.js - real login/register form + real authenticated Inbox + Connect Telegram (Phase 3, 4S2)
 │   └── api/         NestJS - health, events, realtime, mock-connector, auth, users, audit,
-│   │                conversations, notifications
+│   │                conversations (reply endpoint, new), notifications, secrets (new), telegram (new)
 ├── packages/
 │   ├── database/      Prisma schema: messaging core (Phase 1) + Organization/User/UserCredentials/
-│   │                  WorkspaceMember/Session/AuditLog (Phase 2) + soft-delete extension
+│   │                  WorkspaceMember/Session/AuditLog (Phase 2) + LinkedAccount/SecretRecord (Phase 4 Sprint 2)
+│   │                  + soft-delete extension
 │   ├── shared/       Canonical domain types, DEV_WORKSPACE_ID/DEV_ORGANIZATION_ID
 │   ├── event-model/    EventEnvelope + EventType
 │   ├── identity/      IdentityGraph exact-match resolver
 │   ├── connector-sdk/   Connector interface, lifecycle, capability manifest, error taxonomy,
-│   │                  registry, certification suite, Mock Connector (new, Phase 4 Sprint 1)
-│   ├── config/       Real ESLint + Prettier presets (closed the lint/Husky gap, below)
+│   │                  registry, certification suite, Mock Connector, Telegram Connector (new, Phase 4 Sprint 2)
+│   ├── config/       Real ESLint + Prettier presets
 │   ├── ui/          Minimal Button primitive
 │   │                (automation-engine, auth, ai, design-tokens still empty, reserved per phase)
 ├── infrastructure/   (empty, reserved)
 ├── scripts/        @smc/scripts - verify-phase3.mjs, verify-soft-delete.cjs, verify-auth.mjs,
-│                   certify-mock-connector.mjs (new)
+│                   certify-mock-connector.mjs, certify-telegram-connector.mjs (new), verify-telegram.cjs (new)
 ├── docker-compose.yml (Postgres @ 5433, not 5432)
 ├── LICENSE        (all-rights-reserved)
 ```
 GitHub remote: `https://github.com/BozgunBer-2506/smartmc` - public, connected.
+
+## Phase 4 Sprint 2 / Phase 5 - Telegram Connector (complete, verified live end to end)
+
+Full detail in `ROADMAP.md`'s Phase 4 Sprint 2 and Phase 5 sections and [docs/reviews/phase-4-sprint-2-review.md](reviews/phase-4-sprint-2-review.md). Summary:
+
+**Implemented**: a real `TelegramConnector` (`packages/connector-sdk/src/telegram/`) making real HTTP calls to `api.telegram.org`; `LinkedAccount`/`SecretRecord` persistence (`DATABASE.md` Section 6.5, previously spec-only); an interim envelope-encrypted `CredentialsStoreService` standing in for the external secrets manager `SECURITY.md` specifies; a real webhook receiver, a `getUpdates`-based reconciliation drain (ADR-0017), a real reply path (`POST /v1/conversations/{id}/messages`), and idempotent duplicate handling in the event pipeline (a real Phase 1-inherited gap, closed this sprint).
+
+**Three real architectural decisions, each resolved via ADR before implementation**: [ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md) (interim secrets store), [ADR-0017](adr/0017-telegram-sync-and-reconciliation-strategy.md) (Telegram's Bot API has no history endpoint and `getUpdates`/webhook are mutually exclusive), [ADR-0018](adr/0018-linked-account-status-uses-connector-sdk-lifecycle.md) (`LinkedAccount.status` uses the SDK's full lifecycle vocabulary, not `DATABASE.md`'s narrower original sketch).
+
+**Verified with a complete, human-confirmed live run**: a real Telegram user sent a real message to a disposable test bot; it was ingested and appeared in the real Inbox with the sender resolved by name; a reply was sent from the Inbox and confirmed received on the real Telegram app on the other end - not simulated, not mocked.
+
+Tagged `v0.4.1-phase4-sprint2`.
 
 ## Phase 4 Sprint 1 - Connector SDK Foundation (complete, verified live)
 
@@ -124,7 +142,7 @@ Tagged `v0.2.0-phase2`.
 
 **Phase 1 Review** ([docs/reviews/phase-1-review.md](reviews/phase-1-review.md)): 3 findings fixed same-day and verified live - RFC 7807 error model, soft-delete infrastructure, production guard on the mock-connector endpoint. 9 findings deliberately deferred. Tagged `v0.1.0-phase1` and `v0.1.1-phase1-hardening`.
 
-## Phase 0 - Complete Document Set (15 documents, 15 ADRs)
+## Phase 0 - Complete Document Set (15 documents, 18 ADRs)
 
 | Document | Core content |
 |---|---|
@@ -138,31 +156,33 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 19 phases, working rules, Phase 1-4 Sprint 1 verified Definitions of Done |
+| `ROADMAP.md` | 19 phases, working rules, Phase 1-4 (both sprints) verified Definitions of Done |
 | `STATUS.md` | This file |
-| `DECISIONS.md` | Index of all 15 ADRs |
+| `DECISIONS.md` | Index of all 18 ADRs |
 
-**ADRs 0001-0015**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path. No new ADR this sprint - Phase 4 Sprint 1 implements already-documented architecture.
+**ADRs 0001-0018**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path, **interim envelope-encrypted secrets store, Telegram sync/reconciliation strategy given Bot API's shape, LinkedAccount.status uses the SDK's full lifecycle vocabulary**.
 
 ## Known Open Decisions / Gaps (tracked so they aren't lost)
 
 1. **Pricing numbers** ($12/mo Pro, $18/seat Business) - a starting hypothesis (`PRODUCT.md`), not a blocker.
 2. **LinkedIn DM integration** feasibility (no public API) - deferred to Phase 16-17.
-3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - soft deletes and the auth core (Organization/User/Session/AuditLog/etc.) are now implemented; `LinkedAccount` (needed once Sprint 2/Telegram persists connector state), IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
+3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - `LinkedAccount` is now real (Phase 4 Sprint 2); IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
 4. **Six Phase 2 simplifications on record** (citext→app-level email normalization, no timing-attack mitigation on login, no `trust proxy` config, raw device/IP in session listing, untuned Argon2id parameters, 15-min role-change propagation delay) - all reasoned and disclosed in `docs/reviews/phase-2-review.md`, none hidden.
 5. **`Notification` has no `readAt` column** - `GET /v1/notifications` (Phase 3) is read-only, no mark-read/unread state yet. Disclosed in `docs/reviews/phase-3-review.md`, deferred to whichever phase first needs it (likely Phase 11).
-6. **Connector SDK's real webhook/polling transport, OAuth flows, `LinkedAccount` persistence, attachment abstraction, and health monitoring are not yet implemented** - disclosed in `docs/reviews/phase-4-sprint-1-review.md` with per-item reasoning; all are Sprint 2 (Telegram) scope, since a real provider is what makes each of them meaningful to build.
+6. **The interim secrets store is envelope encryption in Postgres, not a real external secrets manager** ([ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production security posture reduction, to be closed before any real customer credential is ever stored in production.
+7. **The reply endpoint sends synchronously and returns `201`, not `API.md`'s documented `202 Accepted` + async-WebSocket-observed shape** - disclosed in `docs/reviews/phase-4-sprint-2-review.md`; revisit when a real need for async/bulk/scheduled send exists.
+8. **Media/attachments, Groups/Channels, and a LinkedAccount health/status UI screen are not yet implemented for Telegram** - disclosed in `docs/reviews/phase-4-sprint-2-review.md`, deferred to their own scope.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-Begin Phase 4 Sprint 2 (Phase 5 - Telegram Connector): the first real connector built on the Sprint 1 SDK - Bot API authentication (`validateCredential`/`authenticate` against a real `getMe` call), a real webhook receiver plus the required reconciliation poll (`CONNECTOR_SDK.md` Section 4.3), `LinkedAccount` persistence (`DATABASE.md` Section 6.5, not yet in `packages/database/prisma/schema.prisma`), and the SDK's lifecycle/error-taxonomy/certification machinery proven against a real, rate-limited, occasionally-flaky external API instead of synthetic data. Definition of Done (per `ROADMAP.md` Phase 5): a real person connects their own real Telegram bot, sends themselves a real message from their phone, and watches it appear in the Smart Message Center inbox live.
+Phase 4 (both sprints) and Phase 5 are complete. Begin Phase 6 - Discord Connector: the second real connector on the Phase 4 Sprint 1 SDK, deliberately chosen next per `ROADMAP.md`'s own sequencing note ("if any [connector] require[s] changing the SDK interface, that's expected for Discord - it's the first real second connector - but should not happen by Slack or Email"). Discord has a real message-history endpoint (unlike Telegram), so this is also the first real test of whether Sprint 1's `initialSync`/reconciliation design generalizes beyond the Bot-API-shaped constraints ADR-0017 worked around, or needs further refinement.
 
 ## How to Resume From Zero Context
 
 1. Read this file (`STATUS.md`).
-2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-4 Sprint 1's exact verification steps.
+2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-4 (both sprints)'s exact verification steps.
 3. Read `PRODUCT.md`, `ARCHITECTURE.md` (Section 6 for auth, Section 13 for IdentityGraph), and `DECISIONS.md` for decisions already made - do not re-derive or re-litigate anything documented there.
 4. To actually run the app: see "What Actually Runs Right Now" above, including the WSL environment note and the local-DB-reset note.
 5. Continue from "Next Action" above, or from wherever the user redirects.

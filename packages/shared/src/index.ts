@@ -92,4 +92,6 @@ export interface InboundMessagePayload {
   receivedAt: string;
   /** Required per docs/CONNECTOR_SDK.md Section 11's normalization contract - added Phase 4 Sprint 1, previously implicitly always "inbound". */
   direction: Direction;
+  /** Which LinkedAccount this message arrived through (docs/DATABASE.md Section 6.5) - undefined for the Mock Connector's dev-fixture path, always set for a real connector (Phase 4 Sprint 2+). */
+  linkedAccountId?: string;
 }

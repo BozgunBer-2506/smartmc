@@ -118,11 +118,32 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
         id: newId(),
         workspaceId: payload.workspaceId,
         providerId: provider.id,
+        linkedAccountId: payload.linkedAccountId ?? null,
         externalId: payload.conversationExternalId,
         title: payload.conversationTitle ?? null,
         lastMessageAt: new Date(payload.receivedAt),
       },
     });
+
+    // Idempotent duplicate handling (docs/CONNECTOR_SDK.md Section 10): the
+    // same message can legitimately arrive twice - a Telegram webhook
+    // retried after a slow response, a reconciliation pass recovering a
+    // message the webhook already delivered, or a BullMQ job retried after
+    // a crash mid-processing. The (conversationId, externalId) unique
+    // constraint is the dedup key; a duplicate is a safe no-op, not an
+    // error and not a second notification.
+    const existingMessage = await prisma.message.findUnique({
+      where: {
+        uq_messages_conversation_external: {
+          conversationId: conversation.id,
+          externalId: payload.messageExternalId,
+        },
+      },
+    });
+    if (existingMessage) {
+      this.logger.log(`Duplicate message ignored (already ingested as ${existingMessage.id})`);
+      return;
+    }
 
     const message = await prisma.message.create({
       data: {

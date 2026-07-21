@@ -4,9 +4,14 @@
 // ContactIdentity/Conversation/Message/Notification). Phase 2 adds
 // Organization, User, UserCredentials, WorkspaceMember, Session, and
 // AuditLog for authentication (docs/ROADMAP.md Phase 2, ADR-0014).
+// Phase 4 Sprint 2 adds LinkedAccount (docs/DATABASE.md Section 6.5,
+// status vocabulary corrected per ADR-0018) and SecretRecord (the interim
+// envelope-encrypted secrets store, ADR-0016 - not part of DATABASE.md's
+// documented schema, since it's a Sprint 2 implementation detail, not a
+// product-domain entity).
 // Still deferred: IdentityGraph's confidence-score/merge-suggestion
-// tables (Phase 9), LinkedAccount (Phase 4-5), RLS, DB role separation
-// (DATABASE.md Section 21) - all tracked in docs/reviews/.
+// tables (Phase 9), RLS, DB role separation (DATABASE.md Section 21) -
+// all tracked in docs/reviews/.
 // IDs are UUIDv7 (ADR-0007), generated application-side (see
 // packages/database/src/ids.ts) rather than via Prisma's @default(uuid()),
 // which only generates UUIDv4.
@@ -51,6 +56,7 @@ model Workspace {
   conversations Conversation[]
   messages      Message[]
   notifications Notification[]
+  linkedAccounts LinkedAccount[]
 
   @@map("workspaces")
 }
@@ -169,8 +175,56 @@ model Provider {
 
   contactIdentities ContactIdentity[]
   conversations     Conversation[]
+  linkedAccounts    LinkedAccount[]
 
   @@map("providers")
+}
+
+/// A Workspace's connection to one Provider account, e.g. "this Telegram
+/// bot" (docs/DATABASE.md Section 6.5). `status` uses CONNECTOR_SDK.md
+/// Section 2's full 9-state lifecycle vocabulary, not DATABASE.md's
+/// original 5-value sketch - see ADR-0018 for why. `credentialsRef` is an
+/// opaque pointer into SecretRecord (ADR-0016's interim secrets store) -
+/// this model never holds a raw credential itself.
+model LinkedAccount {
+  id                String    @id @db.Uuid
+  workspaceId       String    @map("workspace_id") @db.Uuid
+  providerId        String    @map("provider_id") @db.Uuid
+  externalAccountId String    @map("external_account_id")
+  displayLabel      String?   @map("display_label")
+  status            String    @default("registered") // CONNECTOR_SDK.md Section 2 lifecycle states - ADR-0018
+  credentialsRef    String    @map("credentials_ref") @db.Uuid // -> SecretRecord.id, never a raw credential - SECURITY.md Section 5, ADR-0016
+  webhookSecret     String?   @map("webhook_secret") // inbound webhook verification only - not a provider credential, SECURITY.md Section 5's boundary doesn't apply to this value (see TelegramController)
+  syncCursor        String?   @map("sync_cursor") // durable checkpoint (CONNECTOR_SDK.md Section 9) - Telegram's getUpdates offset
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  lastError         String?   @map("last_error")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id])
+  provider      Provider       @relation(fields: [providerId], references: [id])
+  conversations Conversation[]
+
+  @@unique([workspaceId, providerId, externalAccountId], name: "uq_linked_accounts_workspace_provider_external")
+  @@index([workspaceId], name: "idx_linked_accounts_workspace_id")
+  @@index([status], name: "idx_linked_accounts_status")
+  @@map("linked_accounts")
+}
+
+/// The interim secrets store (ADR-0016) - AES-256-GCM ciphertext, never
+/// soft-deleted (deliberately excluded from packages/database/src/soft-delete.ts's
+/// SOFT_DELETE_MODELS): SECURITY.md Section 5.2 requires disconnecting a
+/// LinkedAccount to unconditionally, irreversibly delete its credential,
+/// which a soft-deleted-but-still-decryptable row would not achieve.
+model SecretRecord {
+  id         String   @id @db.Uuid
+  ciphertext Bytes
+  iv         Bytes
+  authTag    Bytes    @map("auth_tag")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("secret_records")
 }
 
 /// A deduplicated real person, independent of channel - IdentityGraph's
@@ -211,18 +265,20 @@ model ContactIdentity {
 }
 
 model Conversation {
-  id            String   @id @db.Uuid
-  workspaceId   String   @map("workspace_id") @db.Uuid
-  providerId    String   @map("provider_id") @db.Uuid
-  externalId    String   @map("external_id")
-  title         String?
+  id              String   @id @db.Uuid
+  workspaceId     String   @map("workspace_id") @db.Uuid
+  providerId      String   @map("provider_id") @db.Uuid
+  linkedAccountId String?  @map("linked_account_id") @db.Uuid // nullable - Mock Connector conversations (Phase 1-3) have none; real connectors (Phase 4 Sprint 2+) always set it
+  externalId      String   @map("external_id")
+  title           String?
   lastMessageAt DateTime?  @map("last_message_at")
   createdAt     DateTime   @default(now()) @map("created_at")
   deletedAt     DateTime?  @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id])
-  provider  Provider  @relation(fields: [providerId], references: [id])
-  messages  Message[]
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id])
+  provider      Provider       @relation(fields: [providerId], references: [id])
+  linkedAccount LinkedAccount? @relation(fields: [linkedAccountId], references: [id])
+  messages      Message[]
 
   @@unique([providerId, externalId, workspaceId], name: "uq_conversations_provider_external")
   @@map("conversations")

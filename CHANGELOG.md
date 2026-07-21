@@ -4,7 +4,31 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 4 Sprint 2 - Telegram Connector is next: the first real connector built on Sprint 1's SDK (Bot API authentication, a real webhook receiver plus the required reconciliation poll, `LinkedAccount` persistence).
+Phase 6 - Discord Connector is next: the second real connector on the Phase 4 SDK, deliberately chosen to pressure-test whether the SDK generalizes beyond Telegram's Bot-API-shaped constraints.
+
+## [0.4.1] - 2026-07-21 - Phase 4 Sprint 2 / Phase 5: Telegram Connector (`v0.4.1-phase4-sprint2`)
+
+### Added
+- A real `TelegramConnector` (`packages/connector-sdk/src/telegram/`) making real HTTP calls to `api.telegram.org` - the first connector built on Sprint 1's SDK against an actual external provider
+- `LinkedAccount` and `SecretRecord` Prisma models (`packages/database`) - `DATABASE.md` Section 6.5, implemented for real for the first time
+- `SecretsService` (`apps/api/src/secrets/`) - an interim envelope-encrypted (AES-256-GCM) credential store standing in for the external secrets manager `SECURITY.md` specifies (ADR-0016)
+- `POST /v1/connectors/telegram/connect`, `POST /v1/connectors/telegram/webhook/{linkedAccountId}` (the real webhook receiver, secret-token-verified), `POST /v1/connectors/telegram/{id}/disconnect`
+- `POST /v1/conversations/{id}/messages` - the reply path, looked up through the Connector Registry rather than hardcoded to one provider
+- A `TelegramReconciliationService` running the periodic half of ADR-0017's recovery strategy
+- A "Connect Telegram" control in `apps/web`'s Inbox, plus a reply input and `message.sent` realtime handling
+- `pnpm --filter @smc/scripts certify:telegram-connector` and `pnpm --filter @smc/scripts verify:telegram` regression checks
+- ADR-0016 (interim secrets store), ADR-0017 (Telegram sync/reconciliation strategy given Bot API's shape), ADR-0018 (`LinkedAccount.status` uses the SDK's full lifecycle vocabulary) - three real architectural decisions, each resolved before the affected code was written
+
+### Changed
+- `ConnectorLifecycle` accepts an optional `initialState` (backward compatible, defaults to `"registered"`) - resumes a lifecycle from a persisted status across separate requests, not just within one connect flow
+- `initialSync`/`reconcile`/`send` accept an optional `ConnectorContext` (backward compatible) - a real connector needs its resolved credential at call time, not just at `authenticate()` time
+- The Certification Suite's checkpoint-resume and reconciliation checks now correctly `skip` (not fail) a legitimate zero-message result, for providers with no history endpoint
+- `events.processor.ts`'s `handleMessageReceived` is now idempotent - a duplicate `(conversationId, externalId)` is a safe no-op, not a crashed job or a duplicate notification
+
+### Security
+- `SecretRecord` is deliberately excluded from the soft-delete extension - disconnecting a LinkedAccount performs a real, unconditional `DELETE`, per `SECURITY.md` Section 5.2
+
+Verified with a complete, human-confirmed live run: a real Telegram user sent a real message to a disposable test bot, it appeared in the real Inbox with the sender resolved by name, and a reply sent from the Inbox was confirmed received on the real Telegram app on the other end.
 
 ## [0.4.0] - 2026-07-19 - Phase 4 Sprint 1: Connector SDK Foundation (`v0.4.0-phase4-sprint1`)
 
@@ -96,7 +120,8 @@ This release also closes the project's oldest open technical-debt item (real lin
 - GitHub Actions CI (`lint` / `typecheck` / `build`)
 - `scripts/verify-realtime.mjs` regression check
 
-[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.4.0-phase4-sprint1...HEAD
+[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.4.1-phase4-sprint2...HEAD
+[0.4.1]: https://github.com/BozgunBer-2506/smartmc/compare/v0.4.0-phase4-sprint1...v0.4.1-phase4-sprint2
 [0.4.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.3.0-phase3...v0.4.0-phase4-sprint1
 [0.3.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.2.0-phase2...v0.3.0-phase3
 [0.2.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.1.1-phase1-hardening...v0.2.0-phase2

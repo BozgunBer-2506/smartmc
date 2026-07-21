@@ -123,6 +123,32 @@ export async function fetchNotifications(accessToken: string): Promise<Notificat
   return parseOrThrow<NotificationItem[]>(res);
 }
 
+export async function sendMessage(accessToken: string, conversationId: string, body: string): Promise<ConversationMessage> {
+  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ body }),
+  });
+  return parseOrThrow<ConversationMessage>(res);
+}
+
+export interface ConnectTelegramResult {
+  id: string;
+  status: string;
+  providerKey: string;
+  externalAccountId: string;
+  webhookRegistered: boolean;
+}
+
+export async function connectTelegram(accessToken: string, botToken: string): Promise<ConnectTelegramResult> {
+  const res = await fetch(`${API_URL}/v1/connectors/telegram/connect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ botToken }),
+  });
+  return parseOrThrow<ConnectTelegramResult>(res);
+}
+
 export async function triggerMockMessage(
   accessToken: string,
   input: { senderDisplayName: string; senderExternalId: string; bodyText: string },

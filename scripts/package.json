@@ -6,7 +6,9 @@
     "verify:soft-delete": "node verify-soft-delete.cjs",
     "verify:auth": "node verify-auth.mjs",
     "verify:phase3": "node verify-phase3.mjs",
-    "certify:mock-connector": "node certify-mock-connector.mjs"
+    "certify:mock-connector": "node certify-mock-connector.mjs",
+    "certify:telegram-connector": "node certify-telegram-connector.mjs",
+    "verify:telegram": "node verify-telegram.cjs"
   },
   "dependencies": {
     "@smc/connector-sdk": "workspace:*",
