@@ -197,6 +197,7 @@ Tagged `v0.2.0-phase2`.
 9. **Discord's connector has not been verified live against the real Discord network** - certified against a fake API client and real-network config-detection checks only; needs a real Discord Application (Client ID/Secret/bot token) the user has deferred setting up. Disclosed in `docs/reviews/phase-6-review.md`, the concrete next step before this connector is production-ready.
 10. **Discord `initialSync`/`reconcile` are bounded to 5 channels / 50 messages per channel**, and new channels created after connect are never auto-discovered - disclosed in `docs/reviews/phase-6-review.md`, deferred until real usage shows the bound is too small.
 11. **`DiscordGatewayManagerService` runs inside `apps/api`'s single process**, not a separate connector-worker (`ARCHITECTURE.md`/ADR-0009's eventual split) - flagged as a known consequence in ADR-0019 itself.
+12. **`packages/ui` and `apps/marketing-site` each define their own Button** (and marketing-site also has Card/Accordion/StatusPill with no `packages/ui` counterpart) - `packages/ui/src/button.tsx`'s own comment already defers real consolidation to Phase 9's design-system build-out; ADR-0020's isolation stance is intentionally revisited then, narrowly for shared UI primitives and theme tokens, not the whole marketing-site stack. `apps/web` has no Tailwind pipeline today, so sharing requires giving it one first - not a same-day file move.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
