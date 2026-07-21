@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.2
+Version: 2.3
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-22
@@ -21,6 +21,7 @@ Related ADRs:
   - ADR-0017
   - ADR-0018
   - ADR-0019
+  - ADR-0020
 ```
 
 This file is the single source of truth for project sequencing. If context is lost between sessions, work resumes by reading this file plus [STATUS.md](STATUS.md), never by guessing.
@@ -59,6 +60,7 @@ smartmc/
 ├── apps/
 │   ├── web/            Next.js unified inbox UI
 │   ├── api/            NestJS backend (modular monolith, ADR-0009)
+│   ├── marketing-site/     Isolated Next.js/Tailwind marketing site (ADR-0020, added 2026-07-22) - not part of the product, no shared code with apps/web
 │   ├── desktop/          Tauri wrapper (Phase 15)
 │   └── mobile/           React Native (added when Phase 14 starts)
 ├── packages/

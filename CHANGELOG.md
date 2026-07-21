@@ -6,6 +6,9 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 Phase 7 - Slack Connector is next. `ROADMAP.md`'s own sequencing note expects this one to *not* require another SDK interface change (Slack's Events API is a normal HTTP webhook) - a forced change here would be a signal to stop and reassess.
 
+### Added
+- `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
+
 ## [0.5.0] - 2026-07-22 - Phase 6: Discord Connector (`v0.5.0-phase6`)
 
 ### Added

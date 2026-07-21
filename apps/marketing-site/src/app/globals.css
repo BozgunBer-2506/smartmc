@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   Design tokens
+   Palette is deliberately two-accent and semantic:
+     --signal (aqua)   = shipped, live, running
+     --ember  (copper) = in progress, planned, coming soon
+   Do not use them decoratively. Colour carries status on this site.
+------------------------------------------------------------------- */
+:root {
+  --ink: #0b0c0f;
+  --panel: #101217;
+  --raised: #14171d;
+  --line: #1c1f26;
+  --line-strong: #272c35;
+  --paper: #eceef2;
+  --muted: #868d9b;
+  --faint: #5b616d;
+  --signal: #6fdcc8;
+  --ember: #d98a4b;
+
+  --font-display: "Instrument Sans";
+  --font-sans: "IBM Plex Sans";
+  --font-mono: "IBM Plex Mono";
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--ink);
+  color: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(111, 220, 200, 0.22);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  /* The page spine: one hairline running the full height of the site,
+     with a node at every section. Reads as an event log. */
+  .spine {
+    @apply pointer-events-none absolute left-[7px] top-0 hidden h-full w-px bg-line lg:block;
+  }
+
+  .spine-node {
+    @apply pointer-events-none absolute left-0 hidden h-[15px] w-[15px] items-center justify-center rounded-full border border-line-strong bg-ink lg:flex;
+  }
+
+  .grid-fade {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 78%);
+  }
+}

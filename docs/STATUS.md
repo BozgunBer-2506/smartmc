@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.3
+Version: 3.4
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-22
@@ -18,6 +18,7 @@ Related ADRs:
   - ADR-0017
   - ADR-0018
   - ADR-0019
+  - ADR-0020
 ```
 
 Living status file. Updated at the end of every work session. If a new session starts cold (context lost, new machine, new day), read this file first, then [ROADMAP.md](ROADMAP.md), before doing anything else.
@@ -57,14 +58,15 @@ pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc
 
 ## Repository
 
-**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 6 added `packages/connector-sdk/src/discord/` and `apps/api/src/discord/` - no new top-level packages.**
+**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 6 added `packages/connector-sdk/src/discord/` and `apps/api/src/discord/`; [ADR-0020](adr/0020-marketing-site-as-isolated-app.md) added `apps/marketing-site/` - the first new top-level app since ADR-0011, deliberately isolated (see below).**
 ```
 smartmc/
-├── docs/          (15 documents, adr/ [0001-0019], reviews/ [phase-1 .. phase-4-sprint-2, phase-6])
+├── docs/          (15 documents, adr/ [0001-0020], reviews/ [phase-1 .. phase-4-sprint-2, phase-6])
 ├── apps/
 │   ├── web/         Next.js - real login/register form + real authenticated Inbox + Connect Telegram/Discord
-│   └── api/         NestJS - health, events, realtime, mock-connector, auth, users, audit,
-│   │                conversations (reply endpoint), notifications, credentials-store, telegram, discord (new)
+│   ├── api/         NestJS - health, events, realtime, mock-connector, auth, users, audit,
+│   │                conversations (reply endpoint), notifications, credentials-store, telegram, discord
+│   └── marketing-site/ Next.js/Tailwind/Radix/Framer Motion - fully isolated (ADR-0020, new), port 3001
 ├── packages/
 │   ├── database/      Prisma schema: messaging core (Phase 1) + Organization/User/UserCredentials/
 │   │                  WorkspaceMember/Session/AuditLog (Phase 2) + LinkedAccount/SecretRecord (Phase 4 Sprint 2)
@@ -85,6 +87,10 @@ smartmc/
 ├── LICENSE        (all-rights-reserved)
 ```
 GitHub remote: `https://github.com/BozgunBer-2506/smartmc` - public, connected.
+
+## Marketing Site (new, isolated addition - not a roadmap phase)
+
+`apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated per [ADR-0020](adr/0020-marketing-site-as-isolated-app.md). Fully isolated from the product (no shared code with `apps/web`, no dependency on `packages/*`), runs on port 3001 alongside `apps/web`'s 3000. Verified: `pnpm --filter @smc/marketing-site typecheck`/`lint`/`build` all pass clean; `pnpm --filter @smc/marketing-site dev` confirmed serving real rendered content. An unused `playwright-core` dependency present in the supplied source was removed during integration (no reference anywhere in `src/`). Not part of the phase-by-phase Definition of Done discipline the product apps follow - it's content-owned, not roadmap-owned.
 
 ## Phase 6 - Discord Connector (complete, certified, live human verification pending)
 
@@ -158,7 +164,7 @@ Tagged `v0.2.0-phase2`.
 
 **Phase 1 Review** ([docs/reviews/phase-1-review.md](reviews/phase-1-review.md)): 3 findings fixed same-day and verified live - RFC 7807 error model, soft-delete infrastructure, production guard on the mock-connector endpoint. 9 findings deliberately deferred. Tagged `v0.1.0-phase1` and `v0.1.1-phase1-hardening`.
 
-## Phase 0 - Complete Document Set (15 documents, 19 ADRs)
+## Phase 0 - Complete Document Set (15 documents, 20 ADRs)
 
 | Document | Core content |
 |---|---|
@@ -174,9 +180,9 @@ Tagged `v0.2.0-phase2`.
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
 | `ROADMAP.md` | 19 phases, working rules, Phase 1-6 verified Definitions of Done |
 | `STATUS.md` | This file |
-| `DECISIONS.md` | Index of all 19 ADRs |
+| `DECISIONS.md` | Index of all 20 ADRs |
 
-**ADRs 0001-0019**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path, interim envelope-encrypted secrets store, Telegram sync/reconciliation strategy given Bot API's shape, LinkedAccount.status uses the SDK's full lifecycle vocabulary, **Discord Gateway: a streaming ingestion mode and Connector interface extension**.
+**ADRs 0001-0020**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path, interim envelope-encrypted secrets store, Telegram sync/reconciliation strategy given Bot API's shape, LinkedAccount.status uses the SDK's full lifecycle vocabulary, Discord Gateway streaming ingestion mode, **marketing site as an isolated app**.
 
 ## Known Open Decisions / Gaps (tracked so they aren't lost)
 
