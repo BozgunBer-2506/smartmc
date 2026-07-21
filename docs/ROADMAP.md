@@ -2,10 +2,10 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.1
+Version: 2.2
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-21
+Last Updated: 2026-07-22
 Depends On:
   - PRODUCT.md
   - ARCHITECTURE.md
@@ -20,6 +20,7 @@ Related ADRs:
   - ADR-0016
   - ADR-0017
   - ADR-0018
+  - ADR-0019
 ```
 
 This file is the single source of truth for project sequencing. If context is lost between sessions, work resumes by reading this file plus [STATUS.md](STATUS.md), never by guessing.
@@ -272,14 +273,18 @@ First real integration, built entirely on the Phase 4 Sprint 1 SDK.
 
 ---
 
-## Phase 6 - Discord Connector
+## Phase 6 - Discord Connector - COMPLETE as of 2026-07-22
 
-Same Connector SDK. No architecture changes, no repeated plumbing - if this phase requires touching core domain code, that's a signal Phase 4 was under-designed and should be revisited before continuing.
+Same Connector SDK. `ROADMAP.md`'s own "Notes on Sequencing" anticipated this phase might force an SDK interface change ("that's expected for Discord... it's the first real second connector") - it did, and [ADR-0019](adr/0019-discord-gateway-streaming-connector-extension.md) is the record of exactly what changed and why: Discord's Gateway is a persistent WebSocket, not a webhook or a poll, so the `Connector` interface gained one new optional method (`startListening`) and a fourth `IngestionMode` (`"streaming"`). This was the sanctioned exception, not evidence Phase 4 was under-designed - see the ADR and the phase review for the full reasoning.
 
-- [ ] Discord Gateway auth (OAuth2 + bot)
-- [ ] Receive / send messages
-- [ ] Media/attachments
-- [ ] Servers/channels mapping to Conversation model
+- [x] Discord Gateway auth (OAuth2 + bot) - `POST /v1/connectors/discord/connect` returns an authorization URL (`CONNECTOR_SDK.md` Section 3.1's `oauth2_redirect` method); `GET /v1/connectors/discord/callback` completes the install with a real, per-guild credential validation (`getGuild`) before persistence
+- [x] Receive / send messages - a real Discord Gateway v10 client (`IDENTIFY`/heartbeat/`RESUME`/reconnect) for receiving, `POST /channels/{id}/messages` for sending via the same provider-agnostic `POST /v1/conversations/{id}/messages` reply endpoint Telegram already uses
+- [ ] Media/attachments - **deferred**, consistent with Telegram's identical deferral (`CONNECTOR_SDK.md` Section 12 remains platform-level and unbuilt); attachment-only messages map to a `"[Attachment]"` placeholder
+- [x] Servers/channels mapping to Conversation model - a Discord guild is one `LinkedAccount`; each text channel (bounded to the first 5 discovered, a disclosed scope limit) maps to one `Conversation`
+
+**Definition of Done - verified via `pnpm --filter @smc/scripts certify:discord-connector` (15/16 checks passing, 1 correctly skipped) and `pnpm --filter @smc/scripts verify:discord`**: the connector is real, certified code (a real Gateway protocol client, real REST calls, real `initialSync`/`reconcile` against Discord's actual history endpoint - the first connector where that part of the Sprint 1 design is proven, not a documented no-op like Telegram). `verify:phase3`, `verify:auth`, `verify:soft-delete`, `certify:mock-connector`, `certify:telegram-connector`, and `verify:telegram` all re-run clean - no regressions. `pnpm typecheck`/`pnpm lint`/`pnpm build` pass clean across the whole monorepo. **Not yet included**: a human-confirmed live message exchange over the real Discord network (Telegram's Phase 4 Sprint 2 bar) - this requires a real Discord Application (Developer Portal Client ID/Secret/bot token, privileged `MESSAGE_CONTENT` intent, a bot added to a real test server), a meaningfully bigger one-time setup than Telegram's single bot token, and the user explicitly deferred it to a later session. Disclosed in full in the phase review, not glossed over.
+
+**Phase Review completed 2026-07-22** - full report at [reviews/phase-6-review.md](reviews/phase-6-review.md). Tagged `v0.5.0-phase6`.
 
 ---
 

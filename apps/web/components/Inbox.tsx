@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@smc/ui";
 import {
+  connectDiscord,
   connectTelegram,
   fetchConversations,
   fetchMessages,
@@ -46,8 +47,22 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
   const [botToken, setBotToken] = useState("");
   const [connectingTelegram, setConnectingTelegram] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
+  const [connectingDiscord, setConnectingDiscord] = useState(false);
+  const [discordStatus, setDiscordStatus] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
+
+  useEffect(() => {
+    // Discord's OAuth2 install flow ends with a full-page redirect back
+    // here from apps/api/src/discord/discord.controller.ts's callback -
+    // surface the outcome once, then clean the URL.
+    const params = new URLSearchParams(window.location.search);
+    const discordResult = params.get("discord");
+    if (discordResult) {
+      setDiscordStatus(discordResult === "connected" ? "Discord connected." : `Discord connect failed (${discordResult}).`);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     fetchConversations(accessToken).then(setConversations).catch(() => undefined);
@@ -141,6 +156,17 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
     }
   }
 
+  async function handleConnectDiscord() {
+    setConnectingDiscord(true);
+    try {
+      const { authorizationUrl } = await connectDiscord(accessToken);
+      window.location.href = authorizationUrl; // full-page redirect - Discord's OAuth2 install flow, not an API call
+    } catch (err) {
+      setDiscordStatus(err instanceof Error ? err.message : "Failed to start the Discord connect flow.");
+      setConnectingDiscord(false);
+    }
+  }
+
   async function handleLogout() {
     await logout();
     onLoggedOut();
@@ -180,6 +206,13 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
           {connectingTelegram ? "Connecting..." : "Connect Telegram"}
         </Button>
         {telegramStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{telegramStatus}</span>}
+      </section>
+
+      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center" }}>
+        <Button onClick={handleConnectDiscord} disabled={connectingDiscord}>
+          {connectingDiscord ? "Redirecting..." : "Connect Discord"}
+        </Button>
+        {discordStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{discordStatus}</span>}
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>

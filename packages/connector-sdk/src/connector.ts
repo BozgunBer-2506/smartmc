@@ -8,6 +8,7 @@ import type {
   NormalizedMessage,
   OutboundMessage,
   SendResult,
+  StreamHandle,
   SyncCheckpoint,
   SyncResult,
 } from "./types";
@@ -70,6 +71,17 @@ export interface Connector {
    * backpressure (queue/retry), never a silent drop, wherever implemented.
    */
   send?(message: OutboundMessage, context?: ConnectorContext): Promise<SendResult>;
+
+  /**
+   * Opens a persistent, provider-initiated connection (ADR-0019 - Discord's
+   * Gateway, not an HTTP webhook or an interval poll) and invokes
+   * `onMessage` with each raw provider payload as it arrives. Optional -
+   * only implemented by connectors whose `capabilityManifest.ingestionMode`
+   * is `"streaming"`. The returned `StreamHandle` is the platform's only
+   * point of control; everything else (heartbeat, reconnect, resume) is
+   * the connector's own responsibility.
+   */
+  startListening?(context: ConnectorContext, onMessage: (rawPayload: unknown) => void): Promise<StreamHandle>;
 }
 
 /**

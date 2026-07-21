@@ -2,10 +2,10 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.2
+Version: 3.3
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-21
+Last Updated: 2026-07-22
 Depends On:
   - ROADMAP.md
 Related ADRs:
@@ -17,6 +17,7 @@ Related ADRs:
   - ADR-0016
   - ADR-0017
   - ADR-0018
+  - ADR-0019
 ```
 
 Living status file. Updated at the end of every work session. If a new session starts cold (context lost, new machine, new day), read this file first, then [ROADMAP.md](ROADMAP.md), before doing anything else.
@@ -25,7 +26,7 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 (Product Foundation) through Phase 4 Sprint 1 (Connector SDK Foundation): COMPLETE.** **Phase 4 Sprint 2 / Phase 5 (Telegram Connector) - COMPLETE and verified live, including a human-confirmed real end-to-end message exchange over the real Telegram network** as of 2026-07-21.
+**Phase 0 (Product Foundation) through Phase 5 (Telegram Connector): COMPLETE.** **Phase 6 (Discord Connector) - COMPLETE and certified** as of 2026-07-22, with one disclosed gap: no human-confirmed live message exchange over the real Discord network yet (requires a real Discord Application the user has deliberately deferred setting up - see `docs/reviews/phase-6-review.md`).
 
 ## What Actually Runs Right Now
 
@@ -38,11 +39,13 @@ pnpm db:generate && pnpm db:push
 pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc --watch
 ```
 
-**A real person can now**: open `http://localhost:3000`, register or log in, connect a real Telegram bot (a token from @BotFather), and have real Telegram messages sent to that bot appear in their own Inbox in real time, sender resolved by name through IdentityGraph - then reply from the Inbox and have that reply actually delivered back to the real Telegram chat. This is genuinely the first time an external, real-world message source reaches the product, not a mock or a diagram. Sending a mock message (Phase 3's demo path) still works unchanged alongside it.
+**A real person can now**: open `http://localhost:3000`, register or log in, connect a real Telegram bot (a token from @BotFather) and/or click "Connect Discord" to install the platform's Discord bot into their own server, and have real messages from either provider appear in their own Inbox in real time, sender resolved by name through IdentityGraph - then reply from the Inbox and have that reply delivered back to the real chat. Telegram's flow is human-confirmed live end to end; Discord's is fully implemented and certified but not yet exercised against a real Discord server (see Phase 6 below). Sending a mock message (Phase 3's demo path) still works unchanged alongside both.
 
 **Connector SDK (Phase 4 Sprint 1)**: `pnpm --filter @smc/scripts certify:mock-connector` runs the Connector Certification Suite against the Mock Connector (16/16 checks passing) - the same mechanical bar every connector is held to.
 
-**Telegram Connector (new, Phase 4 Sprint 2 / Phase 5)**: `POST /v1/connectors/telegram/connect` (real `getMe` validation before persistence), `POST /v1/connectors/telegram/webhook/{linkedAccountId}` (the real webhook receiver, secret-token-verified), `POST /v1/connectors/telegram/{id}/disconnect`, `POST /v1/conversations/{id}/messages` (the reply path, provider-agnostic - looked up through the Connector Registry). `pnpm --filter @smc/scripts certify:telegram-connector` (14/14 applicable, 2 legitimate skips) and `pnpm --filter @smc/scripts verify:telegram` (real-network negative-path + simulated-webhook checks) are the standing regression checks. Credentials are stored via an interim envelope-encrypted secrets store (`apps/api/src/credentials-store/`, [ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production gap versus `SECURITY.md`'s target external-secrets-manager design, tracked below.
+**Telegram Connector (Phase 4 Sprint 2 / Phase 5)**: `POST /v1/connectors/telegram/connect` (real `getMe` validation before persistence), `POST /v1/connectors/telegram/webhook/{linkedAccountId}` (the real webhook receiver, secret-token-verified), `POST /v1/connectors/telegram/{id}/disconnect`, `POST /v1/conversations/{id}/messages` (the reply path, provider-agnostic - looked up through the Connector Registry). `pnpm --filter @smc/scripts certify:telegram-connector` (14/14 applicable, 2 legitimate skips) and `pnpm --filter @smc/scripts verify:telegram` (real-network negative-path + simulated-webhook checks) are the standing regression checks. Credentials are stored via an interim envelope-encrypted secrets store (`apps/api/src/credentials-store/`, [ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production gap versus `SECURITY.md`'s target external-secrets-manager design, tracked below.
+
+**Discord Connector (new, Phase 6)**: `POST /v1/connectors/discord/connect` (returns an OAuth2 authorization URL - `CONNECTOR_SDK.md` Section 3.1's `oauth2_redirect` method), `GET /v1/connectors/discord/callback` (the real install-completion redirect target, per-guild credential validation before persistence), `POST /v1/connectors/discord/{id}/disconnect`, and the same provider-agnostic `POST /v1/conversations/{id}/messages` reply path Telegram uses. Receiving is a real Discord Gateway v10 WebSocket connection (`IDENTIFY`/heartbeat/`RESUME`/reconnect), not a webhook - the SDK's first `"streaming"` connector ([ADR-0019](adr/0019-discord-gateway-streaming-connector-extension.md)). `pnpm --filter @smc/scripts certify:discord-connector` (15/16, 1 legitimate skip) and `pnpm --filter @smc/scripts verify:discord` are the standing regression checks. Discord's `initialSync`/`reconcile` do a real bounded backfill/diff against Discord's genuine channel-history endpoint - unlike Telegram's documented no-op (ADR-0017), this is the first real proof the Sprint 1 sync design generalizes. **Not yet human-verified live** - requires a real Discord Application (Developer Portal Client ID/Secret/bot token), which the user has deferred setting up; see `docs/reviews/phase-6-review.md`.
 
 **Auth (Phase 2)**: `POST /v1/auth/register`, `POST /v1/auth/login`, `POST /v1/auth/refresh`, `POST /v1/auth/logout`, `POST /v1/auth/logout-all`, `GET /v1/auth/sessions`, `GET /v1/users/me`. Registering auto-creates an Organization + Workspace + owner `WorkspaceMember`. `pnpm --filter @smc/scripts verify:auth` is the standing regression check (16/16 passing, re-confirmed clean after Phase 3).
 
@@ -54,14 +57,14 @@ pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc
 
 ## Repository
 
-**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 4 Sprint 2 added `packages/connector-sdk/src/telegram/`, `apps/api/src/telegram/`, and `apps/api/src/credentials-store/` - no new top-level packages.**
+**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 6 added `packages/connector-sdk/src/discord/` and `apps/api/src/discord/` - no new top-level packages.**
 ```
 smartmc/
-├── docs/          (15 documents, adr/ [0001-0018], reviews/ [phase-1, phase-2, phase-3, phase-4-sprint-1, phase-4-sprint-2])
+├── docs/          (15 documents, adr/ [0001-0019], reviews/ [phase-1 .. phase-4-sprint-2, phase-6])
 ├── apps/
-│   ├── web/         Next.js - real login/register form + real authenticated Inbox + Connect Telegram (Phase 3, 4S2)
+│   ├── web/         Next.js - real login/register form + real authenticated Inbox + Connect Telegram/Discord
 │   └── api/         NestJS - health, events, realtime, mock-connector, auth, users, audit,
-│   │                conversations (reply endpoint, new), notifications, secrets (new), telegram (new)
+│   │                conversations (reply endpoint), notifications, credentials-store, telegram, discord (new)
 ├── packages/
 │   ├── database/      Prisma schema: messaging core (Phase 1) + Organization/User/UserCredentials/
 │   │                  WorkspaceMember/Session/AuditLog (Phase 2) + LinkedAccount/SecretRecord (Phase 4 Sprint 2)
@@ -69,18 +72,31 @@ smartmc/
 │   ├── shared/       Canonical domain types, DEV_WORKSPACE_ID/DEV_ORGANIZATION_ID
 │   ├── event-model/    EventEnvelope + EventType
 │   ├── identity/      IdentityGraph exact-match resolver
-│   ├── connector-sdk/   Connector interface, lifecycle, capability manifest, error taxonomy,
-│   │                  registry, certification suite, Mock Connector, Telegram Connector (new, Phase 4 Sprint 2)
+│   ├── connector-sdk/   Connector interface (+ streaming/StreamHandle, Phase 6), lifecycle, capability
+│   │                  manifest, error taxonomy, registry, certification suite, Mock/Telegram/Discord Connectors
 │   ├── config/       Real ESLint + Prettier presets
 │   ├── ui/          Minimal Button primitive
 │   │                (automation-engine, auth, ai, design-tokens still empty, reserved per phase)
 ├── infrastructure/   (empty, reserved)
 ├── scripts/        @smc/scripts - verify-phase3.mjs, verify-soft-delete.cjs, verify-auth.mjs,
-│                   certify-mock-connector.mjs, certify-telegram-connector.mjs (new), verify-telegram.cjs (new)
+│                   certify-mock-connector.mjs, certify-telegram-connector.mjs, verify-telegram.cjs,
+│                   certify-discord-connector.mjs (new), verify-discord.cjs (new)
 ├── docker-compose.yml (Postgres @ 5433, not 5432)
 ├── LICENSE        (all-rights-reserved)
 ```
 GitHub remote: `https://github.com/BozgunBer-2506/smartmc` - public, connected.
+
+## Phase 6 - Discord Connector (complete, certified, live human verification pending)
+
+Full detail in `ROADMAP.md`'s Phase 6 section and [docs/reviews/phase-6-review.md](reviews/phase-6-review.md). Summary:
+
+**Implemented**: a real `DiscordConnector` (`packages/connector-sdk/src/discord/`) making real REST calls to `discord.com/api/v10` and maintaining a real Gateway v10 WebSocket connection (`IDENTIFY`/heartbeat/`RESUME`/reconnect); `DiscordGatewayManagerService` owning every active guild's persistent connection; `DiscordReconciliationService` doing a genuine list-and-diff reconciliation pass (Discord has a real history endpoint, unlike Telegram); the OAuth2 install flow (`connect`/`callback`/`disconnect`); a "Connect Discord" control in the Inbox.
+
+**One real architectural decision**: [ADR-0019](adr/0019-discord-gateway-streaming-connector-extension.md) - Discord's Gateway doesn't fit `CONNECTOR_SDK.md` Section 4's webhook/polling/hybrid taxonomy, so the `Connector` interface gained an optional `startListening()` method and `IngestionMode` gained a `"streaming"` value. This was the SDK interface change `ROADMAP.md`'s own sequencing notes explicitly expected and sanctioned for this phase - not a sign Phase 4 was under-designed.
+
+**Verified**: `certify:discord-connector` (15/16, 1 legitimate skip - notably, the checkpoint-resume check that Telegram had to skip *passed for real* here, proving the Sprint 1 sync design generalizes) and `verify:discord` (real-network config-detection checks). **Not yet verified**: a human-confirmed live message exchange over the real Discord network - this needs a real Discord Application (bigger setup than Telegram's single bot token), which the user explicitly deferred to a later session. Disclosed in full in the phase review, not hidden.
+
+Tagged `v0.5.0-phase6`.
 
 ## Phase 4 Sprint 2 / Phase 5 - Telegram Connector (complete, verified live end to end)
 
@@ -142,7 +158,7 @@ Tagged `v0.2.0-phase2`.
 
 **Phase 1 Review** ([docs/reviews/phase-1-review.md](reviews/phase-1-review.md)): 3 findings fixed same-day and verified live - RFC 7807 error model, soft-delete infrastructure, production guard on the mock-connector endpoint. 9 findings deliberately deferred. Tagged `v0.1.0-phase1` and `v0.1.1-phase1-hardening`.
 
-## Phase 0 - Complete Document Set (15 documents, 18 ADRs)
+## Phase 0 - Complete Document Set (15 documents, 19 ADRs)
 
 | Document | Core content |
 |---|---|
@@ -156,11 +172,11 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 19 phases, working rules, Phase 1-4 (both sprints) verified Definitions of Done |
+| `ROADMAP.md` | 19 phases, working rules, Phase 1-6 verified Definitions of Done |
 | `STATUS.md` | This file |
-| `DECISIONS.md` | Index of all 18 ADRs |
+| `DECISIONS.md` | Index of all 19 ADRs |
 
-**ADRs 0001-0018**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path, **interim envelope-encrypted secrets store, Telegram sync/reconciliation strategy given Bot API's shape, LinkedAccount.status uses the SDK's full lifecycle vocabulary**.
+**ADRs 0001-0019**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path, interim envelope-encrypted secrets store, Telegram sync/reconciliation strategy given Bot API's shape, LinkedAccount.status uses the SDK's full lifecycle vocabulary, **Discord Gateway: a streaming ingestion mode and Connector interface extension**.
 
 ## Known Open Decisions / Gaps (tracked so they aren't lost)
 
@@ -169,20 +185,24 @@ Tagged `v0.2.0-phase2`.
 3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - `LinkedAccount` is now real (Phase 4 Sprint 2); IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
 4. **Six Phase 2 simplifications on record** (citext→app-level email normalization, no timing-attack mitigation on login, no `trust proxy` config, raw device/IP in session listing, untuned Argon2id parameters, 15-min role-change propagation delay) - all reasoned and disclosed in `docs/reviews/phase-2-review.md`, none hidden.
 5. **`Notification` has no `readAt` column** - `GET /v1/notifications` (Phase 3) is read-only, no mark-read/unread state yet. Disclosed in `docs/reviews/phase-3-review.md`, deferred to whichever phase first needs it (likely Phase 11).
-6. **The interim secrets store is envelope encryption in Postgres, not a real external secrets manager** ([ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production security posture reduction, to be closed before any real customer credential is ever stored in production.
+6. **The interim secrets store is envelope encryption in Postgres, not a real external secrets manager** ([ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production security posture reduction, to be closed before any real customer credential is ever stored in production. Now also holds Discord's app-wide bot token.
 7. **The reply endpoint sends synchronously and returns `201`, not `API.md`'s documented `202 Accepted` + async-WebSocket-observed shape** - disclosed in `docs/reviews/phase-4-sprint-2-review.md`; revisit when a real need for async/bulk/scheduled send exists.
 8. **Media/attachments, Groups/Channels, and a LinkedAccount health/status UI screen are not yet implemented for Telegram** - disclosed in `docs/reviews/phase-4-sprint-2-review.md`, deferred to their own scope.
+9. **Discord's connector has not been verified live against the real Discord network** - certified against a fake API client and real-network config-detection checks only; needs a real Discord Application (Client ID/Secret/bot token) the user has deferred setting up. Disclosed in `docs/reviews/phase-6-review.md`, the concrete next step before this connector is production-ready.
+10. **Discord `initialSync`/`reconcile` are bounded to 5 channels / 50 messages per channel**, and new channels created after connect are never auto-discovered - disclosed in `docs/reviews/phase-6-review.md`, deferred until real usage shows the bound is too small.
+11. **`DiscordGatewayManagerService` runs inside `apps/api`'s single process**, not a separate connector-worker (`ARCHITECTURE.md`/ADR-0009's eventual split) - flagged as a known consequence in ADR-0019 itself.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-Phase 4 (both sprints) and Phase 5 are complete. Begin Phase 6 - Discord Connector: the second real connector on the Phase 4 Sprint 1 SDK, deliberately chosen next per `ROADMAP.md`'s own sequencing note ("if any [connector] require[s] changing the SDK interface, that's expected for Discord - it's the first real second connector - but should not happen by Slack or Email"). Discord has a real message-history endpoint (unlike Telegram), so this is also the first real test of whether Sprint 1's `initialSync`/reconciliation design generalizes beyond the Bot-API-shaped constraints ADR-0017 worked around, or needs further refinement.
+1. **Verify Discord live** when a real Discord Application is available: register one in the Developer Portal, enable the privileged `MESSAGE_CONTENT` intent, add the bot to a test server, set `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID`, run `pnpm --filter @smc/scripts verify:discord`, and manually confirm a real message round-trip through the Inbox UI - the same bar Telegram already cleared.
+2. Begin Phase 7 - Slack Connector: `ROADMAP.md`'s own sequencing note expects this one to *not* require another SDK interface change (Slack's Events API is a normal HTTP webhook, closer to Telegram's shape than Discord's Gateway) - treat a forced change here as a signal to stop and reassess, not a routine cost.
 
 ## How to Resume From Zero Context
 
 1. Read this file (`STATUS.md`).
-2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-4 (both sprints)'s exact verification steps.
+2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-6's exact verification steps.
 3. Read `PRODUCT.md`, `ARCHITECTURE.md` (Section 6 for auth, Section 13 for IdentityGraph), and `DECISIONS.md` for decisions already made - do not re-derive or re-litigate anything documented there.
 4. To actually run the app: see "What Actually Runs Right Now" above, including the WSL environment note and the local-DB-reset note.
 5. Continue from "Next Action" above, or from wherever the user redirects.

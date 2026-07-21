@@ -132,6 +132,14 @@ export async function sendMessage(accessToken: string, conversationId: string, b
   return parseOrThrow<ConversationMessage>(res);
 }
 
+export async function connectDiscord(accessToken: string): Promise<{ authorizationUrl: string }> {
+  const res = await fetch(`${API_URL}/v1/connectors/discord/connect`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  return parseOrThrow<{ authorizationUrl: string }>(res);
+}
+
 export interface ConnectTelegramResult {
   id: string;
   status: string;

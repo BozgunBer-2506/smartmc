@@ -4,9 +4,13 @@ import type { Direction } from "@smc/shared";
  * The provider-agnostic ingestion posture (docs/CONNECTOR_SDK.md Section 4).
  * "webhook" alone is never a valid steady-state for a webhook-capable
  * provider - see capability-manifest.ts's validation, which enforces
- * Section 4.3's hybrid-by-default requirement.
+ * Section 4.3's hybrid-by-default requirement. "streaming" (added Phase 6,
+ * ADR-0019) is a persistent, provider-initiated connection we hold open
+ * (e.g. Discord's Gateway) - distinct from both "webhook" (the provider
+ * calls an HTTP endpoint of ours) and "polling" (we call the provider on
+ * an interval). Treated like "hybrid" for the reconciliation requirement.
  */
-export type IngestionMode = "webhook" | "polling" | "hybrid";
+export type IngestionMode = "webhook" | "polling" | "hybrid" | "streaming";
 
 export type AttachmentType = "image" | "video" | "document" | "voice" | "other";
 
@@ -110,4 +114,14 @@ export interface SendResult {
   externalId: string;
   /** True if the send was queued/retried due to provider rate limiting rather than sent immediately - never means "dropped" (docs/CONNECTOR_SDK.md Section 14's backpressure-not-drop contract). */
   queued: boolean;
+}
+
+/**
+ * A handle on a connector's own persistent connection (ADR-0019) - the
+ * only thing the platform needs to know how to do with it is stop it.
+ * Everything else (heartbeats, reconnect/resume, backoff) is the
+ * connector's own responsibility, hidden behind this handle.
+ */
+export interface StreamHandle {
+  stop(): Promise<void>;
 }

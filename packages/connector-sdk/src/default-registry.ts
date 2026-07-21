@@ -1,3 +1,4 @@
+import { DiscordConnector } from "./discord/discord-connector";
 import { mockConnector } from "./mock-connector";
 import { ConnectorRegistry } from "./registry";
 import { TelegramConnector } from "./telegram/telegram-connector";
@@ -12,3 +13,4 @@ import { TelegramConnector } from "./telegram/telegram-connector";
 export const defaultConnectorRegistry = new ConnectorRegistry();
 defaultConnectorRegistry.register(mockConnector);
 defaultConnectorRegistry.register(new TelegramConnector());
+defaultConnectorRegistry.register(new DiscordConnector());

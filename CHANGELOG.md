@@ -4,7 +4,28 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 6 - Discord Connector is next: the second real connector on the Phase 4 SDK, deliberately chosen to pressure-test whether the SDK generalizes beyond Telegram's Bot-API-shaped constraints.
+Phase 7 - Slack Connector is next. `ROADMAP.md`'s own sequencing note expects this one to *not* require another SDK interface change (Slack's Events API is a normal HTTP webhook) - a forced change here would be a signal to stop and reassess.
+
+## [0.5.0] - 2026-07-22 - Phase 6: Discord Connector (`v0.5.0-phase6`)
+
+### Added
+- A real `DiscordConnector` (`packages/connector-sdk/src/discord/`) making real REST calls to `discord.com/api/v10` and maintaining a real Gateway v10 WebSocket connection - the second real connector, and the first built on a genuinely different ingestion shape than Telegram's
+- A real Discord Gateway client (`IDENTIFY`/heartbeat/`RESUME`/reconnect-with-backoff) using the `ws` package
+- `Connector.startListening()` (returns a `StreamHandle`) and a fourth `IngestionMode` value, `"streaming"` - the SDK interface change `ROADMAP.md`'s sequencing notes explicitly anticipated for this phase (ADR-0019)
+- Real `initialSync`/`reconcile` against Discord's genuine channel-history endpoint - unlike Telegram's documented no-op (ADR-0017), the first proof the Sprint 1 sync design generalizes to a provider with real history
+- `POST /v1/connectors/discord/connect`, `GET /v1/connectors/discord/callback`, `POST /v1/connectors/discord/{id}/disconnect` - Discord's `oauth2_redirect` install flow (`CONNECTOR_SDK.md` Section 3.1)
+- `DiscordGatewayManagerService` (owns every active guild's persistent connection) and `DiscordReconciliationService` (the periodic list-and-diff pass ADR-0019 still requires for streaming connectors)
+- `DiscordOAuthStateService` - short-lived CSRF state for the OAuth redirect round-trip, reusing the project's existing Redis instance pattern
+- A "Connect Discord" control in `apps/web`'s Inbox
+- `pnpm --filter @smc/scripts certify:discord-connector` (15/16, 1 legitimate skip) and `pnpm --filter @smc/scripts verify:discord` regression checks
+- ADR-0019: Discord Gateway - a streaming ingestion mode and Connector interface extension
+
+### Changed
+- `defineCapabilityManifest()`/`requiresReconciliation()` treat `"streaming"` the same as `"hybrid"` for the reconciliation requirement
+- `ConnectorLifecycle` was already resumable from a persisted state (Phase 4 Sprint 2); Discord is the second connector to rely on it, for its `disconnect` flow
+
+### Known Gaps
+- No human-confirmed live message exchange over the real Discord network yet - requires a real Discord Application (Developer Portal Client ID/Secret/bot token, privileged `MESSAGE_CONTENT` intent, a bot added to a real test server), a bigger one-time setup than Telegram's single bot token. The user explicitly deferred this to a later session; disclosed in full in `docs/reviews/phase-6-review.md`, not hidden.
 
 ## [0.4.1] - 2026-07-21 - Phase 4 Sprint 2 / Phase 5: Telegram Connector (`v0.4.1-phase4-sprint2`)
 
@@ -120,7 +141,8 @@ This release also closes the project's oldest open technical-debt item (real lin
 - GitHub Actions CI (`lint` / `typecheck` / `build`)
 - `scripts/verify-realtime.mjs` regression check
 
-[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.4.1-phase4-sprint2...HEAD
+[Unreleased]: https://github.com/BozgunBer-2506/smartmc/compare/v0.5.0-phase6...HEAD
+[0.5.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.4.1-phase4-sprint2...v0.5.0-phase6
 [0.4.1]: https://github.com/BozgunBer-2506/smartmc/compare/v0.4.0-phase4-sprint1...v0.4.1-phase4-sprint2
 [0.4.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.3.0-phase3...v0.4.0-phase4-sprint1
 [0.3.0]: https://github.com/BozgunBer-2506/smartmc/compare/v0.2.0-phase2...v0.3.0-phase3

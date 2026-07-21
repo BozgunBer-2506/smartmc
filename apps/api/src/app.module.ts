@@ -10,6 +10,7 @@ import { ConversationsModule } from "./conversations/conversations.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { CredentialsStoreModule } from "./credentials-store/credentials-store.module";
 import { TelegramModule } from "./telegram/telegram.module";
+import { DiscordModule } from "./discord/discord.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { TelegramModule } from "./telegram/telegram.module";
     NotificationsModule,
     CredentialsStoreModule,
     TelegramModule,
+    DiscordModule,
   ],
 })
 export class AppModule {}

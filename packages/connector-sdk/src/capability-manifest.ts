@@ -10,15 +10,12 @@ import type { CapabilityManifest } from "./types";
  * a single message is ever ingested.
  */
 export function defineCapabilityManifest(manifest: CapabilityManifest): CapabilityManifest {
-  if (
-    (manifest.ingestionMode === "webhook" || manifest.ingestionMode === "hybrid") &&
-    !manifest.reconciliationIntervalMinutes
-  ) {
+  if (requiresReconciliation(manifest) && !manifest.reconciliationIntervalMinutes) {
     throw new Error(
       `Capability manifest for provider "${manifest.providerKey}" declares ingestionMode ` +
         `"${manifest.ingestionMode}" but no reconciliationIntervalMinutes. Every webhook-capable ` +
-        `connector must also run a reconciliation pass (docs/CONNECTOR_SDK.md Section 4.3) - ` +
-        `webhook-only is not a supported connector type on its own.`,
+        `or streaming connector must also run a reconciliation pass (docs/CONNECTOR_SDK.md Section 4.3, ` +
+        `ADR-0019 for "streaming") - push-only is not a supported connector type on its own.`,
     );
   }
 
@@ -33,7 +30,11 @@ export function defineCapabilityManifest(manifest: CapabilityManifest): Capabili
   return manifest;
 }
 
-/** True when a manifest requires a reconciliation pass per Section 4.3. */
+/** True when a manifest requires a reconciliation pass per Section 4.3 (ADR-0019 extends this to "streaming"). */
 export function requiresReconciliation(manifest: CapabilityManifest): boolean {
-  return manifest.ingestionMode === "webhook" || manifest.ingestionMode === "hybrid";
+  return (
+    manifest.ingestionMode === "webhook" ||
+    manifest.ingestionMode === "hybrid" ||
+    manifest.ingestionMode === "streaming"
+  );
 }
