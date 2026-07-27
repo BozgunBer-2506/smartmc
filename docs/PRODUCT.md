@@ -45,7 +45,7 @@ Smart Message Center exists to give people back control of their attention by tu
 
 Personas are ordered by MVP priority (Freelancers and Developers first - highest pain, fastest activation, most likely to tolerate a v1 with rough edges).
 
-### 1. Freelancer / Independent Contractor - "Deniz, 29, freelance designer"
+### 1. Freelancer / Independent Contractor - "Alex, 29, freelance designer"
 Juggles 6-10 active clients across WhatsApp, email, Instagram DM, and Slack (clients' workspaces, not their own). Loses track of who they promised what to. A missed message from a client during a busy week directly costs money - a lost project or a late invoice. Price sensitive but will pay if it demonstrably prevents a missed-client incident. Primary need: **never drop a client thread, ever.**
 
 ### 2. Software Developer - "Kaan, 34, backend engineer"
@@ -57,7 +57,7 @@ The most channel-fragmented persona: investor emails, Slack with the team, Whats
 ### 4. Sales Rep / SDR - "Mert, 26, account executive"
 Lives in follow-ups. A lead who doesn't hear back in 48 hours goes cold. Needs reminders, not summaries - the content is usually simple, the failure mode is forgetting to act. Communicates across email, LinkedIn, and WhatsApp depending on the region/client. Primary need: **nothing goes stale without a nudge.**
 
-### 5. Support Agent / Support Team Lead - "Ayşe, 31, support team lead"
+### 5. Support Agent / Support Team Lead - "Priya, 31, support team lead"
 Manages a small team answering customers across email, Intercom-style chat, and Slack Connect channels with enterprise clients. Needs shared visibility, handoff without duplicate replies, and tagging for reporting. This persona pulls the product toward *team* features earlier than the others. Primary need: **team-safe unified inbox with no double-replies.**
 
 ### 6. Executive / Manager - "Cem, 45, VP Operations"

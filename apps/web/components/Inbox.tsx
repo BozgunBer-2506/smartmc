@@ -49,7 +49,7 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toasts, setToasts] = useState<NotificationItem[]>([]);
   const [connected, setConnected] = useState(false);
-  const [senderName, setSenderName] = useState("Deniz");
+  const [senderName, setSenderName] = useState("Alex");
   const [body, setBody] = useState("Hey, are we still on for tomorrow?");
   const [sending, setSending] = useState(false);
   const [replyText, setReplyText] = useState("");

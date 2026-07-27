@@ -66,8 +66,8 @@ async function main() {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({
-      senderDisplayName: "Deniz",
-      senderExternalId: "deniz-phase3",
+      senderDisplayName: "Alex",
+      senderExternalId: "alex-phase3",
       bodyText: "Hey, are we still on for tomorrow?",
     }),
   });
@@ -81,7 +81,7 @@ async function main() {
   check("notification.created arrived on the authenticated socket", Boolean(notificationPayload?.id));
   check(
     "the message's sender resolved through IdentityGraph and is shown by name",
-    messagePayload?.sender?.displayName === "Deniz",
+    messagePayload?.sender?.displayName === "Alex",
   );
   socket.close();
 

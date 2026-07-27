@@ -150,7 +150,7 @@ Extended 2026-07-18 per user direction to prove the *whole* heartbeat of the pro
 1. `GET /health` returns `{"status":"ok","checks":{"database":"ok","redis":"ok"}}`.
 2. `POST /dev/mock-connector/send` with a synthetic sender/body returns `202`-equivalent `{"status":"queued", eventId, correlationId}`.
 3. Server-side log trace confirms the full causal chain fired in order: `message.received` → `rule.triggered` → `rule.action_executed` → `notification.created`.
-4. Direct Postgres query confirms real rows: a `Contact` ("Deniz"), a `Message` (inbound, correct body), a `Notification` ("New message from Deniz") - **it fell into the DB**, per the Turkish spec's literal bitiş criteria.
+4. Direct Postgres query confirms real rows: a `Contact` ("Alex"), a `Message` (inbound, correct body), a `Notification` ("New message from Alex") - **it fell into the DB**, per the original spec's literal completion criteria.
 5. A real WebSocket client (`scripts/verify-realtime.mjs`, run via `pnpm --filter @smc/scripts verify:realtime`) joins the workspace room, triggers the Mock Connector, and receives both `message.received` and `notification.created` over the actual socket.io transport within the same test run - **the user will see it, and the notification will arrive**, proven over the wire, not just inferred from server logs.
 
 This is `ARCHITECTURE.md` Section 1's entire pipeline diagram, felt end-to-end with fake data and stubbed intelligence, before a single line of Telegram-specific code or a single real automation rule exists.

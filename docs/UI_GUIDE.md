@@ -47,7 +47,7 @@ Users should hold five objects in their head, and only five - every screen in th
 1. **Needs You** - the small, trustworthy set of things that actually require a human right now.
 2. **The Morning Briefing** - a daily, digestible answer to "what happened while I wasn't looking."
 3. **Waiting On** - things I owe a reply on, and things owed to me.
-4. **People** (not "contacts," not "accounts") - the IdentityGraph-backed representation of a real human or organization, independent of which channel they used (`ARCHITECTURE.md` Section 13). This is the single biggest mental-model shift from a normal messenger: **a user should never think "let me check my Telegram" - they think "let me check what Deniz said," regardless of channel.**
+4. **People** (not "contacts," not "accounts") - the IdentityGraph-backed representation of a real human or organization, independent of which channel they used (`ARCHITECTURE.md` Section 13). This is the single biggest mental-model shift from a normal messenger: **a user should never think "let me check my Telegram" - they think "let me check what Alex said," regardless of channel.**
 5. **Rules** - the automations a user has taught the system, always inspectable, always theirs to edit.
 
 Every navigation decision (Section 5), every screen (Sections 6-12), and every onboarding beat (Section 21) exists to reinforce these five objects, not to introduce app-specific jargon a user has to separately learn.
@@ -268,7 +268,7 @@ No empty state is ever a blank screen with no next action. Every one names what'
 - Every merge/split action's full consequence before confirming it (Section 7).
 
 **Should never see:**
-- A raw provider account ID, internal database identifier, or any other implementation-level detail in a user-facing surface (`ARCHITECTURE.md` Section 13.1's "never reason about provider accounts" principle, extended to the UI - a user never sees "LinkedAccount `a1b2c3d4`," they see "Deniz's Telegram").
+- A raw provider account ID, internal database identifier, or any other implementation-level detail in a user-facing surface (`ARCHITECTURE.md` Section 13.1's "never reason about provider accounts" principle, extended to the UI - a user never sees "LinkedAccount `a1b2c3d4`," they see "Alex's Telegram").
 - A credential, token, or secret of any kind, at any point, in any UI surface, ever (`SECURITY.md` Section 5) - not even truncated/masked "for debugging," which is itself a leakage risk if screenshotted.
 - An AI-generated confidence score or raw matching signal weight (`ARCHITECTURE.md` Section 13.8 - internal-only data, never exposed even to the workspace member reviewing a merge suggestion, who sees the human-legible evidence, not the underlying number).
 - A blocking modal for anything reversible (Section 18/24).

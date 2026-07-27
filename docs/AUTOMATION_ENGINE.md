@@ -110,7 +110,7 @@ Three distinct kinds, each with a different lifecycle and trust level - conflati
 2. **Workspace variables** - user-defined, workspace-scoped key/value pairs set once and referenced across many rules (`{{vars.escalation_email}}`, `{{vars.support_sla_hours}}`) - the mechanism that lets a template (Section 16) be portable: a shared rule template references `{{vars.boss_contact_id}}` rather than a hardcoded contact, and importing it prompts the user to map their own value.
 3. **Computed/derived variables** - the output of a prior step in the same execution (an AI summary, a webhook response, Section 5.4) available to later steps by name (`{{steps.summarize.output}}`). Scoped to a single execution, never persisted as workspace state.
 
-Variables are always resolved and rendered into a preview *before* an action executes irreversibly - the rule tester (Section 11) and simulator (Section 12) exist specifically so a user sees `{{sender.displayName}}` resolve to "Deniz Yılmaz" before trusting it in a live auto-reply template.
+Variables are always resolved and rendered into a preview *before* an action executes irreversibly - the rule tester (Section 11) and simulator (Section 12) exist specifically so a user sees `{{sender.displayName}}` resolve to "Alex Morgan" before trusting it in a live auto-reply template.
 
 ### 4.4 Condition Snippets (Reusable, Named Condition Groups)
 
