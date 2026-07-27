@@ -12,7 +12,9 @@
     "certify:discord-connector": "node certify-discord-connector.mjs",
     "verify:discord": "node verify-discord.cjs",
     "certify:slack-connector": "node certify-slack-connector.mjs",
-    "verify:slack": "node verify-slack.cjs"
+    "verify:slack": "node verify-slack.cjs",
+    "certify:email-connector": "node certify-email-connector.mjs",
+    "verify:email": "node verify-email.cjs"
   },
   "dependencies": {
     "@smc/connector-sdk": "workspace:*",

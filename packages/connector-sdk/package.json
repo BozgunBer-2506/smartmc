@@ -12,12 +12,17 @@
   },
   "dependencies": {
     "@smc/shared": "workspace:*",
+    "imapflow": "^1.0.184",
+    "mailparser": "^3.7.2",
+    "nodemailer": "^6.9.16",
     "uuid": "^11.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@smc/config": "workspace:*",
+    "@types/mailparser": "^3.4.5",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^6.4.17",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.0",
     "typescript": "^5.6.0"

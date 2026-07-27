@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@smc/ui";
 import {
   connectDiscord,
+  connectEmail,
   connectSlack,
   connectTelegram,
   fetchConversations,
@@ -52,6 +53,12 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
   const [discordStatus, setDiscordStatus] = useState<string | null>(null);
   const [connectingSlack, setConnectingSlack] = useState(false);
   const [slackStatus, setSlackStatus] = useState<string | null>(null);
+  const [imapHost, setImapHost] = useState("");
+  const [smtpHost, setSmtpHost] = useState("");
+  const [emailUsername, setEmailUsername] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [connectingEmail, setConnectingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
 
@@ -189,6 +196,30 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
     }
   }
 
+  async function handleConnectEmail() {
+    if (!imapHost.trim() || !smtpHost.trim() || !emailUsername.trim() || !emailPassword.trim()) return;
+    setConnectingEmail(true);
+    setEmailStatus(null);
+    try {
+      const result = await connectEmail(accessToken, {
+        imapHost: imapHost.trim(),
+        imapPort: 993,
+        imapSecure: true,
+        smtpHost: smtpHost.trim(),
+        smtpPort: 465,
+        smtpSecure: true,
+        username: emailUsername.trim(),
+        password: emailPassword,
+      });
+      setEmailStatus(`Connected (status: ${result.status}, polling for new mail)`);
+      setEmailPassword("");
+    } catch (err) {
+      setEmailStatus(err instanceof Error ? err.message : "Failed to connect the mailbox.");
+    } finally {
+      setConnectingEmail(false);
+    }
+  }
+
   async function handleLogout() {
     await logout();
     onLoggedOut();
@@ -242,6 +273,23 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
           {connectingSlack ? "Redirecting..." : "Connect Slack"}
         </Button>
         {slackStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{slackStatus}</span>}
+      </section>
+
+      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center", flexWrap: "wrap" }}>
+        <input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="IMAP host (e.g. imap.gmail.com)" style={inputStyle({ flex: "0 0 200px" })} />
+        <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="SMTP host (e.g. smtp.gmail.com)" style={inputStyle({ flex: "0 0 200px" })} />
+        <input value={emailUsername} onChange={(e) => setEmailUsername(e.target.value)} placeholder="Email address" style={inputStyle({ flex: "0 0 200px" })} />
+        <input
+          value={emailPassword}
+          onChange={(e) => setEmailPassword(e.target.value)}
+          placeholder="Password / app password"
+          type="password"
+          style={inputStyle({ flex: "0 0 160px" })}
+        />
+        <Button onClick={handleConnectEmail} disabled={connectingEmail}>
+          {connectingEmail ? "Connecting..." : "Connect Email"}
+        </Button>
+        {emailStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{emailStatus}</span>}
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>

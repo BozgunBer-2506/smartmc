@@ -165,6 +165,33 @@ export async function connectTelegram(accessToken: string, botToken: string): Pr
   return parseOrThrow<ConnectTelegramResult>(res);
 }
 
+export interface ConnectEmailInput {
+  imapHost: string;
+  imapPort: number;
+  imapSecure: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  username: string;
+  password: string;
+}
+
+export interface ConnectEmailResult {
+  id: string;
+  status: string;
+  providerKey: string;
+  externalAccountId: string;
+}
+
+export async function connectEmail(accessToken: string, input: ConnectEmailInput): Promise<ConnectEmailResult> {
+  const res = await fetch(`${API_URL}/v1/connectors/email/connect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(input),
+  });
+  return parseOrThrow<ConnectEmailResult>(res);
+}
+
 export async function triggerMockMessage(
   accessToken: string,
   input: { senderDisplayName: string; senderExternalId: string; bodyText: string },

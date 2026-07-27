@@ -12,6 +12,7 @@ import { CredentialsStoreModule } from "./credentials-store/credentials-store.mo
 import { TelegramModule } from "./telegram/telegram.module";
 import { DiscordModule } from "./discord/discord.module";
 import { SlackModule } from "./slack/slack.module";
+import { EmailModule } from "./email/email.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { SlackModule } from "./slack/slack.module";
     TelegramModule,
     DiscordModule,
     SlackModule,
+    EmailModule,
   ],
 })
 export class AppModule {}

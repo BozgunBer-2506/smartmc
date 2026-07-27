@@ -4,10 +4,28 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 8 - Email Connector (IMAP/SMTP) is next, with a checkpoint first: `ROADMAP.md` asks whether adding connectors 2-4 took meaningfully longer than connector 1 relative to their native API complexity - worth an honest look now that three real connectors exist on one SDK with zero forced interface changes since Phase 6.
+Phase 9 - Smart Inbox is next. `ROADMAP.md`'s post-Phase-8 checkpoint has been answered (see [0.7.0] below) - this is where the product stops being "an aggregator" and starts being Smart Message Center.
 
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
+
+## [0.7.0] - 2026-07-27 - Phase 8: Email Connector (`v0.7.0-phase8`)
+
+### Added
+- A real `EmailConnector` (`packages/connector-sdk/src/email/`) making real IMAP/SMTP protocol calls via `imapflow`/`nodemailer`/`mailparser` - the fourth real connector, and the second in a row (after Slack) to need no `Connector` interface change
+- `credential_entry` auth (host/port/username/password, validated via a real IMAP login + SMTP `verify()`) and `"polling"` ingestion - both already fully specified in `CONNECTOR_SDK.md` using email as their own reference example
+- `EmailPollingService` - the *primary* ingestion path for mailboxes (unlike Telegram/Discord/Slack's reconciliation services, which are backstops behind a webhook/Gateway), cursor-based on IMAP UID
+- Thread-based `Conversation` mapping: `conversationExternalId` resolves to the oldest `References` ancestor, falling back to `In-Reply-To`, falling back to the message's own `Message-ID`
+- `POST /v1/connectors/email/connect`, `POST /v1/connectors/email/{id}/disconnect` - the simplest controller of the four connectors (no OAuth redirect, no webhook receiver)
+- A "Connect Email" form in `apps/web`'s Inbox
+- `pnpm --filter @smc/scripts certify:email-connector` (15/16, 1 legitimate skip) and `pnpm --filter @smc/scripts verify:email` (including a fully live SMTP send against this project's own local mailhog, independently confirmed delivered) regression checks
+
+### Answered
+- `ROADMAP.md`'s post-Phase-8 checkpoint: "four real connectors exist on one SDK... if adding connectors 2-4 took meaningfully longer than connector 1, the SDK has a design flaw." **No SDK design flaw is indicated** - the only interface change across all four connectors was Discord's (ADR-0019, Phase 6), explicitly pre-authorized for that phase alone; Slack and Email both needed none.
+
+### Known Gaps
+- No human-confirmed live message *receive* over a real IMAP mailbox yet - this project's dev stack has no local IMAP test server (mailhog is SMTP-capture only). The SMTP-send half *is* live-verified. Disclosed in full in `docs/reviews/phase-8-review.md`, not hidden.
+- `Tag`/`MessageTag` (`DATABASE.md` Section 6.11) is not implemented in the schema for any connector yet - "Labels/folders mapped to Tags" is deferred as a cross-connector feature, disclosed in the same review.
 
 ## [0.6.0] - 2026-07-27 - Phase 7: Slack Connector (`v0.6.0-phase7`)
 

@@ -307,12 +307,18 @@ Same Connector SDK, no interface change - confirming `ROADMAP.md`'s own sequenci
 
 ## Phase 8 - Email Connector
 
-- [ ] IMAP (receive, folder sync)
-- [ ] SMTP (send)
-- [ ] Labels/folders mapped to Tags
-- [ ] Threading mapped to Conversation model
+Same Connector SDK, no interface change - `credential_entry` auth and `"polling"` ingestion were both already fully specified in `CONNECTOR_SDK.md`, using email itself as their reference example.
 
-**Checkpoint after Phase 8**: four real connectors exist on one SDK. If adding connectors 2-4 took meaningfully longer than connector 1 (relative to their native API complexity), the SDK has a design flaw - fix it before Phase 9, not after.
+- [x] IMAP (receive, folder sync) - `INBOX` only, bounded per poll cycle, cursor-based on IMAP UID (`CONNECTOR_SDK.md` Section 4.2's own worked example); real `imapflow`/`mailparser` protocol handling
+- [x] SMTP (send) - real `nodemailer` delivery via the same provider-agnostic `POST /v1/conversations/{id}/messages` reply endpoint every prior connector uses; live-verified against this project's own local mailhog instance
+- [ ] Labels/folders mapped to Tags - **deferred**; `Tag`/`MessageTag` (`DATABASE.md` Section 6.11) isn't implemented in the schema for any connector yet, a cross-connector feature bigger than this phase's core receive/send loop
+- [x] Threading mapped to Conversation model - `conversationExternalId` resolves to the oldest `References` ancestor, falling back to `In-Reply-To`, falling back to the message's own `Message-ID` - a pure function of message headers, no SDK change needed
+
+**Checkpoint after Phase 8 - answered**: four real connectors exist on one SDK. The only interface change across all four was Discord's (ADR-0019, Phase 6) - explicitly pre-authorized for that phase alone, and confirmed as a one-time exception rather than a pattern by both Slack (Phase 7) and Email (Phase 8) needing none. **No SDK design flaw is indicated.**
+
+**Definition of Done - verified via `pnpm --filter @smc/scripts certify:email-connector` (15/16 checks passing, 1 correctly skipped) and `pnpm --filter @smc/scripts verify:email`**: the connector is real, certified code (real IMAP/SMTP protocol handling, real thread resolution, a live-verified SMTP send against a real local SMTP server with independently-confirmed delivery). `certify:mock/telegram/discord/slack-connector`, `verify:phase3/auth/soft-delete/telegram/discord/slack` all re-run clean - no regressions. `pnpm typecheck`/`pnpm lint`/`pnpm build` pass clean across the whole monorepo. **Not yet included**: a human-confirmed live message *receive* over a real IMAP mailbox - this project's local dev stack has no IMAP test server (mailhog is SMTP-capture only), so a real mailbox (with an app password) is needed, the same class of gap Discord/Slack have for their own real-network setups. Disclosed in full in the phase review.
+
+**Phase Review completed 2026-07-27** - full report at [reviews/phase-8-review.md](reviews/phase-8-review.md). Tagged `v0.7.0-phase8`.
 
 ---
 

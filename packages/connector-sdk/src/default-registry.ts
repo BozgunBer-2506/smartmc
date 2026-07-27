@@ -1,4 +1,5 @@
 import { DiscordConnector } from "./discord/discord-connector";
+import { EmailConnector } from "./email/email-connector";
 import { mockConnector } from "./mock-connector";
 import { ConnectorRegistry } from "./registry";
 import { SlackConnector } from "./slack/slack-connector";
@@ -16,3 +17,4 @@ defaultConnectorRegistry.register(mockConnector);
 defaultConnectorRegistry.register(new TelegramConnector());
 defaultConnectorRegistry.register(new DiscordConnector());
 defaultConnectorRegistry.register(new SlackConnector());
+defaultConnectorRegistry.register(new EmailConnector());
