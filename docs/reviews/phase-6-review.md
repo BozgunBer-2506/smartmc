@@ -54,6 +54,8 @@ Unlike Phase 4 Sprint 2 (Telegram), this phase does **not** include a human-conf
 
 This is a real, bounded gap - the same class of thing `docs/reviews/phase-2-review.md` already established precedent for ("no UI was built... verified live via API-observable behavior... a login screen is a later increment"). The next session that has a real Discord Application available should run `pnpm --filter @smc/scripts verify:discord` with `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID` set, plus a manual message-send/reply check through the actual Inbox UI, before this connector is considered production-ready.
 
+**2026-07-22 status**: a live-verification attempt was started this session (Cloudflare Tunnel provisioned, API confirmed reachable through it) but the required Discord Developer Portal setup (Client ID/Secret/bot token/test guild, all needing the user's own Discord account) was not completed, and the user explicitly directed that the roadmap not block on it. Phase 6 remains **feature-complete, not fully validated** - no code in `packages/connector-sdk/src/discord/` or `apps/api/src/discord/` changed as part of this attempt. Phase 7 (Slack) proceeds next per that explicit direction; this gap is tracked in `STATUS.md`'s "Next Action" list and closes only when the steps above actually run against a live Discord Application.
+
 ## Deliberate Simplifications (disclosed, not hidden)
 
 | # | Finding | Reasoning | Resolution |
