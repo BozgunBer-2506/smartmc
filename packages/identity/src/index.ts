@@ -1,5 +1,9 @@
 import { getPrismaClient, newId, type Contact } from "@smc/database";
 
+export { findMergeCandidates, type MatchingSignals, type MergeCandidate } from "./matching";
+export { approveMergeSuggestion, rejectMergeSuggestion, MergeSuggestionNotFoundError, MergeSuggestionNotPendingError } from "./merge";
+export { splitContact, ContactNotFoundError, NoIdentitiesToSplitError, type SplitContactInput } from "./split";
+
 export interface ResolveIdentityInput {
   workspaceId: string;
   providerId: string;

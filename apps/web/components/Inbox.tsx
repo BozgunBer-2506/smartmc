@@ -3,18 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@smc/ui";
 import {
+  approveMergeSuggestion,
   connectDiscord,
   connectEmail,
   connectSlack,
   connectTelegram,
   fetchConversations,
+  fetchMergeSuggestions,
   fetchMessages,
+  fetchNeedsYouCount,
   fetchNotifications,
   logout,
+  markConversationRead,
+  rejectMergeSuggestion,
   sendMessage,
   triggerMockMessage,
+  updateConversation,
   type ConversationMessage,
   type ConversationSummary,
+  type MergeSuggestion,
   type NotificationItem,
   type PublicUser,
 } from "../lib/api";
@@ -59,8 +66,24 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
   const [emailPassword, setEmailPassword] = useState("");
   const [connectingEmail, setConnectingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState<string | null>(null);
+  const [needsYouCount, setNeedsYouCount] = useState(0);
+  const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [vipOnly, setVipOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("");
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
+
+  async function refreshConversations() {
+    const list = await fetchConversations(accessToken, {
+      archived: showArchived,
+      vip: vipOnly || undefined,
+      unread: unreadOnly || undefined,
+      category: categoryFilter.trim() || undefined,
+    }).catch(() => []);
+    setConversations(list);
+  }
 
   useEffect(() => {
     // Discord's OAuth2 install flow ends with a full-page redirect back
@@ -83,8 +106,10 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
   }, []);
 
   useEffect(() => {
-    fetchConversations(accessToken).then(setConversations).catch(() => undefined);
+    refreshConversations();
     fetchNotifications(accessToken).then(setNotifications).catch(() => undefined);
+    fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
+    fetchMergeSuggestions(accessToken).then(setMergeSuggestions).catch(() => undefined);
 
     const socket = connectSocket(accessToken);
     const onConnect = () => setConnected(true);
@@ -94,7 +119,8 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
       // A new message arrived for this workspace - refresh the
       // conversation list (updates ordering/preview), and if the affected
       // conversation is the one currently open, refresh its messages too.
-      fetchConversations(accessToken).then(setConversations).catch(() => undefined);
+      refreshConversations();
+      fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
       if (selectedIdRef.current) {
         fetchMessages(accessToken, selectedIdRef.current).then(setMessages).catch(() => undefined);
       }
@@ -122,12 +148,42 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
       socket.off("notification.created", onNotification);
       disconnectSocket();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
+
+  useEffect(() => {
+    refreshConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showArchived, vipOnly, unreadOnly, categoryFilter]);
 
   async function selectConversation(id: string) {
     setSelectedId(id);
     const msgs = await fetchMessages(accessToken, id).catch(() => []);
     setMessages(msgs);
+    await markConversationRead(accessToken, id).catch(() => undefined);
+    refreshConversations();
+    fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
+  }
+
+  async function handleToggleArchive(conversation: ConversationSummary) {
+    await updateConversation(accessToken, conversation.id, { isArchived: !conversation.isArchived }).catch(() => undefined);
+    refreshConversations();
+  }
+
+  async function handleSetCategory(conversation: ConversationSummary, category: string) {
+    await updateConversation(accessToken, conversation.id, { category: category.trim() || null }).catch(() => undefined);
+    refreshConversations();
+  }
+
+  async function handleApproveSuggestion(id: string) {
+    await approveMergeSuggestion(accessToken, id).catch(() => undefined);
+    setMergeSuggestions((prev) => prev.filter((s) => s.id !== id));
+    refreshConversations();
+  }
+
+  async function handleRejectSuggestion(id: string) {
+    await rejectMergeSuggestion(accessToken, id).catch(() => undefined);
+    setMergeSuggestions((prev) => prev.filter((s) => s.id !== id));
   }
 
   async function handleSendMock() {
@@ -235,10 +291,30 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
             <strong style={{ color: connected ? "#3FB27F" : "#E05252" }}>
               {connected ? "connected" : "disconnected"}
             </strong>
+            {" · "}
+            <strong style={{ color: needsYouCount > 0 ? "#E0A458" : "#9AA5B1" }}>Needs You: {needsYouCount}</strong>
           </p>
         </div>
         <Button onClick={handleLogout}>Log out</Button>
       </header>
+
+      {mergeSuggestions.length > 0 && (
+        <section style={{ margin: "0 0 20px" }}>
+          <h2 style={sectionHeading}>Possible duplicate contacts</h2>
+          {mergeSuggestions.map((s) => (
+            <article key={s.id} style={cardStyle}>
+              <p style={{ margin: 0, fontSize: 13 }}>
+                <strong>{s.contactA?.displayName ?? "Unknown"}</strong> and <strong>{s.contactB?.displayName ?? "Unknown"}</strong> might be the same person
+                {" "}({Math.round(s.confidenceScore * 100)}% confidence - {s.matchingSignals.reason})
+              </p>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <Button onClick={() => handleApproveSuggestion(s.id)}>Merge</Button>
+                <Button onClick={() => handleRejectSuggestion(s.id)}>Not the same person</Button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
 
       <section style={{ display: "flex", gap: 8, margin: "20px 0" }}>
         <input value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Sender name" style={inputStyle({ flex: "0 0 160px" })} />
@@ -295,19 +371,55 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         <section>
           <h2 style={sectionHeading}>Conversations</h2>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10, fontSize: 12, color: "#9AA5B1" }}>
+            <label>
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Archived
+            </label>
+            <label>
+              <input type="checkbox" checked={vipOnly} onChange={(e) => setVipOnly(e.target.checked)} /> VIP only
+            </label>
+            <label>
+              <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} /> Unread only
+            </label>
+            <input
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              placeholder="Category filter"
+              style={inputStyle({ width: 100, fontSize: 12 })}
+            />
+          </div>
           {conversations.length === 0 && <p style={{ color: "#9AA5B1", fontSize: 13 }}>None yet - send a mock message above.</p>}
           {conversations.map((c) => (
             <article
               key={c.id}
-              onClick={() => selectConversation(c.id)}
               style={{
                 ...cardStyle,
-                cursor: "pointer",
                 borderColor: selectedId === c.id ? "#E0A458" : "#2A3441",
               }}
             >
-              <strong>{c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown"}</strong>
-              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9AA5B1" }}>{c.lastMessage?.bodyText ?? ""}</p>
+              <div onClick={() => selectConversation(c.id)} style={{ cursor: "pointer" }}>
+                <strong>
+                  {c.unread && "● "}
+                  {c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown"}
+                  {c.lastMessage?.sender?.isVip && " ⭐"}
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9AA5B1" }}>{c.lastMessage?.bodyText ?? ""}</p>
+                <p style={{ margin: "4px 0 0", fontSize: 11, color: "#6B7686" }}>
+                  priority {c.priorityScore}
+                  {c.category ? ` · ${c.category}` : ""}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <button onClick={() => handleToggleArchive(c)} style={smallButtonStyle}>
+                  {c.isArchived ? "Unarchive" : "Archive"}
+                </button>
+                <input
+                  defaultValue={c.category ?? ""}
+                  onBlur={(e) => handleSetCategory(c, e.target.value)}
+                  placeholder="Set category"
+                  style={inputStyle({ flex: 1, fontSize: 11, padding: 4 })}
+                />
+              </div>
             </article>
           ))}
         </section>
@@ -374,6 +486,16 @@ const cardStyle: React.CSSProperties = {
   padding: 12,
   marginBottom: 8,
   background: "#111726",
+};
+
+const smallButtonStyle: React.CSSProperties = {
+  fontSize: 11,
+  padding: "4px 8px",
+  borderRadius: 4,
+  border: "1px solid #2A3441",
+  background: "#1B2333",
+  color: "#F5F7FA",
+  cursor: "pointer",
 };
 
 const toastContainerStyle: React.CSSProperties = {

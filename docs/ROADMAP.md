@@ -326,14 +326,18 @@ Same Connector SDK, no interface change - `credential_entry` auth and `"polling"
 
 This is where the product stops being "an aggregator" and starts being Smart Message Center.
 
-- [ ] Unified inbox view (all connectors, one feed)
-- [ ] Filters
-- [ ] Priority/importance scoring (rule-based, per PRODUCT.md)
-- [ ] VIP handling
-- [ ] Archive
-- [ ] Categories
-- [ ] Unread manager ("Needs You" count - must be trustworthy, per PRODUCT.md UI Principles)
-- [ ] IdentityGraph fuzzy-match confidence scoring, duplicate-detection suggestion queue, and manual merge/split UI (`ARCHITECTURE.md` Section 13.3/13.6) - the exact-match-only version from Phase 3 gets its human-in-the-loop layer here, once there are multiple real connectors (Phase 5-8) generating cross-provider identity signal worth reconciling
+- [x] Unified inbox view (all connectors, one feed) - `GET /v1/conversations` already aggregated every connected provider; this phase adds priority-ordered sorting on top
+- [x] Filters - `archived`/`category`/`vip`/`unread` query params on `GET /v1/conversations`
+- [x] Priority/importance scoring (rule-based, per PRODUCT.md) - `packages/shared/src/priority-score.ts`: base score + VIP bonus + urgency-keyword bonus, computed at ingestion time, deliberately not AI-derived
+- [x] VIP handling - `Contact.isVip` (existed since Phase 3, unused until now) gets a real `PATCH /v1/contacts/{id}` surface and feeds priority scoring
+- [x] Archive - `Conversation.isArchived`, `PATCH /v1/conversations/{id}`
+- [x] Categories - `Conversation.category`, free-form user-set text, no auto-categorization
+- [x] Unread manager ("Needs You" count - must be trustworthy, per PRODUCT.md UI Principles) - `Conversation.lastReadAt` + `GET /v1/conversations/summary`, computed from unread AND (VIP or priority threshold), never a raw unread badge
+- [x] IdentityGraph fuzzy-match confidence scoring, duplicate-detection suggestion queue, and manual merge/split UI (`ARCHITECTURE.md` Section 13.3/13.6) - `IdentityMergeSuggestion`/`IdentityMergeLog`/`IdentitySplitLog` (`DATABASE.md` Section 6.6), a periodic matching sweep, and `IdentityController`/`ContactsController`'s approve/reject/split endpoints - the exact-match-only version from Phase 3 now has its human-in-the-loop layer, exercised end-to-end against real data from the four real connectors built in Phase 5-8
+
+**Definition of Done - verified via `pnpm --filter @smc/scripts verify:phase9`**: 22/22 real, end-to-end checks (priority scoring's base/urgency/VIP tiers, the Needs You count, mark-read, archive/category filters, and the full merge-suggestion lifecycle - generate → approve → merge → split, and generate → reject → no merge - against the actual running API and Postgres, not mocked). No new ADR was needed - this phase executes the architecture ADR-0013/`DATABASE.md` Section 6.6 already committed to in Phase 3, not a new decision. `certify:mock/telegram/discord/slack/email-connector` and `verify:phase3/auth/soft-delete/telegram/discord/slack/email` all re-run clean - no regressions. `pnpm typecheck`/`pnpm lint`/`pnpm build` pass clean across the whole monorepo.
+
+**Phase Review completed 2026-07-27** - full report at [reviews/phase-9-review.md](reviews/phase-9-review.md). Tagged `v0.8.0-phase9`.
 
 ---
 

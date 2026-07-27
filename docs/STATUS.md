@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.6
+Version: 3.7
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-27
@@ -27,7 +27,7 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 (Product Foundation) through Phase 5 (Telegram Connector): COMPLETE.** **Phase 6 (Discord Connector) - COMPLETE and certified**, live verification explicitly postponed (see `docs/reviews/phase-6-review.md`). **Phase 7 (Slack Connector) - COMPLETE and certified**, live verification pending a real Slack App (see `docs/reviews/phase-7-review.md`). **Phase 8 (Email Connector) - COMPLETE and certified** as of 2026-07-27, with four real connectors now on one SDK and `ROADMAP.md`'s own checkpoint answered: no SDK design flaw indicated, only one interface change across all four (Discord's, explicitly pre-authorized) - see `docs/reviews/phase-8-review.md`.
+**Phase 0 (Product Foundation) through Phase 5 (Telegram Connector): COMPLETE.** **Phase 6 (Discord Connector) - COMPLETE and certified**, live verification explicitly postponed (see `docs/reviews/phase-6-review.md`). **Phase 7 (Slack Connector) - COMPLETE and certified**, live verification pending a real Slack App (see `docs/reviews/phase-7-review.md`). **Phase 8 (Email Connector) - COMPLETE and certified**, with four real connectors now on one SDK and `ROADMAP.md`'s own checkpoint answered: no SDK design flaw indicated (see `docs/reviews/phase-8-review.md`). **Phase 9 (Smart Inbox) - COMPLETE** as of 2026-07-27: unified priority scoring, VIP handling, archive/categories/filters, a trustworthy "Needs You" count, and IdentityGraph's fuzzy-match/merge-suggestion/split lifecycle, all real and verified end-to-end (22/22 checks) - see `docs/reviews/phase-9-review.md`.
 
 ## What Actually Runs Right Now
 
@@ -52,6 +52,8 @@ pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc
 
 **Email Connector (new, Phase 8)**: `POST /v1/connectors/email/connect` (`credential_entry` auth - real IMAP login + real SMTP `verify()` before persistence), `POST /v1/connectors/email/{id}/disconnect`, and the same provider-agnostic reply path every prior connector uses. No callback/webhook endpoint exists - the simplest controller of the four. `"polling"` ingestion (`EmailPollingService`, the *primary* ingestion path here, not a backstop) with real IMAP/SMTP protocol handling (`imapflow`/`nodemailer`/`mailparser`) and thread-based `Conversation` mapping via `References`/`In-Reply-To`/`Message-ID`. No SDK interface change was needed - the second connector in a row (after Slack) to confirm it, directly answering `ROADMAP.md`'s own post-Phase-8 checkpoint: **no SDK design flaw indicated across four real connectors.** `pnpm --filter @smc/scripts certify:email-connector` (15/16, 1 legitimate skip) and `pnpm --filter @smc/scripts verify:email` (real-network negative-path checks, plus a **fully live SMTP send** against this project's own local mailhog, independently confirmed delivered) are the standing regression checks. **Not yet human-verified live for receiving** - this project's dev stack has no IMAP test server (mailhog is SMTP-capture only), so a real mailbox with an app password is needed; see `docs/reviews/phase-8-review.md`.
 
+**Smart Inbox (new, Phase 9)**: `GET /v1/conversations` now accepts `archived`/`category`/`vip`/`unread` filters and sorts by priority then recency; `GET /v1/conversations/summary` returns a trustworthy "Needs You" count (unread AND VIP-or-high-priority, never a raw badge); `PATCH /v1/conversations/{id}` (archive/category), `POST /v1/conversations/{id}/read` (mark read). Priority scoring (`packages/shared/src/priority-score.ts`) is rule-based (VIP + urgency keywords), computed at ingestion time. `PATCH /v1/contacts/{id}` gives `Contact.isVip` (existed since Phase 3) its first real read/write surface. IdentityGraph's fuzzy-match layer is real: `IdentityMatchingService` periodically persists `IdentityMergeSuggestion` rows (`GET`/`POST .../approve`/`POST .../reject` on `/v1/identity/merge-suggestions`), and `POST /v1/contacts/{id}/split` is the first-class recovery action for an incorrect merge - both transactional, both audit-logged (`IdentityMergeLog`/`IdentitySplitLog`, append-only). No new ADR - this phase executed the architecture ADR-0013/`DATABASE.md` Section 6.6 already committed to in Phase 3. `pnpm --filter @smc/scripts verify:phase9` is the standing regression check (22/22 passing): priority scoring's base/urgency/VIP tiers, the Needs You count, mark-read, archive/category filters, and the full merge-suggestion lifecycle (generate → approve → merge → split, and generate → reject → no merge) all verified end-to-end against the real running API and Postgres. See `docs/reviews/phase-9-review.md`.
+
 **Auth (Phase 2)**: `POST /v1/auth/register`, `POST /v1/auth/login`, `POST /v1/auth/refresh`, `POST /v1/auth/logout`, `POST /v1/auth/logout-all`, `GET /v1/auth/sessions`, `GET /v1/users/me`. Registering auto-creates an Organization + Workspace + owner `WorkspaceMember`. `pnpm --filter @smc/scripts verify:auth` is the standing regression check (16/16 passing, re-confirmed clean after Phase 3).
 
 **Identity & Messaging (new, Phase 3)**: `GET /v1/conversations`, `GET /v1/conversations/{id}/messages`, `GET /v1/notifications` - all `JwtAuthGuard`-protected, workspace-scoped from verified JWT claims only, never a client-supplied id. `POST /dev/mock-connector/send` now accepts an optional Bearer token: present and valid → ingests into that user's real workspace; absent → falls back to the `DEV_WORKSPACE_ID` fixture for continued dev convenience; present and invalid → `401`, never silently ignored. The WebSocket gateway now requires a valid JWT at connect time (`handshake.auth.token`) and disconnects anyone without one - no more client-supplied `?workspaceId=`. `apps/web` has a real login/register form and a real Inbox (conversation list, message history, notifications, live toasts). `pnpm --filter @smc/scripts verify:phase3` is the standing regression check (11/11 passing): register → reject unauthenticated socket → authenticated socket connects → mock message ingested into the real workspace → both `message.received` and `notification.created` arrive over the socket → sender resolved to a name via IdentityGraph → durability confirmed via all three new REST reads → a second, unrelated user's `GET /v1/conversations` is proven empty (workspace isolation). `verify:soft-delete` re-run clean too. `verify-realtime.mjs` (Phase 1's unauthenticated-room version) is retired, fully superseded.
@@ -62,22 +64,24 @@ pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc
 
 ## Repository
 
-**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 6/7/8 added `packages/connector-sdk/src/{discord,slack,email}/` and `apps/api/src/{discord,slack,email}/`; [ADR-0020](adr/0020-marketing-site-as-isolated-app.md) added `apps/marketing-site/` - the first new top-level app since ADR-0011, deliberately isolated (see below).**
+**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 6/7/8 added `packages/connector-sdk/src/{discord,slack,email}/` and `apps/api/src/{discord,slack,email}/`; Phase 9 added `apps/api/src/identity/` and extended `packages/identity/`; [ADR-0020](adr/0020-marketing-site-as-isolated-app.md) added `apps/marketing-site/` - the first new top-level app since ADR-0011, deliberately isolated (see below).**
 ```
 smartmc/
-├── docs/          (15 documents, adr/ [0001-0020], reviews/ [phase-1 .. phase-4-sprint-2, phase-6, phase-7, phase-8])
+├── docs/          (15 documents, adr/ [0001-0020], reviews/ [phase-1 .. phase-4-sprint-2, phase-6..phase-9])
 ├── apps/
-│   ├── web/         Next.js - real login/register form + real authenticated Inbox + Connect Telegram/Discord/Slack/Email
+│   ├── web/         Next.js - real login/register form + real Smart Inbox (filters/archive/VIP/merge suggestions) +
+│   │                Connect Telegram/Discord/Slack/Email
 │   ├── api/         NestJS - health, events, realtime, mock-connector, auth, users, audit,
-│   │                conversations (reply endpoint), notifications, credentials-store, telegram, discord, slack, email
+│   │                conversations (reply endpoint + filters/summary), notifications, credentials-store,
+│   │                telegram, discord, slack, email, identity (merge suggestions/contacts)
 │   └── marketing-site/ Next.js/Tailwind/Radix/Framer Motion - fully isolated (ADR-0020, new), port 3001
 ├── packages/
 │   ├── database/      Prisma schema: messaging core (Phase 1) + Organization/User/UserCredentials/
 │   │                  WorkspaceMember/Session/AuditLog (Phase 2) + LinkedAccount/SecretRecord (Phase 4 Sprint 2)
-│   │                  + soft-delete extension
-│   ├── shared/       Canonical domain types, DEV_WORKSPACE_ID/DEV_ORGANIZATION_ID
+│   │                  + IdentityMergeSuggestion/IdentityMergeLog/IdentitySplitLog (Phase 9) + soft-delete extension
+│   ├── shared/       Canonical domain types, DEV_WORKSPACE_ID/DEV_ORGANIZATION_ID, priority-score.ts (Phase 9)
 │   ├── event-model/    EventEnvelope + EventType
-│   ├── identity/      IdentityGraph exact-match resolver
+│   ├── identity/      IdentityGraph exact-match resolver + fuzzy matching/merge/split (Phase 9)
 │   ├── connector-sdk/   Connector interface (+ streaming/StreamHandle, Phase 6), lifecycle, capability
 │   │                  manifest, error taxonomy, registry, certification suite, Mock/Telegram/Discord/Slack/Email Connectors
 │   ├── config/       Real ESLint + Prettier presets
@@ -88,7 +92,8 @@ smartmc/
 │                   certify-mock-connector.mjs, certify-telegram-connector.mjs, verify-telegram.cjs,
 │                   certify-discord-connector.mjs, verify-discord.cjs,
 │                   certify-slack-connector.mjs, verify-slack.cjs,
-│                   certify-email-connector.mjs (new), verify-email.cjs (new)
+│                   certify-email-connector.mjs, verify-email.cjs,
+│                   verify-phase9.mjs (new)
 ├── docker-compose.yml (Postgres @ 5433, not 5432)
 ├── LICENSE        (all-rights-reserved)
 ```
@@ -135,6 +140,18 @@ Full detail in `ROADMAP.md`'s Phase 8 section and [docs/reviews/phase-8-review.m
 **Verified**: `certify:email-connector` (15/16, 1 legitimate skip, same shape as every prior connector) and `verify:email` (real-network negative-path checks, plus a **fully live SMTP send** against this project's own local mailhog instance, independently confirmed delivered via mailhog's own message API - the strongest live-verification bar any connector phase has cleared without needing an external account). **Not yet verified**: a human-confirmed live message *receive* over a real IMAP mailbox - this project's dev stack has no IMAP test server, so a real mailbox (with an app password) is needed, the same class of external-setup gap Discord/Slack have. Disclosed in full in the phase review, not hidden.
 
 Tagged `v0.7.0-phase8`.
+
+## Phase 9 - Smart Inbox (complete)
+
+Full detail in `ROADMAP.md`'s Phase 9 section and [docs/reviews/phase-9-review.md](reviews/phase-9-review.md). Summary:
+
+**Implemented**: unified priority scoring (`packages/shared/src/priority-score.ts` - VIP + urgency-keyword bonuses, rule-based, computed at ingestion time); `Contact.isVip` (existed since Phase 3) gets a real `PATCH /v1/contacts/{id}` surface; `Conversation.isArchived`/`category`/`lastReadAt` with `archived`/`category`/`vip`/`unread` filters on `GET /v1/conversations`; a trustworthy "Needs You" count (`GET /v1/conversations/summary`); IdentityGraph's fuzzy-match layer - `findMergeCandidates()`, `IdentityMatchingService`'s periodic sweep, `IdentityMergeSuggestion`/`IdentityMergeLog`/`IdentitySplitLog` (`DATABASE.md` Section 6.6), `IdentityController`'s approve/reject endpoints, and `POST /v1/contacts/{id}/split` (the first-class incorrect-merge recovery action `ARCHITECTURE.md` Section 13.6.1 requires).
+
+**No new ADR** - this phase executed the architecture ADR-0013/`DATABASE.md` Section 6.6 already committed to in Phase 3 (the schema's own `Contact` comment has said "Phase 9 additions" since then), not a new decision.
+
+**Verified**: `pnpm --filter @smc/scripts verify:phase9` (22/22 passing) - real, end-to-end: priority scoring's base/urgency/VIP tiers, the Needs You count reflecting an unread VIP conversation and dropping after mark-read, archive/category filters round-tripping, and the full merge-suggestion lifecycle (two identically-named contacts → a real persisted suggestion → approve → merge → split back into two, and a second pair → reject → no merge) against the real running API and Postgres. All prior connector certify/verify scripts re-run clean - no regressions.
+
+Tagged `v0.8.0-phase9`.
 
 ## Phase 4 Sprint 2 / Phase 5 - Telegram Connector (complete, verified live end to end)
 
@@ -210,7 +227,7 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 19 phases, working rules, Phase 1-8 verified Definitions of Done |
+| `ROADMAP.md` | 19 phases, working rules, Phase 1-9 verified Definitions of Done |
 | `STATUS.md` | This file |
 | `DECISIONS.md` | Index of all 20 ADRs |
 
@@ -220,7 +237,7 @@ Tagged `v0.2.0-phase2`.
 
 1. **Pricing numbers** ($12/mo Pro, $18/seat Business) - a starting hypothesis (`PRODUCT.md`), not a blocker.
 2. **LinkedIn DM integration** feasibility (no public API) - deferred to Phase 16-17.
-3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - `LinkedAccount` is now real (Phase 4 Sprint 2); IdentityGraph's confidence-scoring/merge-suggestion tables, RLS, and DB role separation remain spec-only, deferred to their assigned phases.
+3. **`packages/database`'s Prisma schema is a pragmatic subset of `DATABASE.md`'s full spec** - `LinkedAccount` is now real (Phase 4 Sprint 2); IdentityGraph's confidence-scoring/merge-suggestion tables are now real too (Phase 9); RLS and DB role separation remain spec-only, deferred to their assigned phases.
 4. **Six Phase 2 simplifications on record** (citext→app-level email normalization, no timing-attack mitigation on login, no `trust proxy` config, raw device/IP in session listing, untuned Argon2id parameters, 15-min role-change propagation delay) - all reasoned and disclosed in `docs/reviews/phase-2-review.md`, none hidden.
 5. **`Notification` has no `readAt` column** - `GET /v1/notifications` (Phase 3) is read-only, no mark-read/unread state yet. Disclosed in `docs/reviews/phase-3-review.md`, deferred to whichever phase first needs it (likely Phase 11).
 6. **The interim secrets store is envelope encryption in Postgres, not a real external secrets manager** ([ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production security posture reduction, to be closed before any real customer credential is ever stored in production. Now also holds Discord's app-wide bot token.
@@ -235,22 +252,24 @@ Tagged `v0.2.0-phase2`.
 15. **Slack sender identity is the raw Slack user ID, not a resolved display name** (`users.info` is never called) - disclosed in `docs/reviews/phase-7-review.md`, deferred until real usage prioritizes it.
 16. **Email's connector has not been verified live for receiving against a real IMAP mailbox** - the SMTP-send half *is* live-verified (against this project's own local mailhog); the IMAP-receive half needs a real mailbox with an app password, since this project's dev stack has no local IMAP test server. Disclosed in `docs/reviews/phase-8-review.md`, the concrete next step before this connector is production-ready.
 17. **`Tag`/`MessageTag` (`DATABASE.md` Section 6.11) is not implemented in `packages/database`'s Prisma schema** - Email's Phase 8 checklist explicitly named "Labels/folders mapped to Tags," making this the first connector to surface the gap directly rather than incidentally. Disclosed in `docs/reviews/phase-8-review.md`, deferred as a cross-connector feature bigger than any one connector's core receive/send loop.
+18. **IdentityGraph's fuzzy-matching signal is normalized display-name comparison only** (no shared-conversation-participant or cross-provider handle-similarity signal), `findMergeCandidates()` is O(n²) in Contact count, and pending/rejected-suggestion dedup is enforced at the application level rather than a database partial-unique index (this project has no migrations mechanism beyond `prisma db push`). All three disclosed in `docs/reviews/phase-9-review.md`, deferred until real usage or a migrations mechanism makes them worth closing.
+19. **Splitting a Contact whose merged identities share the same provider moves every message from that provider, not just the specific identity being split off** - `Message` has no direct per-sender provider/externalId of its own. Disclosed in `docs/reviews/phase-9-review.md`; correct in the common cross-provider-merge case, a narrower limitation in the same-provider case.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-Phase 8 (Email) is complete and certified - four real connectors now exist on one SDK, `ROADMAP.md`'s own post-Phase-8 checkpoint is answered (no design flaw indicated), and the Connector SDK's Sprint 1 design is validated to generalize with only one sanctioned interface change (Discord's, Phase 6) across all four. Three live-verification items remain open, all blocked on external setup (a real Discord Application, a real Slack App, a real IMAP mailbox) rather than any code gap:
+Phase 9 (Smart Inbox) is complete - priority scoring, VIP, archive/categories/filters, the Needs You count, and IdentityGraph's full fuzzy-match/merge/split lifecycle are all real and verified end-to-end (22/22, `verify-phase9.mjs`). Three connector live-verification items remain open from Phases 6-8, all blocked on external setup (a real Discord Application, a real Slack App, a real IMAP mailbox) rather than any code gap - none of them block Phase 10:
 
-1. **Verify Discord live** whenever the Developer Portal is accessible again: register a real Discord Application, enable the privileged `MESSAGE_CONTENT` intent, add the bot to a test server, set `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID` in `apps/api/.env`, run `pnpm --filter @smc/scripts verify:discord`, and manually confirm a real message round-trip through the Inbox UI - the same bar Telegram already cleared. (Config values placed in `.env` now actually take effect - see the dotenv fix in `docs/reviews/phase-7-review.md`.) Phase 6 stays **feature-complete, not fully validated** until this runs (see gap #9 above).
+1. **Verify Discord live** whenever the Developer Portal is accessible again: register a real Discord Application, enable the privileged `MESSAGE_CONTENT` intent, add the bot to a test server, set `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID` in `apps/api/.env`, run `pnpm --filter @smc/scripts verify:discord`, and manually confirm a real message round-trip through the Inbox UI - the same bar Telegram already cleared. Phase 6 stays **feature-complete, not fully validated** until this runs (see gap #9 above).
 2. **Verify Slack live** whenever a real Slack App is available: register one at api.slack.com/apps, set `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`SLACK_SIGNING_SECRET`/`SLACK_PUBLIC_BASE_URL` in `apps/api/.env`, subscribe to the `message.channels` event on the Events API webhook (`{publicBaseUrl}/v1/connectors/slack/events`), install the app into a real workspace via a browser (not scriptable - see gap #14), and manually confirm a real message round-trip through the Inbox UI. Phase 7 stays **feature-complete, not fully validated** until this runs (see gap #14 above).
 3. **Verify Email live for receiving** whenever a real mailbox (with an app password) is available: set `EMAIL_TEST_IMAP_HOST`/`EMAIL_TEST_IMAP_PORT`/`EMAIL_TEST_SMTP_HOST`/`EMAIL_TEST_SMTP_PORT`/`EMAIL_TEST_USERNAME`/`EMAIL_TEST_PASSWORD`, run `pnpm --filter @smc/scripts verify:email`, and manually confirm a real message round-trip through the Inbox UI. The SMTP-send half is already live-verified (against local mailhog). Phase 8 stays **feature-complete, not fully validated** until the receive half runs too (see gap #16 above).
-4. Otherwise, begin Phase 9 - Smart Inbox: `ROADMAP.md`'s own checkpoint after Phase 8 has been answered (see above) - this is where the product stops being "an aggregator" and starts being Smart Message Center, and where `packages/ui`/theme consolidation (gap #12) and `Tag`/`MessageTag` (gap #17) are both intentionally revisited.
+4. Otherwise, begin Phase 10 - Automation Engine (`AUTOMATION_ENGINE.md`): the flagship differentiator, and the natural home for making the Needs You threshold/urgency-keyword list configurable (gap #7 in the phase-9 review's Future Work) rather than a one-off settings screen.
 
 ## How to Resume From Zero Context
 
 1. Read this file (`STATUS.md`).
-2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-8's exact verification steps.
+2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-9's exact verification steps.
 3. Read `PRODUCT.md`, `ARCHITECTURE.md` (Section 6 for auth, Section 13 for IdentityGraph), and `DECISIONS.md` for decisions already made - do not re-derive or re-litigate anything documented there.
 4. To actually run the app: see "What Actually Runs Right Now" above, including the WSL environment note and the local-DB-reset note.
 5. Continue from "Next Action" above, or from wherever the user redirects.

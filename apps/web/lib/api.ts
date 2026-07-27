@@ -67,6 +67,10 @@ export interface ConversationSummary {
   title: string | null;
   providerKey: string;
   lastMessageAt: string | null;
+  priorityScore: number;
+  isArchived: boolean;
+  category: string | null;
+  unread: boolean;
   lastMessage: {
     id: string;
     bodyText: string;
@@ -74,6 +78,23 @@ export interface ConversationSummary {
     receivedAt: string;
     sender: { id: string; displayName: string | null; isVip: boolean } | null;
   } | null;
+}
+
+export interface ConversationListFilters {
+  archived?: boolean;
+  category?: string;
+  vip?: boolean;
+  unread?: boolean;
+}
+
+export interface MergeSuggestion {
+  id: string;
+  confidenceScore: number;
+  matchingSignals: { reason: string; normalizedNameA: string; normalizedNameB: string };
+  contactA: { id: string; displayName: string | null } | null;
+  contactB: { id: string; displayName: string | null } | null;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface ConversationMessage {
@@ -106,9 +127,62 @@ export async function fetchMe(accessToken: string): Promise<MeResponse> {
   return parseOrThrow<MeResponse>(res);
 }
 
-export async function fetchConversations(accessToken: string): Promise<ConversationSummary[]> {
-  const res = await fetch(`${API_URL}/v1/conversations`, { headers: authHeaders(accessToken) });
+export async function fetchConversations(accessToken: string, filters: ConversationListFilters = {}): Promise<ConversationSummary[]> {
+  const params = new URLSearchParams();
+  if (filters.archived !== undefined) params.set("archived", String(filters.archived));
+  if (filters.category) params.set("category", filters.category);
+  if (filters.vip) params.set("vip", "true");
+  if (filters.unread) params.set("unread", "true");
+  const query = params.toString();
+  const res = await fetch(`${API_URL}/v1/conversations${query ? `?${query}` : ""}`, { headers: authHeaders(accessToken) });
   return parseOrThrow<ConversationSummary[]>(res);
+}
+
+export async function fetchNeedsYouCount(accessToken: string): Promise<{ needsYouCount: number }> {
+  const res = await fetch(`${API_URL}/v1/conversations/summary`, { headers: authHeaders(accessToken) });
+  return parseOrThrow<{ needsYouCount: number }>(res);
+}
+
+export async function updateConversation(
+  accessToken: string,
+  conversationId: string,
+  input: { isArchived?: boolean; category?: string | null },
+): Promise<{ id: string; isArchived: boolean; category: string | null }> {
+  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(input),
+  });
+  return parseOrThrow(res);
+}
+
+export async function markConversationRead(accessToken: string, conversationId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/read`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  await parseOrThrow(res);
+}
+
+export async function fetchMergeSuggestions(accessToken: string): Promise<MergeSuggestion[]> {
+  const res = await fetch(`${API_URL}/v1/identity/merge-suggestions`, { headers: authHeaders(accessToken) });
+  return parseOrThrow<MergeSuggestion[]>(res);
+}
+
+export async function approveMergeSuggestion(accessToken: string, suggestionId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/identity/merge-suggestions/${suggestionId}/approve`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  await parseOrThrow(res);
+}
+
+export async function rejectMergeSuggestion(accessToken: string, suggestionId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/identity/merge-suggestions/${suggestionId}/reject`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  await parseOrThrow(res);
 }
 
 export async function fetchMessages(accessToken: string, conversationId: string): Promise<ConversationMessage[]> {

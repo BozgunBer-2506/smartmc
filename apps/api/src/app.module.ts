@@ -13,6 +13,7 @@ import { TelegramModule } from "./telegram/telegram.module";
 import { DiscordModule } from "./discord/discord.module";
 import { SlackModule } from "./slack/slack.module";
 import { EmailModule } from "./email/email.module";
+import { IdentityModule } from "./identity/identity.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { EmailModule } from "./email/email.module";
     DiscordModule,
     SlackModule,
     EmailModule,
+    IdentityModule,
   ],
 })
 export class AppModule {}

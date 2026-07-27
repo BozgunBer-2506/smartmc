@@ -3,7 +3,7 @@ import { Job, Worker } from "bullmq";
 import { getPrismaClient, newId, type Contact, type Message } from "@smc/database";
 import { resolveIdentity } from "@smc/identity";
 import { createEvent, EventType, type EventEnvelope } from "@smc/event-model";
-import { DEV_ORGANIZATION_ID, DEV_WORKSPACE_ID, type InboundMessagePayload } from "@smc/shared";
+import { computePriorityScore, DEV_ORGANIZATION_ID, DEV_WORKSPACE_ID, type InboundMessagePayload } from "@smc/shared";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EVENTS_QUEUE_NAME } from "./events.service";
 import { redisConnection } from "./redis-connection";
@@ -145,6 +145,11 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Unified priority scoring (docs/PRODUCT.md, Phase 9) - a rule-based,
+    // fully explainable signal (VIP sender + urgency-keyword match) computed
+    // once at ingestion time, not recomputed on every read.
+    const priorityScore = computePriorityScore({ isVip: contact.isVip, bodyText: payload.bodyText });
+
     const message = await prisma.message.create({
       data: {
         id: newId(),
@@ -158,6 +163,13 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
       },
     });
 
+    // The conversation's own priorityScore reflects its highest-scored
+    // message, so a single urgent/VIP message keeps a thread surfaced even
+    // after quieter follow-ups arrive.
+    if (priorityScore > conversation.priorityScore) {
+      await prisma.conversation.update({ where: { id: conversation.id }, data: { priorityScore } });
+    }
+
     this.realtime.emitToWorkspace(payload.workspaceId, "message.received", {
       id: message.id,
       conversationId: conversation.id,
@@ -165,6 +177,7 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
       sender: { id: contact.id, displayName: contact.displayName, isVip: contact.isVip },
       bodyText: message.bodyText,
       receivedAt: message.receivedAt,
+      priorityScore,
     });
 
     await this.runStubRule(event, message, contact, payload.workspaceId);

@@ -9,8 +9,11 @@
 // envelope-encrypted secrets store, ADR-0016 - not part of DATABASE.md's
 // documented schema, since it's a Sprint 2 implementation detail, not a
 // product-domain entity).
-// Still deferred: IdentityGraph's confidence-score/merge-suggestion
-// tables (Phase 9), RLS, DB role separation (DATABASE.md Section 21) -
+// Phase 9 adds IdentityGraph's confidence-score column and merge-
+// suggestion/audit tables (IdentityMergeSuggestion/IdentityMergeLog/
+// IdentitySplitLog), plus Conversation's priorityScore/isArchived/
+// category/lastReadAt (Smart Inbox). Still deferred: RLS, DB role
+// separation (DATABASE.md Section 21), Tag/MessageTag (Section 6.11) -
 // all tracked in docs/reviews/.
 // IDs are UUIDv7 (ADR-0007), generated application-side (see
 // packages/database/src/ids.ts) rather than via Prisma's @default(uuid()),
@@ -57,6 +60,9 @@ model Workspace {
   messages      Message[]
   notifications Notification[]
   linkedAccounts LinkedAccount[]
+  identityMergeSuggestions IdentityMergeSuggestion[]
+  identityMergeLogs        IdentityMergeLog[]
+  identitySplitLogs        IdentitySplitLog[]
 
   @@map("workspaces")
 }
@@ -229,9 +235,10 @@ model SecretRecord {
 
 /// A deduplicated real person, independent of channel - IdentityGraph's
 /// persistence layer (docs/ARCHITECTURE.md Section 13, docs/DATABASE.md
-/// Section 6.6). This Phase 1 version implements exact-match resolution
-/// only (docs/ROADMAP.md Phase 3 scope) - confidence scoring and the
-/// merge-suggestion queue are Phase 9 additions.
+/// Section 6.6). Phase 3 implemented exact-match resolution only; Phase 9
+/// adds confidence-scored fuzzy candidate matching, a persisted
+/// merge-suggestion review queue, and manual merge/split (see
+/// packages/identity/src/matching.ts).
 model Contact {
   id          String    @id @db.Uuid
   workspaceId String    @map("workspace_id") @db.Uuid
@@ -248,20 +255,94 @@ model Contact {
 }
 
 model ContactIdentity {
-  id          String   @id @db.Uuid
-  contactId   String   @map("contact_id") @db.Uuid
-  workspaceId String   @map("workspace_id") @db.Uuid
-  providerId  String   @map("provider_id") @db.Uuid
-  externalId  String   @map("external_id")
-  handle      String?
-  matchType   String   @default("exact") @map("match_type") // "exact" | "confirmed_manual" - docs/DATABASE.md Section 6.6
-  createdAt   DateTime @default(now()) @map("created_at")
+  id              String   @id @db.Uuid
+  contactId       String   @map("contact_id") @db.Uuid
+  workspaceId     String   @map("workspace_id") @db.Uuid
+  providerId      String   @map("provider_id") @db.Uuid
+  externalId      String   @map("external_id")
+  handle          String?
+  matchType       String   @default("exact") @map("match_type") // "exact" | "confirmed_manual" - docs/DATABASE.md Section 6.6
+  /// Null for "exact" matches (certainty, not a probability) - populated
+  /// only for links that originated as a fuzzy suggestion before being
+  /// human-confirmed (docs/DATABASE.md Section 6.6, ARCHITECTURE.md
+  /// Section 13.6). Retained after confirmation for audit/tuning, not
+  /// cleared once approved.
+  confidenceScore Decimal? @map("confidence_score") @db.Decimal(3, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
 
   contact  Contact  @relation(fields: [contactId], references: [id])
   provider Provider @relation(fields: [providerId], references: [id])
 
   @@unique([providerId, externalId, workspaceId], name: "uq_contact_identities_provider_external")
   @@map("contact_identities")
+}
+
+/// A persisted, reviewable candidate identity match (docs/DATABASE.md
+/// Section 6.6, ADR-0013) - never a fired-and-forgotten event. Every
+/// candidate match short of an exact (provider, externalId) repeat
+/// becomes one of these, regardless of confidence score, and sits
+/// `pending` until a human explicitly approves or rejects it
+/// (ARCHITECTURE.md Section 13.6 - a hard product boundary, not a
+/// tunable threshold).
+model IdentityMergeSuggestion {
+  id                  String    @id @db.Uuid
+  workspaceId         String    @map("workspace_id") @db.Uuid
+  candidateContactIdA String    @map("candidate_contact_id_a") @db.Uuid
+  candidateContactIdB String    @map("candidate_contact_id_b") @db.Uuid
+  confidenceScore     Decimal   @map("confidence_score") @db.Decimal(3, 2)
+  /// The human-legible evidence shown on the review card (UI_GUIDE.md
+  /// Section 7) - never raw signal weights (ARCHITECTURE.md Section 13.8).
+  matchingSignals     Json      @map("matching_signals")
+  status              String    @default("pending") // "pending" | "approved" | "rejected" | "expired"
+  reviewedByUserId    String?   @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt          DateTime? @map("reviewed_at")
+  /// Unreviewed suggestions expire rather than accumulate forever - both
+  /// an anti-fatigue measure and because stale evidence may no longer
+  /// reflect current reality (ARCHITECTURE.md Section 13.6).
+  expiresAt           DateTime  @map("expires_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, status], name: "idx_identity_merge_suggestions_workspace_status")
+  @@index([expiresAt], name: "idx_identity_merge_suggestions_expires_at")
+  @@map("identity_merge_suggestions")
+}
+
+/// Append-only (docs/DATABASE.md Section 6.6) - what actually happened,
+/// permanently, distinct from the suggestion record above ("what was
+/// proposed and reviewed"). No updatedAt/deletedAt by design.
+model IdentityMergeLog {
+  id                     String    @id @db.Uuid
+  workspaceId            String    @map("workspace_id") @db.Uuid
+  primaryContactId       String    @map("primary_contact_id") @db.Uuid
+  mergedContactId        String    @map("merged_contact_id") @db.Uuid
+  mergedByUserId         String    @map("merged_by_user_id") @db.Uuid
+  confidenceScoreAtMerge Decimal?  @map("confidence_score_at_merge") @db.Decimal(3, 2)
+  matchingSignals        Json      @map("matching_signals")
+  createdAt              DateTime  @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, createdAt], name: "idx_identity_merge_log_workspace_id_created_at")
+  @@map("identity_merge_log")
+}
+
+/// Append-only - records that a split happened and how identities were
+/// redistributed (docs/DATABASE.md Section 6.6).
+model IdentitySplitLog {
+  id                  String   @id @db.Uuid
+  workspaceId         String   @map("workspace_id") @db.Uuid
+  originalContactId   String   @map("original_contact_id") @db.Uuid
+  resultingContactIds Json     @map("resulting_contact_ids")
+  splitByUserId       String   @map("split_by_user_id") @db.Uuid
+  reason              String?
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, createdAt], name: "idx_identity_split_log_workspace_id_created_at")
+  @@map("identity_split_log")
 }
 
 model Conversation {
@@ -272,6 +353,19 @@ model Conversation {
   externalId      String   @map("external_id")
   title           String?
   lastMessageAt DateTime?  @map("last_message_at")
+  /// Rule-based cross-app importance signal (docs/PRODUCT.md "Unified
+  /// priority scoring"), reflecting the highest-scored message in this
+  /// conversation - VIP sender and urgency-keyword matches, computed at
+  /// ingestion time (Phase 9), never AI-derived (AI refinement is
+  /// Phase 13, optional, additive on top of this base signal).
+  priorityScore Int        @default(0) @map("priority_score")
+  isArchived    Boolean    @default(false) @map("is_archived")
+  /// Free-form, user-set (Phase 9) - no auto-categorization yet.
+  category      String?
+  /// Null means never read - every message in the conversation is unread.
+  /// Compared against lastMessageAt to compute the unread state the
+  /// "Needs You" count (docs/PRODUCT.md UI Principles) is built from.
+  lastReadAt    DateTime?  @map("last_read_at")
   createdAt     DateTime   @default(now()) @map("created_at")
   deletedAt     DateTime?  @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
 

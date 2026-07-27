@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpStatus, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { defaultConnectorRegistry, type Connector } from "@smc/connector-sdk";
 import { getPrismaClient, newId } from "@smc/database";
 import { AuditLogService } from "../audit/audit-log.service";
@@ -21,6 +21,28 @@ interface SendMessageDto {
   body?: string;
 }
 
+interface UpdateConversationDto {
+  isArchived?: boolean;
+  category?: string | null;
+}
+
+interface ListConversationsQuery {
+  archived?: string;
+  category?: string;
+  vip?: string;
+  unread?: string;
+}
+
+/** True/false unread state: null lastReadAt means every message is unread; otherwise unread iff a message arrived after the last read timestamp. */
+function isUnread(conversation: { lastMessageAt: Date | null; lastReadAt: Date | null }): boolean {
+  if (!conversation.lastMessageAt) return false;
+  if (!conversation.lastReadAt) return true;
+  return conversation.lastMessageAt > conversation.lastReadAt;
+}
+
+/** The trustworthy "Needs You" signal (docs/PRODUCT.md UI Principles: "must be trustworthy") - unread AND (VIP sender or a high enough priority score), never raw unread count. */
+const NEEDS_YOU_PRIORITY_THRESHOLD = 30;
+
 @Controller("conversations")
 export class ConversationsController {
   constructor(
@@ -29,14 +51,28 @@ export class ConversationsController {
     private readonly auditLogService: AuditLogService,
   ) {}
 
+  /**
+   * The unified inbox view (docs/ROADMAP.md Phase 9) - every connected
+   * provider's conversations in one feed, filterable by archive state,
+   * category, VIP sender, and unread state ("Filters" checklist item).
+   * VIP/unread filtering happens after the query (not in Prisma's `where`)
+   * since both depend on the joined last-message/sender, not a plain
+   * column - correct at this product's current scale, a real, disclosed
+   * simplification if conversation volume ever makes that costly
+   * (docs/reviews/phase-9-review.md).
+   */
   @Get()
   @UseGuards(JwtAuthGuard)
-  async list(@CurrentUser() claims: JwtPayload) {
+  async list(@CurrentUser() claims: JwtPayload, @Query() query: ListConversationsQuery) {
     const prisma = getPrismaClient();
 
     const conversations = await prisma.conversation.findMany({
-      where: { workspaceId: claims.workspaceId },
-      orderBy: { lastMessageAt: "desc" },
+      where: {
+        workspaceId: claims.workspaceId,
+        isArchived: query.archived === "true" ? true : query.archived === "false" ? false : undefined,
+        category: query.category ?? undefined,
+      },
+      orderBy: [{ priorityScore: "desc" }, { lastMessageAt: "desc" }],
       take: 50,
       include: {
         provider: true,
@@ -48,30 +84,94 @@ export class ConversationsController {
       },
     });
 
-    return conversations.map((conversation) => {
-      const lastMessage = conversation.messages[0];
-      return {
-        id: conversation.id,
-        title: conversation.title,
-        providerKey: conversation.provider.key,
-        lastMessageAt: conversation.lastMessageAt,
-        lastMessage: lastMessage
-          ? {
-              id: lastMessage.id,
-              bodyText: lastMessage.bodyText,
-              direction: lastMessage.direction,
-              receivedAt: lastMessage.receivedAt,
-              sender: lastMessage.sender
-                ? {
-                    id: lastMessage.sender.id,
-                    displayName: lastMessage.sender.displayName,
-                    isVip: lastMessage.sender.isVip,
-                  }
-                : null,
-            }
-          : null,
-      };
+    return conversations
+      .map((conversation) => {
+        const lastMessage = conversation.messages[0];
+        return {
+          id: conversation.id,
+          title: conversation.title,
+          providerKey: conversation.provider.key,
+          lastMessageAt: conversation.lastMessageAt,
+          priorityScore: conversation.priorityScore,
+          isArchived: conversation.isArchived,
+          category: conversation.category,
+          unread: isUnread(conversation),
+          lastMessage: lastMessage
+            ? {
+                id: lastMessage.id,
+                bodyText: lastMessage.bodyText,
+                direction: lastMessage.direction,
+                receivedAt: lastMessage.receivedAt,
+                sender: lastMessage.sender
+                  ? {
+                      id: lastMessage.sender.id,
+                      displayName: lastMessage.sender.displayName,
+                      isVip: lastMessage.sender.isVip,
+                    }
+                  : null,
+              }
+            : null,
+        };
+      })
+      .filter((conversation) => {
+        if (query.vip === "true" && !conversation.lastMessage?.sender?.isVip) return false;
+        if (query.unread === "true" && !conversation.unread) return false;
+        return true;
+      });
+  }
+
+  /** The trustworthy "Needs You" count (docs/PRODUCT.md UI Principles) - computed from priority rules, never a raw unread badge. */
+  @Get("summary")
+  @UseGuards(JwtAuthGuard)
+  async summary(@CurrentUser() claims: JwtPayload) {
+    const prisma = getPrismaClient();
+    const conversations = await prisma.conversation.findMany({
+      where: { workspaceId: claims.workspaceId, isArchived: false },
+      include: { messages: { orderBy: { receivedAt: "desc" }, take: 1, include: { sender: true } } },
     });
+
+    const needsYouCount = conversations.filter((conversation) => {
+      if (!isUnread(conversation)) return false;
+      const sender = conversation.messages[0]?.sender;
+      return Boolean(sender?.isVip) || conversation.priorityScore >= NEEDS_YOU_PRIORITY_THRESHOLD;
+    }).length;
+
+    return { needsYouCount };
+  }
+
+  /** Archive/unarchive and manual categorization ("Archive"/"Categories" checklist items) - both user-set, no auto-categorization yet (disclosed in docs/reviews/phase-9-review.md). */
+  @Patch(":id")
+  @UseGuards(JwtAuthGuard)
+  async update(@Param("id") id: string, @Body() dto: UpdateConversationDto, @CurrentUser() claims: JwtPayload) {
+    const prisma = getPrismaClient();
+    const conversation = await prisma.conversation.findFirst({ where: { id, workspaceId: claims.workspaceId } });
+    if (!conversation) {
+      throw httpError(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Conversation not found.");
+    }
+
+    const updated = await prisma.conversation.update({
+      where: { id },
+      data: {
+        isArchived: dto.isArchived ?? undefined,
+        category: dto.category === undefined ? undefined : dto.category,
+      },
+    });
+
+    return { id: updated.id, isArchived: updated.isArchived, category: updated.category };
+  }
+
+  /** Marks every message in the conversation read as of now - the "Unread manager" checklist item's write path. */
+  @Post(":id/read")
+  @UseGuards(JwtAuthGuard)
+  async markRead(@Param("id") id: string, @CurrentUser() claims: JwtPayload) {
+    const prisma = getPrismaClient();
+    const conversation = await prisma.conversation.findFirst({ where: { id, workspaceId: claims.workspaceId } });
+    if (!conversation) {
+      throw httpError(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Conversation not found.");
+    }
+
+    const updated = await prisma.conversation.update({ where: { id }, data: { lastReadAt: new Date() } });
+    return { id: updated.id, lastReadAt: updated.lastReadAt };
   }
 
   @Get(":id/messages")

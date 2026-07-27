@@ -4,10 +4,29 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 9 - Smart Inbox is next. `ROADMAP.md`'s post-Phase-8 checkpoint has been answered (see [0.7.0] below) - this is where the product stops being "an aggregator" and starts being Smart Message Center.
+Phase 10 - Automation Engine is next (`AUTOMATION_ENGINE.md`), the flagship differentiator.
 
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
+
+## [0.8.0] - 2026-07-27 - Phase 9: Smart Inbox (`v0.8.0-phase9`)
+
+### Added
+- Unified priority scoring (`packages/shared/src/priority-score.ts`) - rule-based (VIP + urgency-keyword bonuses), computed at message-ingestion time, deliberately not AI-derived
+- `Contact.isVip` (existed since Phase 3, unused until now) gets a real read/write surface: `PATCH /v1/contacts/{id}`
+- `Conversation.isArchived`/`category`/`lastReadAt` - `PATCH /v1/conversations/{id}` (archive/category), `POST /v1/conversations/{id}/read` (mark read), and `archived`/`category`/`vip`/`unread` filters on `GET /v1/conversations`
+- A trustworthy "Needs You" count (`GET /v1/conversations/summary`) - unread AND (VIP sender or priority score above a threshold), never a raw unread badge
+- IdentityGraph's fuzzy-match layer: `findMergeCandidates()` (normalized display-name matching), `IdentityMatchingService`'s periodic suggestion sweep, `IdentityMergeSuggestion`/`IdentityMergeLog`/`IdentitySplitLog` (`DATABASE.md` Section 6.6), `IdentityController`'s `GET`/`POST .../approve`/`POST .../reject` on `/v1/identity/merge-suggestions`
+- `POST /v1/contacts/{id}/split` - the first-class recovery action for an incorrect merge (`ARCHITECTURE.md` Section 13.6.1), transactional and audit-logged like approval
+- Filters, archive/category controls, VIP indicators, and a "Possible duplicate contacts" review panel in `apps/web`'s Inbox
+- `pnpm --filter @smc/scripts verify:phase9` (22/22 passing) - real, end-to-end regression check covering every feature above
+
+### Answered
+- No new ADR was needed - this phase executed the architecture ADR-0013/`DATABASE.md` Section 6.6 already committed to in Phase 3, not a new decision.
+
+### Known Gaps
+- The fuzzy-matching signal is normalized display-name comparison only (no shared-conversation-participant or handle-similarity signal); `findMergeCandidates()` is O(n²) in Contact count; suggestion-pair dedup is application-level, not a database partial-unique index. All disclosed in `docs/reviews/phase-9-review.md`.
+- Splitting a Contact whose merged identities share the same provider moves every message from that provider, not just the split-off identity's own messages - `Message` has no per-sender provider/externalId of its own. Disclosed in the same review.
 
 ## [0.7.0] - 2026-07-27 - Phase 8: Email Connector (`v0.7.0-phase8`)
 

@@ -55,7 +55,14 @@ export interface Conversation {
   providerId: string;
   externalId: string;
   title: string | null;
+  /** Rule-based cross-app importance signal (docs/PRODUCT.md), Phase 9. */
+  priorityScore: number;
+  isArchived: boolean;
+  category: string | null;
+  lastReadAt: string | null;
 }
+
+export { computePriorityScore, type PriorityScoreInput } from "./priority-score";
 
 export interface Message {
   id: string;
