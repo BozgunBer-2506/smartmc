@@ -16,13 +16,16 @@ export interface ProblemDetails {
   detail?: string;
   code: string;
   status: number;
+  /** Field-level validation errors (API.md Section 5's RFC 7807 `errors` array) - the actually useful message for a VALIDATION_ERROR response; `detail` is never set for these, only `title` ("Bad Request Exception"), which is not helpful on its own. */
+  errors?: { field: string; code: string; message: string }[] | null;
 }
 
 async function parseOrThrow<T>(res: Response): Promise<T> {
   const body = await res.json();
   if (!res.ok) {
     const problem = body as ProblemDetails;
-    throw new Error(problem.detail ?? problem.title ?? `Request failed (${res.status})`);
+    const validationMessage = problem.errors?.map((e) => e.message).join(" ");
+    throw new Error(validationMessage || problem.detail || problem.title || `Request failed (${res.status})`);
   }
   return body as T;
 }
