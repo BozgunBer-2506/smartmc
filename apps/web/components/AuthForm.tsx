@@ -21,6 +21,7 @@ export function AuthForm({ onAuthenticated }: AuthFormProps) {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,15 +62,36 @@ export function AuthForm({ onAuthenticated }: AuthFormProps) {
           placeholder="Email"
           style={inputStyle}
         />
-        <input
-          type="password"
-          required
-          minLength={mode === "register" ? 12 : undefined}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={mode === "register" ? "Password (12+ characters)" : "Password"}
-          style={inputStyle}
-        />
+        <div style={{ position: "relative" }}>
+          <input
+            type={showPassword ? "text" : "password"}
+            required
+            minLength={mode === "register" ? 12 : undefined}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={mode === "register" ? "Password (12+ characters)" : "Password"}
+            style={{ ...inputStyle, width: "100%", paddingRight: 52 }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            style={{
+              position: "absolute",
+              right: 8,
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "none",
+              border: "none",
+              color: "#9AA5B1",
+              fontSize: 12,
+              cursor: "pointer",
+              padding: 4,
+            }}
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        </div>
 
         {error && <p style={{ color: "#E05252", fontSize: 13 }}>{error}</p>}
 
