@@ -35,6 +35,7 @@ export { defaultConnectorRegistry } from "./default-registry";
 
 export * from "./telegram";
 export * from "./discord";
+export * from "./slack";
 
 export { MockConnector, MOCK_PROVIDER_KEY, generateMockMessage, mockConnector } from "./mock-connector";
 export type { GenerateMockMessageOptions } from "./mock-connector";

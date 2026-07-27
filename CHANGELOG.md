@@ -4,10 +4,29 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 7 - Slack Connector is next. `ROADMAP.md`'s own sequencing note expects this one to *not* require another SDK interface change (Slack's Events API is a normal HTTP webhook) - a forced change here would be a signal to stop and reassess.
+Phase 8 - Email Connector (IMAP/SMTP) is next, with a checkpoint first: `ROADMAP.md` asks whether adding connectors 2-4 took meaningfully longer than connector 1 relative to their native API complexity - worth an honest look now that three real connectors exist on one SDK with zero forced interface changes since Phase 6.
 
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
+
+## [0.6.0] - 2026-07-27 - Phase 7: Slack Connector (`v0.6.0-phase7`)
+
+### Added
+- A real `SlackConnector` (`packages/connector-sdk/src/slack/`) making real Web API calls to `slack.com/api` - the third real connector, and the first built entirely from ingestion/auth combinations the SDK already proved separately (Discord's `oauth2_redirect`, Telegram's `"hybrid"`)
+- `oauth2_redirect` auth with a genuine per-workspace bot token via a real `oauth.v2.access` code exchange - unlike Discord's one app-wide bot token shared across every install
+- Real `initialSync`/`reconcile` against Slack's genuine `conversations.list`/`conversations.history` endpoints - the same proof-of-generalization Discord established, now confirmed on a third provider
+- `POST /v1/connectors/slack/connect`, `GET /v1/connectors/slack/callback` (a real OAuth code exchange), `POST /v1/connectors/slack/events` (the Events API webhook, app-wide rather than per-`LinkedAccount`), `POST /v1/connectors/slack/{id}/disconnect`
+- HMAC-SHA256 signature verification for the Events API webhook (`crypto.timingSafeEqual`, a 5-minute replay window) - a genuinely new security-critical piece no prior connector needed, live-tested end to end with real cryptography
+- `SlackApiService` (the OAuth code exchange, mirroring `TelegramApiService`'s pattern for calls outside the core `Connector` interface), `SlackOAuthStateService` (the same Redis CSRF pattern `DiscordOAuthStateService` established), `SlackReconciliationService` (the periodic list-and-diff pass)
+- A "Connect Slack" control in `apps/web`'s Inbox
+- `pnpm --filter @smc/scripts certify:slack-connector` (15/16, 1 legitimate skip) and `pnpm --filter @smc/scripts verify:slack` (including a fully live HMAC signature-verification round trip) regression checks
+
+### Fixed
+- `apps/api/.env` was never actually loaded into `process.env` at runtime (`DATABASE_URL` only ever worked via Prisma's own independent `.env` loading) - found while live-testing Slack's signature verification. Fixed with a single `dotenv` dependency and one import line in `apps/api/src/main.ts`; every existing `*.config.ts` accessor now works exactly as its own doc comments already described, with no other code changed.
+
+### Known Gaps
+- No human-confirmed live message exchange over a real Slack workspace yet - Slack's OAuth code can only ever be issued by a real user completing Slack's own consent screen in a browser, not scriptable at all (a bigger gap than Discord's, whose callback a script can drive). Disclosed in full in `docs/reviews/phase-7-review.md`, not hidden.
+- Slack sender identity is the raw Slack user ID, not a resolved display name (`users.info` is never called) - disclosed in the same review.
 
 ## [0.5.0] - 2026-07-22 - Phase 6: Discord Connector (`v0.5.0-phase6`)
 

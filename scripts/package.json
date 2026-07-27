@@ -10,7 +10,9 @@
     "certify:telegram-connector": "node certify-telegram-connector.mjs",
     "verify:telegram": "node verify-telegram.cjs",
     "certify:discord-connector": "node certify-discord-connector.mjs",
-    "verify:discord": "node verify-discord.cjs"
+    "verify:discord": "node verify-discord.cjs",
+    "certify:slack-connector": "node certify-slack-connector.mjs",
+    "verify:slack": "node verify-slack.cjs"
   },
   "dependencies": {
     "@smc/connector-sdk": "workspace:*",

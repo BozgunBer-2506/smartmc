@@ -292,12 +292,16 @@ Same Connector SDK. `ROADMAP.md`'s own "Notes on Sequencing" anticipated this ph
 
 ## Phase 7 - Slack Connector
 
-Same pattern as Phase 6.
+Same Connector SDK, no interface change - confirming `ROADMAP.md`'s own sequencing prediction for this phase.
 
-- [ ] Slack OAuth2 + Events API
-- [ ] Receive / send messages
-- [ ] Slack Connect (external workspace) support
-- [ ] Channels/DMs mapping to Conversation model
+- [x] Slack OAuth2 + Events API - `oauth2_redirect` (a real per-workspace bot token via `oauth.v2.access`, unlike Discord's app-wide token) combined with `"hybrid"` ingestion (Events API webhook + reconciliation, the same mode Telegram uses); a genuinely new piece of code, HMAC-SHA256 signature verification for the Events API webhook, was required and implemented for real (not stubbed)
+- [x] Receive / send messages - real Slack Web API calls (`conversations.history`, `chat.postMessage`) via the same provider-agnostic `POST /v1/conversations/{id}/messages` reply endpoint Telegram and Discord already use
+- [ ] Slack Connect (external workspace) support - **deferred**, not required for this phase's core receive/send loop
+- [x] Channels/DMs mapping to Conversation model - a Slack workspace is one `LinkedAccount`; each channel (bounded to the first 5 discovered, a disclosed scope limit matching Discord's identical bound) maps to one `Conversation`
+
+**Definition of Done - verified via `pnpm --filter @smc/scripts certify:slack-connector` (15/16 checks passing, 1 correctly skipped) and `pnpm --filter @smc/scripts verify:slack`**: the connector is real, certified code (real Web API calls, real `initialSync`/`reconcile` against Slack's actual history endpoint, a real live-tested HMAC signature verification round-trip). `certify:mock-connector`, `certify:telegram-connector`, `certify:discord-connector`, `verify:phase3`, `verify:auth`, `verify:soft-delete`, `verify:telegram`, `verify:discord` all re-run clean - no regressions. `pnpm typecheck`/`pnpm lint`/`pnpm build` pass clean across the whole monorepo. **Not yet included**: a human-confirmed live message exchange over a real Slack workspace - unlike Discord's callback, Slack's OAuth code can only ever be issued by a real user clicking through Slack's own consent screen, not scriptable at all. Disclosed in full in the phase review. A real, pre-existing environment bootstrap gap (`apps/api/.env` was never actually loaded by the running app) was found and fixed during this phase's live signature-verification testing - see the review for the fix and its scope.
+
+**Phase Review completed 2026-07-27** - full report at [reviews/phase-7-review.md](reviews/phase-7-review.md). Tagged `v0.6.0-phase7`.
 
 ---
 

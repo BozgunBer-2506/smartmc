@@ -140,6 +140,14 @@ export async function connectDiscord(accessToken: string): Promise<{ authorizati
   return parseOrThrow<{ authorizationUrl: string }>(res);
 }
 
+export async function connectSlack(accessToken: string): Promise<{ authorizationUrl: string }> {
+  const res = await fetch(`${API_URL}/v1/connectors/slack/connect`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  return parseOrThrow<{ authorizationUrl: string }>(res);
+}
+
 export interface ConnectTelegramResult {
   id: string;
   status: string;

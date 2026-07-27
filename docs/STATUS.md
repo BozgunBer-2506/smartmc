@@ -2,10 +2,10 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.4
+Version: 3.5
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-22
+Last Updated: 2026-07-27
 Depends On:
   - ROADMAP.md
 Related ADRs:
@@ -27,7 +27,7 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 (Product Foundation) through Phase 5 (Telegram Connector): COMPLETE.** **Phase 6 (Discord Connector) - COMPLETE and certified** as of 2026-07-22, with one disclosed gap: no human-confirmed live message exchange over the real Discord network yet (requires a real Discord Application the user has deliberately deferred setting up - see `docs/reviews/phase-6-review.md`).
+**Phase 0 (Product Foundation) through Phase 5 (Telegram Connector): COMPLETE.** **Phase 6 (Discord Connector) - COMPLETE and certified**, live verification explicitly postponed (see `docs/reviews/phase-6-review.md`). **Phase 7 (Slack Connector) - COMPLETE and certified** as of 2026-07-27, with the Connector SDK now validated against three independent real providers and no forced interface change - see `docs/reviews/phase-7-review.md`.
 
 ## What Actually Runs Right Now
 
@@ -40,13 +40,15 @@ pnpm db:generate && pnpm db:push
 pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc --watch
 ```
 
-**A real person can now**: open `http://localhost:3000`, register or log in, connect a real Telegram bot (a token from @BotFather) and/or click "Connect Discord" to install the platform's Discord bot into their own server, and have real messages from either provider appear in their own Inbox in real time, sender resolved by name through IdentityGraph - then reply from the Inbox and have that reply delivered back to the real chat. Telegram's flow is human-confirmed live end to end; Discord's is fully implemented and certified but not yet exercised against a real Discord server (see Phase 6 below). Sending a mock message (Phase 3's demo path) still works unchanged alongside both.
+**A real person can now**: open `http://localhost:3000`, register or log in, connect a real Telegram bot (a token from @BotFather), click "Connect Discord" to install the platform's Discord bot into their own server, and/or click "Connect Slack" to install the platform's Slack App into their own workspace - real messages from any connected provider appear in their own Inbox in real time, sender resolved by name through IdentityGraph, then reply from the Inbox and have that reply delivered back to the real chat. Telegram's flow is human-confirmed live end to end; Discord's and Slack's are fully implemented and certified but not yet exercised against a real Discord server / Slack workspace (see Phase 6/7 below). Sending a mock message (Phase 3's demo path) still works unchanged alongside all three.
 
 **Connector SDK (Phase 4 Sprint 1)**: `pnpm --filter @smc/scripts certify:mock-connector` runs the Connector Certification Suite against the Mock Connector (16/16 checks passing) - the same mechanical bar every connector is held to.
 
 **Telegram Connector (Phase 4 Sprint 2 / Phase 5)**: `POST /v1/connectors/telegram/connect` (real `getMe` validation before persistence), `POST /v1/connectors/telegram/webhook/{linkedAccountId}` (the real webhook receiver, secret-token-verified), `POST /v1/connectors/telegram/{id}/disconnect`, `POST /v1/conversations/{id}/messages` (the reply path, provider-agnostic - looked up through the Connector Registry). `pnpm --filter @smc/scripts certify:telegram-connector` (14/14 applicable, 2 legitimate skips) and `pnpm --filter @smc/scripts verify:telegram` (real-network negative-path + simulated-webhook checks) are the standing regression checks. Credentials are stored via an interim envelope-encrypted secrets store (`apps/api/src/credentials-store/`, [ADR-0016](adr/0016-interim-envelope-encrypted-secrets-store.md)) - a disclosed, pre-production gap versus `SECURITY.md`'s target external-secrets-manager design, tracked below.
 
 **Discord Connector (new, Phase 6)**: `POST /v1/connectors/discord/connect` (returns an OAuth2 authorization URL - `CONNECTOR_SDK.md` Section 3.1's `oauth2_redirect` method), `GET /v1/connectors/discord/callback` (the real install-completion redirect target, per-guild credential validation before persistence), `POST /v1/connectors/discord/{id}/disconnect`, and the same provider-agnostic `POST /v1/conversations/{id}/messages` reply path Telegram uses. Receiving is a real Discord Gateway v10 WebSocket connection (`IDENTIFY`/heartbeat/`RESUME`/reconnect), not a webhook - the SDK's first `"streaming"` connector ([ADR-0019](adr/0019-discord-gateway-streaming-connector-extension.md)). `pnpm --filter @smc/scripts certify:discord-connector` (15/16, 1 legitimate skip) and `pnpm --filter @smc/scripts verify:discord` are the standing regression checks. Discord's `initialSync`/`reconcile` do a real bounded backfill/diff against Discord's genuine channel-history endpoint - unlike Telegram's documented no-op (ADR-0017), this is the first real proof the Sprint 1 sync design generalizes. **Not yet human-verified live** - requires a real Discord Application (Developer Portal Client ID/Secret/bot token), which the user has deferred setting up; see `docs/reviews/phase-6-review.md`.
+
+**Slack Connector (new, Phase 7)**: `POST /v1/connectors/slack/connect` (returns an OAuth v2 authorization URL), `GET /v1/connectors/slack/callback` (a real code exchange via `oauth.v2.access`, issuing a genuinely per-workspace bot token - unlike Discord's app-wide token), `POST /v1/connectors/slack/events` (the Events API webhook, HMAC-SHA256 signature-verified), `POST /v1/connectors/slack/{id}/disconnect`, and the same provider-agnostic reply path Telegram/Discord use. `"hybrid"` ingestion (webhook + reconciliation, the same mode Telegram uses) combined with real `initialSync`/`reconcile` against Slack's genuine `conversations.history` endpoint (the same proof point Discord established, now confirmed on a third provider). No SDK interface change was needed - confirming `ROADMAP.md`'s own prediction for this phase. `pnpm --filter @smc/scripts certify:slack-connector` (15/16, 1 legitimate skip) and `pnpm --filter @smc/scripts verify:slack` (real-network config-detection + a fully live HMAC signature-verification round trip) are the standing regression checks. **Not yet human-verified live** - Slack's OAuth code can only ever be issued by a real user completing Slack's own consent screen in a browser, not scriptable at all; see `docs/reviews/phase-7-review.md`.
 
 **Auth (Phase 2)**: `POST /v1/auth/register`, `POST /v1/auth/login`, `POST /v1/auth/refresh`, `POST /v1/auth/logout`, `POST /v1/auth/logout-all`, `GET /v1/auth/sessions`, `GET /v1/users/me`. Registering auto-creates an Organization + Workspace + owner `WorkspaceMember`. `pnpm --filter @smc/scripts verify:auth` is the standing regression check (16/16 passing, re-confirmed clean after Phase 3).
 
@@ -58,14 +60,14 @@ pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc
 
 ## Repository
 
-**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 6 added `packages/connector-sdk/src/discord/` and `apps/api/src/discord/`; [ADR-0020](adr/0020-marketing-site-as-isolated-app.md) added `apps/marketing-site/` - the first new top-level app since ADR-0011, deliberately isolated (see below).**
+**Structure finalized via [ADR-0011](adr/0011-monorepo-layout.md); Phase 6 added `packages/connector-sdk/src/discord/` and `apps/api/src/discord/`; Phase 7 added `packages/connector-sdk/src/slack/` and `apps/api/src/slack/`; [ADR-0020](adr/0020-marketing-site-as-isolated-app.md) added `apps/marketing-site/` - the first new top-level app since ADR-0011, deliberately isolated (see below).**
 ```
 smartmc/
-├── docs/          (15 documents, adr/ [0001-0020], reviews/ [phase-1 .. phase-4-sprint-2, phase-6])
+├── docs/          (15 documents, adr/ [0001-0020], reviews/ [phase-1 .. phase-4-sprint-2, phase-6, phase-7])
 ├── apps/
-│   ├── web/         Next.js - real login/register form + real authenticated Inbox + Connect Telegram/Discord
+│   ├── web/         Next.js - real login/register form + real authenticated Inbox + Connect Telegram/Discord/Slack
 │   ├── api/         NestJS - health, events, realtime, mock-connector, auth, users, audit,
-│   │                conversations (reply endpoint), notifications, credentials-store, telegram, discord
+│   │                conversations (reply endpoint), notifications, credentials-store, telegram, discord, slack
 │   └── marketing-site/ Next.js/Tailwind/Radix/Framer Motion - fully isolated (ADR-0020, new), port 3001
 ├── packages/
 │   ├── database/      Prisma schema: messaging core (Phase 1) + Organization/User/UserCredentials/
@@ -75,14 +77,15 @@ smartmc/
 │   ├── event-model/    EventEnvelope + EventType
 │   ├── identity/      IdentityGraph exact-match resolver
 │   ├── connector-sdk/   Connector interface (+ streaming/StreamHandle, Phase 6), lifecycle, capability
-│   │                  manifest, error taxonomy, registry, certification suite, Mock/Telegram/Discord Connectors
+│   │                  manifest, error taxonomy, registry, certification suite, Mock/Telegram/Discord/Slack Connectors
 │   ├── config/       Real ESLint + Prettier presets
 │   ├── ui/          Minimal Button primitive
 │   │                (automation-engine, auth, ai, design-tokens still empty, reserved per phase)
 ├── infrastructure/   (empty, reserved)
 ├── scripts/        @smc/scripts - verify-phase3.mjs, verify-soft-delete.cjs, verify-auth.mjs,
 │                   certify-mock-connector.mjs, certify-telegram-connector.mjs, verify-telegram.cjs,
-│                   certify-discord-connector.mjs (new), verify-discord.cjs (new)
+│                   certify-discord-connector.mjs, verify-discord.cjs,
+│                   certify-slack-connector.mjs (new), verify-slack.cjs (new)
 ├── docker-compose.yml (Postgres @ 5433, not 5432)
 ├── LICENSE        (all-rights-reserved)
 ```
@@ -103,6 +106,20 @@ Full detail in `ROADMAP.md`'s Phase 6 section and [docs/reviews/phase-6-review.m
 **Verified**: `certify:discord-connector` (15/16, 1 legitimate skip - notably, the checkpoint-resume check that Telegram had to skip *passed for real* here, proving the Sprint 1 sync design generalizes) and `verify:discord` (real-network config-detection checks). **Not yet verified**: a human-confirmed live message exchange over the real Discord network - this needs a real Discord Application (bigger setup than Telegram's single bot token), which the user explicitly deferred to a later session. Disclosed in full in the phase review, not hidden.
 
 Tagged `v0.5.0-phase6`.
+
+## Phase 7 - Slack Connector (complete, certified, live human verification pending)
+
+Full detail in `ROADMAP.md`'s Phase 7 section and [docs/reviews/phase-7-review.md](reviews/phase-7-review.md). Summary:
+
+**Implemented**: a real `SlackConnector` (`packages/connector-sdk/src/slack/`) making real Web API calls to `slack.com/api`; `oauth2_redirect` auth with a genuine per-workspace bot token via a real `oauth.v2.access` code exchange (unlike Discord's app-wide token); `"hybrid"` ingestion (Events API webhook + `SlackReconciliationService`'s periodic list-and-diff pass, the same mode Telegram uses); real `initialSync`/`reconcile` against Slack's genuine `conversations.history` endpoint; HMAC-SHA256 signature verification for the Events API webhook (`crypto.timingSafeEqual`, a 5-minute replay window); the OAuth v2 install flow (`connect`/`callback`/`disconnect`); a "Connect Slack" control in the Inbox.
+
+**No SDK interface change was needed** - confirming `ROADMAP.md`'s own sequencing prediction for this phase. `SlackConnector` is built entirely from combinations the SDK already proved separately (`oauth2_redirect` from Discord, `"hybrid"` from Telegram): **the Connector SDK is now validated against three independent real providers.**
+
+**A real, pre-existing gap was found and fixed**: `apps/api/.env` was never actually loaded into `process.env` by the running app (only `DATABASE_URL` appeared to work, via Prisma's own independent `.env` loading) - found while live-testing Slack's signature verification. Fixed with one `dotenv` dependency and one import line in `apps/api/src/main.ts`; no `*.config.ts` file changed. Not an ADR - a bootstrap-gap fix, not an architecture change. See the phase review for full detail.
+
+**Verified**: `certify:slack-connector` (15/16, 1 legitimate skip, same shape as Telegram/Discord) and `verify:slack` (real-network config-detection, plus a fully live HMAC signature-verification round trip with a real signing secret). **Not yet verified**: a human-confirmed live message exchange over a real Slack workspace - Slack's OAuth code can only ever be issued by a real user completing Slack's own consent screen in a browser, not scriptable at all. Disclosed in full in the phase review, not hidden.
+
+Tagged `v0.6.0-phase7`.
 
 ## Phase 4 Sprint 2 / Phase 5 - Telegram Connector (complete, verified live end to end)
 
@@ -178,7 +195,7 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 19 phases, working rules, Phase 1-6 verified Definitions of Done |
+| `ROADMAP.md` | 19 phases, working rules, Phase 1-7 verified Definitions of Done |
 | `STATUS.md` | This file |
 | `DECISIONS.md` | Index of all 20 ADRs |
 
@@ -198,19 +215,24 @@ Tagged `v0.2.0-phase2`.
 10. **Discord `initialSync`/`reconcile` are bounded to 5 channels / 50 messages per channel**, and new channels created after connect are never auto-discovered - disclosed in `docs/reviews/phase-6-review.md`, deferred until real usage shows the bound is too small.
 11. **`DiscordGatewayManagerService` runs inside `apps/api`'s single process**, not a separate connector-worker (`ARCHITECTURE.md`/ADR-0009's eventual split) - flagged as a known consequence in ADR-0019 itself.
 12. **`packages/ui` and `apps/marketing-site` each define their own Button** (and marketing-site also has Card/Accordion/StatusPill with no `packages/ui` counterpart) - `packages/ui/src/button.tsx`'s own comment already defers real consolidation to Phase 9's design-system build-out; ADR-0020's isolation stance is intentionally revisited then, narrowly for shared UI primitives and theme tokens, not the whole marketing-site stack. `apps/web` has no Tailwind pipeline today, so sharing requires giving it one first - not a same-day file move.
-13. **No staging environment exists yet** - OAuth-based connectors (Discord now, Slack later) are currently tested against ad-hoc Cloudflare Tunnel URLs (`*.trycloudflare.com`), which change every run and must be re-entered in the Discord/Slack developer portal each time. A persistent `staging.smartmessagecenter.com` (named Cloudflare Tunnel or a real host) would remove this friction - raised during Phase 6 live verification, deferred until it actually blocks a connector sprint (likely Phase 7).
+13. **No staging environment exists yet** - OAuth-based connectors (Discord, Slack) are currently tested against ad-hoc Cloudflare Tunnel URLs (`*.trycloudflare.com`), which change every run and must be re-entered in the Discord/Slack developer portal each time. A persistent `staging.smartmessagecenter.com` (named Cloudflare Tunnel or a real host) would remove this friction - raised during Phase 6 live verification, still open after Phase 7, deferred until it actually blocks a connector sprint (likely Phase 8 - Email).
+14. **Slack's connector has not been verified live against a real Slack workspace** - certified against a fake API client and real-network config-detection/signature-verification checks only; needs a real Slack App (Client ID/Secret/Signing Secret) and a real user completing Slack's own OAuth consent screen in a browser, which cannot be scripted at all (unlike Discord's callback). Disclosed in `docs/reviews/phase-7-review.md`, the concrete next step before this connector is production-ready.
+15. **Slack sender identity is the raw Slack user ID, not a resolved display name** (`users.info` is never called) - disclosed in `docs/reviews/phase-7-review.md`, deferred until real usage prioritizes it.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-1. **Begin Phase 7 - Slack Connector**: `ROADMAP.md`'s own sequencing note expects this one to *not* require another SDK interface change (Slack's Events API is a normal HTTP webhook, closer to Telegram's shape than Discord's Gateway) - treat a forced change here as a signal to stop and reassess, not a routine cost. Proceeding ahead of Discord's live verification is an explicit, user-directed decision (2026-07-22) - not a silent scope skip.
-2. **Verify Discord live** whenever the Developer Portal is accessible again: register a real Discord Application, enable the privileged `MESSAGE_CONTENT` intent, add the bot to a test server, set `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID`, run `pnpm --filter @smc/scripts verify:discord`, and manually confirm a real message round-trip through the Inbox UI - the same bar Telegram already cleared. Phase 6 stays **feature-complete, not fully validated** until this runs (see gap #9 above and `docs/reviews/phase-6-review.md`).
+Phase 7 (Slack) is complete and certified - the Connector SDK is now validated against three independent real providers with no forced interface change on either Phase 7 or (retroactively) Phase 6. Two live-verification items remain open, both blocked on the user's own external setup rather than any code gap:
+
+1. **Verify Discord live** whenever the Developer Portal is accessible again: register a real Discord Application, enable the privileged `MESSAGE_CONTENT` intent, add the bot to a test server, set `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID` in `apps/api/.env`, run `pnpm --filter @smc/scripts verify:discord`, and manually confirm a real message round-trip through the Inbox UI - the same bar Telegram already cleared. (Config values placed in `.env` now actually take effect - see the dotenv fix in `docs/reviews/phase-7-review.md`.) Phase 6 stays **feature-complete, not fully validated** until this runs (see gap #9 above).
+2. **Verify Slack live** whenever a real Slack App is available: register one at api.slack.com/apps, set `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`SLACK_SIGNING_SECRET`/`SLACK_PUBLIC_BASE_URL` in `apps/api/.env`, subscribe to the `message.channels` event on the Events API webhook (`{publicBaseUrl}/v1/connectors/slack/events`), install the app into a real workspace via a browser (not scriptable - see gap #14), and manually confirm a real message round-trip through the Inbox UI. Phase 7 stays **feature-complete, not fully validated** until this runs (see gap #14 above).
+3. Otherwise, begin Phase 8 - Email Connector (IMAP/SMTP): the checkpoint `ROADMAP.md` sets after this phase asks whether adding connectors 2-4 took meaningfully longer than connector 1 relative to their native API complexity - worth an explicit, honest look before starting, given three real connectors now exist on one SDK with zero forced interface changes since Phase 6.
 
 ## How to Resume From Zero Context
 
 1. Read this file (`STATUS.md`).
-2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-6's exact verification steps.
+2. Read `ROADMAP.md` for the full phase plan, working rules, and Phase 1-7's exact verification steps.
 3. Read `PRODUCT.md`, `ARCHITECTURE.md` (Section 6 for auth, Section 13 for IdentityGraph), and `DECISIONS.md` for decisions already made - do not re-derive or re-litigate anything documented there.
 4. To actually run the app: see "What Actually Runs Right Now" above, including the WSL environment note and the local-DB-reset note.
 5. Continue from "Next Action" above, or from wherever the user redirects.

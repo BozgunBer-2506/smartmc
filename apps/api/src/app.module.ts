@@ -11,6 +11,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { CredentialsStoreModule } from "./credentials-store/credentials-store.module";
 import { TelegramModule } from "./telegram/telegram.module";
 import { DiscordModule } from "./discord/discord.module";
+import { SlackModule } from "./slack/slack.module";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { DiscordModule } from "./discord/discord.module";
     CredentialsStoreModule,
     TelegramModule,
     DiscordModule,
+    SlackModule,
   ],
 })
 export class AppModule {}

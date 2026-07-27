@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@smc/ui";
 import {
   connectDiscord,
+  connectSlack,
   connectTelegram,
   fetchConversations,
   fetchMessages,
@@ -49,6 +50,8 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
   const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
   const [connectingDiscord, setConnectingDiscord] = useState(false);
   const [discordStatus, setDiscordStatus] = useState<string | null>(null);
+  const [connectingSlack, setConnectingSlack] = useState(false);
+  const [slackStatus, setSlackStatus] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
 
@@ -60,6 +63,14 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
     const discordResult = params.get("discord");
     if (discordResult) {
       setDiscordStatus(discordResult === "connected" ? "Discord connected." : `Discord connect failed (${discordResult}).`);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // Slack's OAuth v2 install flow ends with the same kind of full-page
+    // redirect back here, from apps/api/src/slack/slack.controller.ts's
+    // callback - identical pattern to Discord's, one query param apart.
+    const slackResult = params.get("slack");
+    if (slackResult) {
+      setSlackStatus(slackResult === "connected" ? "Slack connected." : `Slack connect failed (${slackResult}).`);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -167,6 +178,17 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
     }
   }
 
+  async function handleConnectSlack() {
+    setConnectingSlack(true);
+    try {
+      const { authorizationUrl } = await connectSlack(accessToken);
+      window.location.href = authorizationUrl; // full-page redirect - Slack's OAuth v2 install flow, not an API call
+    } catch (err) {
+      setSlackStatus(err instanceof Error ? err.message : "Failed to start the Slack connect flow.");
+      setConnectingSlack(false);
+    }
+  }
+
   async function handleLogout() {
     await logout();
     onLoggedOut();
@@ -213,6 +235,13 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
           {connectingDiscord ? "Redirecting..." : "Connect Discord"}
         </Button>
         {discordStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{discordStatus}</span>}
+      </section>
+
+      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center" }}>
+        <Button onClick={handleConnectSlack} disabled={connectingSlack}>
+          {connectingSlack ? "Redirecting..." : "Connect Slack"}
+        </Button>
+        {slackStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{slackStatus}</span>}
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
