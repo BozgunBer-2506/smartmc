@@ -25,7 +25,17 @@ async function bootstrap() {
   // which must verify an HMAC-SHA256 signature over the exact raw request
   // bytes (docs/SECURITY.md's authenticity requirement); Express's default
   // JSON body parser only ever exposes the already-parsed object.
-  const app = await NestFactory.create(AppModule, { cors: true, rawBody: true });
+  //
+  // CORS is configured exactly once, here - `NestFactory.create`'s own
+  // `cors: true` shortcut was previously ALSO enabled alongside this,
+  // stacking two CORS middlewares. The first (`cors: true`) sends a
+  // wildcard `Access-Control-Allow-Origin: *`, which browsers reject
+  // outright on any credentialed request (`credentials: true`, needed for
+  // the refresh-token cookie) - found live via apps/web's own login flow
+  // failing with a CORS error in the browser console. `origin: true`
+  // reflects the request's actual Origin header instead of a wildcard,
+  // which is what credentialed CORS requires.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors({ origin: true, credentials: true });
   app.use(cookieParser());
   app.useGlobalFilters(new ProblemDetailsFilter());
