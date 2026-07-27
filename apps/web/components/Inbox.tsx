@@ -25,6 +25,7 @@ import {
   type NotificationItem,
   type PublicUser,
 } from "../lib/api";
+import { PasswordInput } from "./PasswordInput";
 import { connectSocket, disconnectSocket } from "../lib/socket";
 
 interface InboxProps {
@@ -283,17 +284,34 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 32 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Smart Message Center</h1>
-          <p style={{ color: "#9AA5B1", fontSize: 13, margin: "4px 0 0" }}>
-            {user.displayName ?? user.email} · Realtime:{" "}
-            <strong style={{ color: connected ? "#3FB27F" : "#E05252" }}>
-              {connected ? "connected" : "disconnected"}
-            </strong>
-            {" · "}
-            <strong style={{ color: needsYouCount > 0 ? "#E0A458" : "#9AA5B1" }}>Needs You: {needsYouCount}</strong>
-          </p>
+      <style>{`
+        @media (max-width: 720px) {
+          .inbox-grid { grid-template-columns: 1fr !important; }
+          .connector-row { flex-direction: column; align-items: stretch !important; }
+        }
+      `}</style>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Smart Message Center</h1>
+            <p style={{ color: "#9AA5B1", fontSize: 13, margin: "4px 0 0" }}>
+              {user.displayName ?? user.email} · Realtime:{" "}
+              <strong style={{ color: connected ? "#3FB27F" : "#E05252" }}>
+                {connected ? "connected" : "disconnected"}
+              </strong>
+            </p>
+          </div>
+          <span
+            title="Unread conversations that are VIP or high-priority"
+            style={{
+              ...needsYouBadgeStyle,
+              background: needsYouCount > 0 ? "#E0A458" : "#1B2333",
+              color: needsYouCount > 0 ? "#1B2333" : "#9AA5B1",
+              borderColor: needsYouCount > 0 ? "#E0A458" : "#2A3441",
+            }}
+          >
+            Needs You: {needsYouCount}
+          </span>
         </div>
         <Button onClick={handleLogout}>Log out</Button>
       </header>
@@ -302,7 +320,7 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
         <section style={{ margin: "0 0 20px" }}>
           <h2 style={sectionHeading}>Possible duplicate contacts</h2>
           {mergeSuggestions.map((s) => (
-            <article key={s.id} style={cardStyle}>
+            <article key={s.id} style={{ ...cardStyle, borderColor: "#E0A458", borderLeftWidth: 3 }}>
               <p style={{ margin: 0, fontSize: 13 }}>
                 <strong>{s.contactA?.displayName ?? "Unknown"}</strong> and <strong>{s.contactB?.displayName ?? "Unknown"}</strong> might be the same person
                 {" "}({Math.round(s.confidenceScore * 100)}% confidence - {s.matchingSignals.reason})
@@ -324,61 +342,62 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
         </Button>
       </section>
 
-      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center" }}>
-        <input
-          value={botToken}
-          onChange={(e) => setBotToken(e.target.value)}
-          placeholder="Telegram bot token (from @BotFather)"
-          style={inputStyle({ flex: 1 })}
-        />
-        <Button onClick={handleConnectTelegram} disabled={connectingTelegram}>
-          {connectingTelegram ? "Connecting..." : "Connect Telegram"}
-        </Button>
-        {telegramStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{telegramStatus}</span>}
+      <section style={{ margin: "0 0 20px", border: "1px solid #2A3441", borderRadius: 8, padding: 16 }}>
+        <h2 style={sectionHeading}>Connect a channel</h2>
+
+        <div className="connector-row" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            value={botToken}
+            onChange={(e) => setBotToken(e.target.value)}
+            placeholder="Telegram bot token (from @BotFather)"
+            style={inputStyle({ flex: "1 1 240px" })}
+          />
+          <Button onClick={handleConnectTelegram} disabled={connectingTelegram}>
+            {connectingTelegram ? "Connecting..." : "Connect Telegram"}
+          </Button>
+          {telegramStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{telegramStatus}</span>}
+        </div>
+
+        <div className="connector-row" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
+          <Button onClick={handleConnectDiscord} disabled={connectingDiscord}>
+            {connectingDiscord ? "Redirecting..." : "Connect Discord"}
+          </Button>
+          <Button onClick={handleConnectSlack} disabled={connectingSlack}>
+            {connectingSlack ? "Redirecting..." : "Connect Slack"}
+          </Button>
+          {discordStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{discordStatus}</span>}
+          {slackStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{slackStatus}</span>}
+        </div>
+
+        <div className="connector-row" style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="IMAP host (imap.gmail.com)" style={inputStyle({ flex: "1 1 190px" })} />
+          <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="SMTP host (smtp.gmail.com)" style={inputStyle({ flex: "1 1 190px" })} />
+          <input value={emailUsername} onChange={(e) => setEmailUsername(e.target.value)} placeholder="Email address" style={inputStyle({ flex: "1 1 190px" })} />
+          <PasswordInput
+            value={emailPassword}
+            onChange={setEmailPassword}
+            placeholder="App password"
+            containerStyle={{ flex: "1 1 160px" }}
+            hint="Gmail/Outlook require an app-specific password, not your account password."
+          />
+          <Button onClick={handleConnectEmail} disabled={connectingEmail}>
+            {connectingEmail ? "Connecting..." : "Connect Email"}
+          </Button>
+          {emailStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{emailStatus}</span>}
+        </div>
       </section>
 
-      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center" }}>
-        <Button onClick={handleConnectDiscord} disabled={connectingDiscord}>
-          {connectingDiscord ? "Redirecting..." : "Connect Discord"}
-        </Button>
-        {discordStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{discordStatus}</span>}
-      </section>
-
-      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center" }}>
-        <Button onClick={handleConnectSlack} disabled={connectingSlack}>
-          {connectingSlack ? "Redirecting..." : "Connect Slack"}
-        </Button>
-        {slackStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{slackStatus}</span>}
-      </section>
-
-      <section style={{ display: "flex", gap: 8, margin: "0 0 20px", alignItems: "center", flexWrap: "wrap" }}>
-        <input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="IMAP host (e.g. imap.gmail.com)" style={inputStyle({ flex: "0 0 200px" })} />
-        <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="SMTP host (e.g. smtp.gmail.com)" style={inputStyle({ flex: "0 0 200px" })} />
-        <input value={emailUsername} onChange={(e) => setEmailUsername(e.target.value)} placeholder="Email address" style={inputStyle({ flex: "0 0 200px" })} />
-        <input
-          value={emailPassword}
-          onChange={(e) => setEmailPassword(e.target.value)}
-          placeholder="Password / app password"
-          type="password"
-          style={inputStyle({ flex: "0 0 160px" })}
-        />
-        <Button onClick={handleConnectEmail} disabled={connectingEmail}>
-          {connectingEmail ? "Connecting..." : "Connect Email"}
-        </Button>
-        {emailStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{emailStatus}</span>}
-      </section>
-
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
+      <div className="inbox-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         <section>
           <h2 style={sectionHeading}>Conversations</h2>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10, fontSize: 12, color: "#9AA5B1" }}>
-            <label>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10, fontSize: 12, color: "#9AA5B1" }}>
+            <label style={filterLabelStyle}>
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Archived
             </label>
-            <label>
+            <label style={filterLabelStyle}>
               <input type="checkbox" checked={vipOnly} onChange={(e) => setVipOnly(e.target.checked)} /> VIP only
             </label>
-            <label>
+            <label style={filterLabelStyle}>
               <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} /> Unread only
             </label>
             <input
@@ -479,6 +498,24 @@ function inputStyle(extra: Record<string, string | number>): Record<string, stri
 }
 
 const sectionHeading: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: "#9AA5B1", margin: "0 0 8px" };
+
+const filterLabelStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  padding: "5px 8px",
+  borderRadius: 6,
+  cursor: "pointer",
+};
+
+const needsYouBadgeStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  padding: "4px 10px",
+  borderRadius: 100,
+  border: "1px solid",
+  whiteSpace: "nowrap",
+};
 
 const cardStyle: React.CSSProperties = {
   border: "1px solid #2A3441",
