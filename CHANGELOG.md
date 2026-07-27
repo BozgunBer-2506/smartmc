@@ -4,10 +4,11 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 10 - Automation Engine is next (`AUTOMATION_ENGINE.md`), the flagship differentiator.
+Phase 10 - WhatsApp Connector is next (`ROADMAP.md`), added 2026-07-28 per explicit user direction, ahead of Phase 11 - Automation Engine.
 
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
+- `ROADMAP.md` Phase 10 - WhatsApp Connector, inserted after Phase 9 (Smart Inbox); every phase from the old Phase 10 (Automation Engine) onward renumbered by one to make room (Automation Engine 10→11, ..., Marketplace 18→19). No code yet - a planning-doc change only, no version bump.
 
 ## [0.8.0] - 2026-07-27 - Phase 9: Smart Inbox (`v0.8.0-phase9`)
 

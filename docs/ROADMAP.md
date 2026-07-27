@@ -2,10 +2,10 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.3
+Version: 2.4
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-22
+Last Updated: 2026-07-28
 Depends On:
   - PRODUCT.md
   - ARCHITECTURE.md
@@ -61,17 +61,17 @@ smartmc/
 │   ├── web/            Next.js unified inbox UI
 │   ├── api/            NestJS backend (modular monolith, ADR-0009)
 │   ├── marketing-site/     Isolated Next.js/Tailwind marketing site (ADR-0020, added 2026-07-22) - not part of the product, no shared code with apps/web
-│   ├── desktop/          Tauri wrapper (Phase 15)
-│   └── mobile/           React Native (added when Phase 14 starts)
+│   ├── desktop/          Tauri wrapper (Phase 16)
+│   └── mobile/           React Native (added when Phase 15 starts)
 ├── packages/
 │   ├── connector-sdk/       Connector interface + registry + test harness (ADR-0004)
-│   ├── automation-engine/    Trigger/condition/action evaluation (Phase 10)
+│   ├── automation-engine/    Trigger/condition/action evaluation (Phase 11)
 │   ├── database/          Prisma schema, client, migrations (DATABASE.md)
 │   ├── auth/             Auth.js integration, JWT/session logic
 │   ├── shared/            Canonical domain types (Message, Conversation, Contact...)
-│   ├── design-tokens/       Platform-agnostic design tokens (DESIGN_SYSTEM.md) - added 2026-07-18, consumed by ui/ today and a future React Native mapping in Phase 14
+│   ├── design-tokens/       Platform-agnostic design tokens (DESIGN_SYSTEM.md) - added 2026-07-18, consumed by ui/ today and a future React Native mapping in Phase 15
 │   ├── ui/              shadcn/ui-based component library (DESIGN_SYSTEM.md)
-│   ├── ai/              AI feature integrations (Phase 13), isolated per PRODUCT.md
+│   ├── ai/              AI feature integrations (Phase 14), isolated per PRODUCT.md
 │   └── config/            eslint, tsconfig, tailwind presets
 ├── infrastructure/         Docker, Docker Compose, Kubernetes, Terraform
 └── scripts/             one-off and CI-support scripts
@@ -79,7 +79,7 @@ smartmc/
 
 This is not provisional. Phase 1 bootstrap (below) proceeds directly against this structure with no further reconciliation needed.
 
-**Phase 1 populated a subset of this layout, 2026-07-18**: `apps/web`, `apps/api`, `packages/database`, `packages/shared`, `packages/connector-sdk`, `packages/ui`, plus two packages not originally named in ADR-0011 - `packages/event-model` (a home for `EVENT_MODEL.md`'s envelope/event-type code, split out from `shared` because it's a distinct enough concern to version and consume independently) and `packages/identity` (IdentityGraph's exact-match resolver, `ARCHITECTURE.md` Section 13) - and `scripts` (promoted from a reserved empty directory to a real workspace package, `@smc/scripts`, holding dev/verification tooling). `apps/desktop`, `apps/mobile`, `packages/automation-engine`, `packages/auth`, `packages/ai`, `packages/config`, `packages/design-tokens`, and `infrastructure/` remain empty, reserved for their originally-planned phases (15, 14, 10, 2, 13, 2, Design System's future implementation, and later deployment work respectively) - not built ahead of need.
+**Phase 1 populated a subset of this layout, 2026-07-18**: `apps/web`, `apps/api`, `packages/database`, `packages/shared`, `packages/connector-sdk`, `packages/ui`, plus two packages not originally named in ADR-0011 - `packages/event-model` (a home for `EVENT_MODEL.md`'s envelope/event-type code, split out from `shared` because it's a distinct enough concern to version and consume independently) and `packages/identity` (IdentityGraph's exact-match resolver, `ARCHITECTURE.md` Section 13) - and `scripts` (promoted from a reserved empty directory to a real workspace package, `@smc/scripts`, holding dev/verification tooling). `apps/desktop`, `apps/mobile`, `packages/automation-engine`, `packages/auth`, `packages/ai`, `packages/config`, `packages/design-tokens`, and `infrastructure/` remain empty, reserved for their originally-planned phases (16, 15, 11, 2, 14, 2, Design System's future implementation, and later deployment work respectively) - not built ahead of need.
 
 ---
 
@@ -135,7 +135,7 @@ Goal: a working, empty project. Split into two sprints so "working software at t
 
 ### Sprint 2 - The First End-to-End Slice (Mock Connector Only, Never Telegram) - COMPLETE and VERIFIED, 2026-07-18
 
-Extended 2026-07-18 per user direction to prove the *whole* heartbeat of the product - ingestion through to a felt notification - not just message delivery. Every piece below is a deliberately minimal stub, not the real system: a hardcoded single rule, not the Phase 10 rule builder; an in-app toast, not the Phase 11 Notification Service. The point of Sprint 2 is proving the shape of the full loop end-to-end as cheaply as possible; each stub is properly built out in its own later phase (Phase 9-11) without changing the shape proven here.
+Extended 2026-07-18 per user direction to prove the *whole* heartbeat of the product - ingestion through to a felt notification - not just message delivery. Every piece below is a deliberately minimal stub, not the real system: a hardcoded single rule, not the Phase 11 rule builder; an in-app toast, not the Phase 12 Notification Service. The point of Sprint 2 is proving the shape of the full loop end-to-end as cheaply as possible; each stub is properly built out in its own later phase (Smart Inbox, Automation Engine, Notification Engine) without changing the shape proven here.
 
 - [x] `packages/connector-sdk` scaffolded (Mock Connector generator only at this stage - the full lifecycle/capability-manifest/certification-suite contract from `CONNECTOR_SDK.md` is Phase 4 scope, not retrofitted here ahead of need)
 - [x] The Mock Connector (`CONNECTOR_SDK.md` Section 18) - not Telegram, not any real provider; exposed via a debug-only `POST /dev/mock-connector/send` endpoint
@@ -143,8 +143,8 @@ Extended 2026-07-18 per user direction to prove the *whole* heartbeat of the pro
 - [x] `apps/api` handler: Mock Connector event → IdentityGraph exact-match resolution (`packages/identity`, Phase 3's scaffold) → Postgres (`packages/database`) write
 - [x] WebSocket push (`API.md` Section 11, via `socket.io`) from that write to a connected client, joined to a per-workspace room
 - [x] `apps/web` Inbox screen that connects over WebSocket and renders an incoming mock message live - a stand-in for the real unified inbox (Phase 9)
-- [x] **One hardcoded stub rule** (`if message.received then create notification`, not the visual builder, not the real trigger/condition/action model) - emits `rule.triggered` → `rule.action_executed` → `notification.created` events (`EVENT_MODEL.md` Section 7.5/7.6), each carrying the prior event as its `causationId` - a stand-in for the real Automation Engine (Phase 10)
-- [x] **One stub notification** (an in-app toast, not push/email, not the Notification Service's silent-hours/VIP logic) appearing as a result of the stub rule firing - a stand-in for the real Notification Service (Phase 11)
+- [x] **One hardcoded stub rule** (`if message.received then create notification`, not the visual builder, not the real trigger/condition/action model) - emits `rule.triggered` → `rule.action_executed` → `notification.created` events (`EVENT_MODEL.md` Section 7.5/7.6), each carrying the prior event as its `causationId` - a stand-in for the real Automation Engine (Phase 11)
+- [x] **One stub notification** (an in-app toast, not push/email, not the Notification Service's silent-hours/VIP logic) appearing as a result of the stub rule firing - a stand-in for the real Notification Service (Phase 12)
 
 **Definition of Done for Phase 1 - verified, not just asserted:**
 1. `GET /health` returns `{"status":"ok","checks":{"database":"ok","redis":"ok"}}`.
@@ -341,7 +341,22 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 
 ---
 
-## Phase 10 - Automation Engine ⭐⭐⭐⭐⭐ The heart of the product
+## Phase 10 - WhatsApp Connector
+
+Added to the roadmap 2026-07-28, per explicit user direction - `PRODUCT.md` already names WhatsApp "the highest-demand missing channel" and its own business timeline places it right after the four-connector MVP ("Months 7-9: WhatsApp & AI Layer v1"), but it had never been given a numbered technical phase until now. Inserted here, immediately after Smart Inbox, rather than renumbering anything before Phase 9 - Phases 0-9 are shipped and tagged; nothing already-completed moves.
+
+- [ ] WhatsApp Business Platform (Cloud API) integration - **official API only**. `PRODUCT.md`'s own rejected-approaches list rules out reverse-engineered/unofficial access (the Beeper-style bridge risk) "purely to unlock a channel faster" - account-ban risk to users is not a cost this roadmap will impose for convenience.
+- [ ] App setup via Meta's Business Platform (WhatsApp Business Account + phone number + permanent access token) - gated by Meta's own app review/approval process, an external dependency this phase cannot shortcut
+- [ ] Receive / send messages - Meta pushes inbound messages to a webhook (`CONNECTOR_SDK.md` Section 4.1) and a REST send call delivers outbound; both ingestion (`"webhook"`/`"hybrid"`) and auth (`"oauth2_redirect"`-shaped app setup) map onto vocabulary the SDK already has from Telegram/Discord/Slack - **expected not to require an interface change**, the same bar Slack and Email already cleared, though this is a prediction to verify at implementation time, not a guarantee (Discord's Gateway was an equally reasonable prediction that turned out wrong, ADR-0019)
+- [ ] 24-hour customer service window handling - WhatsApp's own policy restricts free-form business replies to within 24 hours of the user's last message; outside that window only pre-approved message templates can be sent. This is a real, provider-specific constraint the connector's `send()` path must surface as a distinct, honest error (`CONNECTOR_SDK.md` Section 15's error taxonomy - closest existing fit is `PAYLOAD_REJECTED`), not silently drop or fake-succeed
+- [ ] Message template management - required for any outbound message sent outside the 24-hour window; templates must be pre-submitted to Meta for approval, another external-approval dependency layered on top of the app-review one above
+- [ ] Contacts/phone-number identity mapping into IdentityGraph - WhatsApp identifies users by phone number, a new identity shape none of the first four connectors use (they're all provider-native account IDs) - `ContactIdentity.externalId`/`handle` already accommodate an arbitrary string, so no schema change is expected, but this is the first connector to actually exercise phone-number-shaped identity data
+
+**Definition of Done (planned)**: same bar every prior connector cleared - `certify:whatsapp-connector` (certification suite, fake API client, no real Meta app needed) and `verify:whatsapp` (real-network checks against the running API). Given the two external-approval dependencies above (Meta app review, template approval), this phase is likely to ship the same way Discord/Slack did: code-complete and certified first, with live human verification against a real WhatsApp Business Account following once Meta's approval clears - not a blocker to calling the connector code itself done.
+
+---
+
+## Phase 11 - Automation Engine ⭐⭐⭐⭐⭐ The heart of the product
 
 - [ ] Trigger types (per `AUTOMATION_ENGINE.md`)
 - [ ] Condition types (AND/OR tree)
@@ -354,7 +369,7 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 
 ---
 
-## Phase 11 - Notification Engine
+## Phase 12 - Notification Engine
 
 - [ ] Priority-based sounds
 - [ ] Custom sounds per VIP/contact
@@ -365,17 +380,17 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 
 ---
 
-## Phase 12 - Search
+## Phase 13 - Search
 
 - [ ] Global search (Postgres full-text, per ARCHITECTURE.md)
 - [ ] Attachments search
 - [ ] Contacts search
 - [ ] Messages search
-- [ ] Semantic search (deferred to Phase 13 dependency - requires AI layer)
+- [ ] Semantic search (deferred to Phase 14 dependency - requires AI layer)
 
 ---
 
-## Phase 13 - AI (first AI in the product, not before)
+## Phase 14 - AI (first AI in the product, not before)
 
 - [ ] Conversation summaries
 - [ ] Suggested replies
@@ -389,7 +404,7 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 ---
 
-## Phase 14 - Mobile
+## Phase 15 - Mobile
 
 - [ ] React Native app scaffold
 - [ ] Push notifications (native - the reason this waits until now, see PRODUCT.md V2 rationale)
@@ -398,17 +413,17 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 ---
 
-## Phase 15 - Desktop
+## Phase 16 - Desktop
 
 **Desktop Strategy, added 2026-07-19 per user direction**: the initial desktop experience is delivered as a Progressive Web App (PWA), not a native Tauri client. A native desktop client (Tauri, as originally specified in `ARCHITECTURE.md`) is only built if real customer demand or a genuine technical limitation of the PWA approach justifies the added maintenance cost of a second build target. This is the lower-risk, more cost-effective strategy for the product's current stage: it delivers an "app-like" experience from day one on a single codebase, while keeping Tauri available as a later, deliberate upgrade rather than a default.
 
-- [ ] PWA packaging of `apps/web` (installable, offline-capable shell, app icon) - the actual Phase 15 starting point, not Tauri
+- [ ] PWA packaging of `apps/web` (installable, offline-capable shell, app icon) - the actual Phase 16 starting point, not Tauri
 - [ ] System tray / native notifications / background sync - evaluated against what the PWA platform APIs can already deliver before treating any of them as a reason to build Tauri
 - [ ] Tauri app (wraps the web app, per `ARCHITECTURE.md`) - **deferred**, built only if the PWA approach proves insufficient
 
 ---
 
-## Phase 16 - Teams
+## Phase 17 - Teams
 
 - [ ] Organizations/workspaces (multi-user)
 - [ ] Shared inbox (claim/assign, no double-reply)
@@ -418,7 +433,7 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 ---
 
-## Phase 17 - Enterprise
+## Phase 18 - Enterprise
 
 - [ ] SSO (SAML/OIDC)
 - [ ] SCIM
@@ -429,7 +444,7 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 ---
 
-## Phase 18 - Marketplace
+## Phase 19 - Marketplace
 
 - [ ] Automation template marketplace
 - [ ] Connector marketplace (third-party connectors on the Phase 4 SDK)
@@ -442,5 +457,6 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 - Phases 0-3 produce zero user-visible product. That is intentional: the Connector SDK (Phase 4) is the highest-leverage, hardest-to-retrofit piece of this system, and it must be built on a stable domain model, not against a moving one.
 - Phases 5-8 exist specifically to pressure-test Phase 4. If any of them require changing the SDK interface, that's expected for Discord (Phase 6) - it's the first real second connector - but should not happen by Slack (Phase 7) or Email (Phase 8). Treat a forced SDK change at Phase 7/8 as a signal to stop and reassess, not as a routine cost.
-- AI (Phase 13) is deliberately positioned after the automation engine, notifications, and search all have working non-AI versions. This enforces the "AI is optional, never load-bearing" principle structurally, not just by policy.
-- Mobile (Phase 14) is deliberately after the AI layer, not before, because push-notification quality depends on priority scoring already working well server-side (Phase 9-11) - a mobile app built earlier would just ship the same notification chaos natively.
+- AI (Phase 14) is deliberately positioned after the automation engine, notifications, and search all have working non-AI versions. This enforces the "AI is optional, never load-bearing" principle structurally, not just by policy.
+- Mobile (Phase 15) is deliberately after the AI layer, not before, because push-notification quality depends on priority scoring already working well server-side (Smart Inbox, Automation Engine, Notification Engine) - a mobile app built earlier would just ship the same notification chaos natively.
+- WhatsApp (Phase 10) is sequenced right after Smart Inbox rather than folded into the original Phase 5-8 connector cohort - it wasn't part of that pressure test (Phase 9 had already shipped and declared "four real connectors" before WhatsApp was added to this document), and its two external-approval dependencies (Meta app review, template approval) make it a fundamentally slower phase to fully close than any of the first four, closer in shape to Discord/Slack's "code complete, live verification pending external access" pattern than to a same-week ship.
