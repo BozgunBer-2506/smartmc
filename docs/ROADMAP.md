@@ -2,10 +2,10 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.3
+Version: 2.4
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-22
+Last Updated: 2026-07-28
 Depends On:
   - PRODUCT.md
   - ARCHITECTURE.md
@@ -435,6 +435,21 @@ AI must be fully optional here and everywhere after. Every feature above must de
 - [ ] Connector marketplace (third-party connectors on the Phase 4 SDK)
 - [ ] AI plugins
 - [ ] Community rule sharing
+
+---
+
+## Phase 19 - WhatsApp Connector
+
+Added to the roadmap 2026-07-28, per explicit user direction - `PRODUCT.md` already names WhatsApp "the highest-demand missing channel," gated by Meta's Business Platform app-review process rather than any technical blocker. Appended here rather than inserted earlier, so no other phase's number changes.
+
+- [ ] WhatsApp Business Platform (Cloud API) integration - **official API only**, per `PRODUCT.md`'s rejected-approaches list ruling out reverse-engineered/unofficial access
+- [ ] App setup via Meta's Business Platform (WhatsApp Business Account + phone number + permanent access token) - gated by Meta's own app review
+- [ ] Receive / send messages - webhook-pushed inbound, REST send outbound; expected to fit the SDK's existing `"webhook"`/`"hybrid"` + `oauth2_redirect` vocabulary with no interface change, the same bar Slack/Email cleared (a prediction, not a guarantee)
+- [ ] 24-hour customer service window handling - free-form replies only within 24h of the user's last message; outside that window, only pre-approved templates
+- [ ] Message template management - templates require separate Meta approval
+- [ ] Phone-number identity mapping into IdentityGraph - the first connector where `ContactIdentity.externalId` is a phone number rather than a provider account ID
+
+**Definition of Done (planned)**: `certify:whatsapp-connector` + `verify:whatsapp`, same bar every connector clears. Given the two external-approval dependencies above, likely to ship the same way as Discord/Slack: code-complete and certified first, live verification once Meta's approval clears.
 
 ---
 

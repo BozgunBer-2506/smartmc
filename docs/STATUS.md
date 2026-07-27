@@ -2,10 +2,10 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.7
+Version: 3.8
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-27
+Last Updated: 2026-07-28
 Depends On:
   - ROADMAP.md
 Related ADRs:
@@ -227,7 +227,7 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 19 phases, working rules, Phase 1-9 verified Definitions of Done |
+| `ROADMAP.md` | 20 phases (Phase 19 - WhatsApp Connector added 2026-07-28), working rules, Phase 1-9 verified Definitions of Done |
 | `STATUS.md` | This file |
 | `DECISIONS.md` | Index of all 20 ADRs |
 
