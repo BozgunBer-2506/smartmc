@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.4
+Version: 2.5
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -343,14 +343,16 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 
 ## Phase 10 - Automation Engine ⭐⭐⭐⭐⭐ The heart of the product
 
-- [ ] Trigger types (per `AUTOMATION_ENGINE.md`)
-- [ ] Condition types (AND/OR tree)
-- [ ] Action types
-- [ ] Variables (e.g. sender name, tag, date, in templated actions)
-- [ ] Templates (saved replies, rule templates)
-- [ ] Visual rule builder (no-code canvas)
-- [ ] Execution engine (queue consumers, idempotent, per ARCHITECTURE.md section 4)
-- [ ] Scheduler (delayed/recurring triggers)
+- [x] Trigger types (per `AUTOMATION_ENGINE.md`) - `message.received` and `time.no_reply_after`; the registry (`TRIGGER_REGISTRY`) is the extension point for the rest, not yet registered - see [reviews/phase-10-review.md](reviews/phase-10-review.md)
+- [x] Condition types (AND/OR tree) - real nested evaluator; the UI exposes a flat AND/OR list on top of the same nesting-capable data model
+- [x] Action types - `notification.send`, `tag.apply`, `message.send`, `webhook.call` (with an SSRF guard)
+- [x] Variables (e.g. sender name, tag, date, in templated actions) - Context variables (`{{message.bodyText}}` etc.); workspace/computed-step variables deferred
+- [ ] Templates (saved replies, rule templates) - deferred, condition/action snippets and composite actions not yet built
+- [ ] Visual rule builder (no-code canvas) - shipped as a functional form builder instead, disclosed simplification
+- [x] Execution engine (queue consumers, idempotent, per ARCHITECTURE.md section 4) - BullMQ-consumed, idempotent on `(ruleId, ruleVersion, triggerEventId)`, per-rule execution isolation
+- [x] Scheduler (delayed/recurring triggers) - durable `ScheduledJob` + BullMQ delayed jobs for `time.no_reply_after`; recurring/cron schedules deferred
+
+**Phase Review completed 2026-07-28** - full report at [reviews/phase-10-review.md](reviews/phase-10-review.md). Tagged `v0.9.0-phase10`.
 
 ---
 

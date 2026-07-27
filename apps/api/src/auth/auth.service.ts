@@ -89,6 +89,33 @@ export class AuthService {
         data: { id: newId(), workspaceId: workspace.id, userId: user.id, role: "owner" },
       });
 
+      // A starter automation, not a hardcoded pipeline step (Phase 1-9 had
+      // a stub rule engine that notified on every message unconditionally -
+      // Phase 10 replaces that stub with the real Automation Engine, and
+      // this is what its "notify on every message" behavior becomes: a
+      // real, visible, disable-able Rule row instead of code every new
+      // workspace can see and edit in Automations, matching
+      // AUTOMATION_ENGINE.md's "inspectable, never magical" principle.
+      await tx.rule.create({
+        data: {
+          id: newId(),
+          workspaceId: workspace.id,
+          createdByUserId: user.id,
+          name: "Notify me on every message",
+          isEnabled: true,
+          priority: 0,
+          triggerType: "message.received",
+          trigger: { type: "message.received" },
+          conditions: { op: "AND", children: [] },
+          actions: [
+            {
+              type: "notification.send",
+              params: { title: "New message from {{sender.displayName}}", body: "{{message.bodyText}}" },
+            },
+          ],
+        },
+      });
+
       return { user, organizationId: organization.id, membership };
     });
 

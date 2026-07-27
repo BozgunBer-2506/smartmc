@@ -269,6 +269,99 @@ export async function connectEmail(accessToken: string, input: ConnectEmailInput
   return parseOrThrow<ConnectEmailResult>(res);
 }
 
+export interface ConditionLeaf {
+  field: string;
+  operator: string;
+  value?: string | number | boolean;
+}
+export interface ConditionGroup {
+  op: "AND" | "OR" | "NOT";
+  children: ConditionNode[];
+}
+export type ConditionNode = ConditionLeaf | ConditionGroup;
+
+export interface ActionStep {
+  type: string;
+  params: Record<string, string>;
+}
+
+export interface RuleSummary {
+  id: string;
+  name: string;
+  isEnabled: boolean;
+  priority: number;
+  triggerType: string;
+  trigger: { type: string; scope?: { providerKey?: string }; params?: { hours?: number } };
+  conditions: ConditionNode;
+  actions: ActionStep[];
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RuleInput {
+  name: string;
+  isEnabled: boolean;
+  priority: number;
+  trigger: { type: string; scope?: { providerKey?: string }; params?: { hours?: number } };
+  conditions: ConditionNode;
+  actions: ActionStep[];
+}
+
+export interface RuleExecutionLogItem {
+  id: string;
+  matchedAt: string;
+  status: string;
+  errorDetail: string | null;
+  actionsExecuted: { type: string; status: string; output?: unknown; error?: string }[];
+}
+
+export async function fetchRules(accessToken: string): Promise<RuleSummary[]> {
+  const res = await fetch(`${API_URL}/v1/rules`, { headers: authHeaders(accessToken) });
+  return parseOrThrow<RuleSummary[]>(res);
+}
+
+export async function createRule(accessToken: string, input: RuleInput): Promise<RuleSummary> {
+  const res = await fetch(`${API_URL}/v1/rules`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(input),
+  });
+  return parseOrThrow<RuleSummary>(res);
+}
+
+export async function updateRule(accessToken: string, ruleId: string, input: Partial<RuleInput>): Promise<RuleSummary> {
+  const res = await fetch(`${API_URL}/v1/rules/${ruleId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(input),
+  });
+  return parseOrThrow<RuleSummary>(res);
+}
+
+export async function deleteRule(accessToken: string, ruleId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/rules/${ruleId}`, { method: "DELETE", headers: authHeaders(accessToken) });
+  await parseOrThrow(res);
+}
+
+export async function dryRunRule(
+  accessToken: string,
+  ruleId: string,
+  sample: { bodyText: string; senderDisplayName: string; senderIsVip: boolean },
+): Promise<{ matched: boolean; status?: string; actionsExecuted: { type: string; status: string; output?: unknown; error?: string }[] }> {
+  const res = await fetch(`${API_URL}/v1/rules/${ruleId}/dry-run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(sample),
+  });
+  return parseOrThrow(res);
+}
+
+export async function fetchRuleExecutions(accessToken: string, ruleId: string): Promise<RuleExecutionLogItem[]> {
+  const res = await fetch(`${API_URL}/v1/rules/${ruleId}/executions`, { headers: authHeaders(accessToken) });
+  return parseOrThrow<RuleExecutionLogItem[]>(res);
+}
+
 export async function triggerMockMessage(
   accessToken: string,
   input: { senderDisplayName: string; senderExternalId: string; bodyText: string },

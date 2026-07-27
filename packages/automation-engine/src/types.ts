@@ -1,0 +1,118 @@
+/**
+ * Core types for the Automation Engine (docs/AUTOMATION_ENGINE.md), scoped
+ * to Phase 10's realistic delivery slice - see docs/reviews/phase-10-review.md
+ * for the full list of disclosed simplifications against the design doc.
+ */
+
+/** Trigger type keys - AUTOMATION_ENGINE.md Section 3.1/3.2. Phase 10 implements two: a message trigger (event-driven) and a relative-time trigger (scheduled). Every other category in Section 3.1 (contact/conversation/workspace/manual/event/location) is deferred, not silently dropped - see the phase review. */
+export const TriggerType = {
+  MESSAGE_RECEIVED: "message.received",
+  TIME_NO_REPLY_AFTER: "time.no_reply_after",
+} as const;
+export type TriggerTypeValue = (typeof TriggerType)[keyof typeof TriggerType];
+
+export interface RuleTrigger {
+  type: TriggerTypeValue;
+  /** Scope filters (AUTOMATION_ENGINE.md Section 3.2) - a coarse, cheap pre-filter distinct from conditions. Phase 10 supports `providerKey` only. */
+  scope?: { providerKey?: string };
+  /** Trigger-specific params. `time.no_reply_after` requires `hours`. */
+  params?: { hours?: number };
+}
+
+/** The Context Object (AUTOMATION_ENGINE.md Section 6) - Phase 10's populated subset: message, conversation, sender, workspace, execution. `ai`/`automation_memory`/`location` sections are deferred (Section 9/6/3.1 respectively). */
+export interface ContextObject {
+  message?: {
+    id: string;
+    bodyText: string;
+    direction: "inbound" | "outbound";
+    receivedAt: string;
+  };
+  conversation: {
+    id: string;
+    title: string | null;
+    tags: string[];
+    isStale: (hours: number) => boolean;
+    lastMessageAt: string | null;
+  };
+  sender?: {
+    id: string;
+    displayName: string;
+    isVip: boolean;
+  };
+  workspace: {
+    id: string;
+    /** Stubbed `false` always - silent-hours configuration isn't built yet (no settings surface exists to set it). Disclosed simplification, not a real evaluation. */
+    isSilentHours: boolean;
+  };
+  execution: {
+    ruleId: string;
+    ruleVersion: number;
+    triggerEventId: string;
+  };
+}
+
+export type ConditionOperator =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "not_contains"
+  | "matches_regex"
+  | "greater_than"
+  | "less_than"
+  | "is_true"
+  | "is_false";
+
+/** A leaf condition (AUTOMATION_ENGINE.md Section 4.1): a field reference into the Context Object, an operator, and a comparison value. */
+export interface ConditionLeaf {
+  field: string; // dot-path, e.g. "sender.isVip", "message.bodyText"
+  operator: ConditionOperator;
+  value?: string | number | boolean;
+}
+
+/** A condition group (AND/OR/NOT) nesting leaves or further groups, to arbitrary depth - AUTOMATION_ENGINE.md Section 4.1. */
+export interface ConditionGroup {
+  op: "AND" | "OR" | "NOT";
+  children: ConditionNode[];
+}
+
+export type ConditionNode = ConditionLeaf | ConditionGroup;
+
+export function isConditionGroup(node: ConditionNode): node is ConditionGroup {
+  return "op" in node && "children" in node;
+}
+
+/** Action types - AUTOMATION_ENGINE.md Section 5.1. Phase 10 implements four of the catalog's examples; the rest (ai.*, and any provider-specific action) are deferred, not registered. */
+export const ActionType = {
+  NOTIFICATION_SEND: "notification.send",
+  TAG_APPLY: "tag.apply",
+  MESSAGE_SEND: "message.send",
+  WEBHOOK_CALL: "webhook.call",
+} as const;
+export type ActionTypeValue = (typeof ActionType)[keyof typeof ActionType];
+
+export interface ActionStep {
+  type: ActionTypeValue;
+  params: Record<string, string>;
+}
+
+/** Result of one action step (AUTOMATION_ENGINE.md Section 5.4) - partial success across a rule's actions is representable, never collapsed to a single pass/fail. */
+export interface ActionResult {
+  type: ActionTypeValue;
+  status: "success" | "error";
+  output?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface RuleExecutionResult {
+  status: "success" | "partial_failure" | "failure";
+  actionsExecuted: ActionResult[];
+  errorDetail?: string;
+}
+
+/** The concrete side effects an action step performs, injected by the caller (apps/api) rather than imported directly - keeps this package free of NestJS/Prisma/connector-sdk specifics, matching AUTOMATION_ENGINE.md Section 2's "registered capability" spirit without a full plugin registry (deferred - four hardcoded ports is the honest scope for Phase 10). */
+export interface ActionPorts {
+  sendNotification(input: { title: string; body: string }): Promise<{ notificationId: string }>;
+  applyTag(input: { tag: string }): Promise<{ tags: string[] }>;
+  sendMessage(input: { bodyText: string }): Promise<{ messageId: string }>;
+  callWebhook(input: { url: string; body: string }): Promise<{ status: number }>;
+}

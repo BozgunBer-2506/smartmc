@@ -3,10 +3,11 @@ import { AuditLogModule } from "../audit/audit-log.module";
 import { AuthModule } from "../auth/auth.module";
 import { CredentialsStoreModule } from "../credentials-store/credentials-store.module";
 import { RealtimeModule } from "../realtime/realtime.module";
+import { AutomationModule } from "../automation/automation.module";
 import { ConversationsController } from "./conversations.controller";
 
 @Module({
-  imports: [AuthModule, RealtimeModule, CredentialsStoreModule, AuditLogModule],
+  imports: [AuthModule, RealtimeModule, CredentialsStoreModule, AuditLogModule, AutomationModule],
   controllers: [ConversationsController],
 })
 export class ConversationsModule {}

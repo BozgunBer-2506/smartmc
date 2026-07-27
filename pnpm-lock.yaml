@@ -44,6 +44,9 @@ importers:
       '@nestjs/websockets':
         specifier: ^10.4.0
         version: 10.4.22(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@10.4.22)(@nestjs/platform-socket.io@10.4.22)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@smc/automation-engine':
+        specifier: workspace:*
+        version: link:../../packages/automation-engine
       '@smc/connector-sdk':
         specifier: workspace:*
         version: link:../../packages/connector-sdk
@@ -227,6 +230,15 @@ importers:
       eslint-config-next:
         specifier: ^14.2.0
         version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/automation-engine:
+    devDependencies:
+      '@smc/config':
+        specifier: workspace:*
+        version: link:../config
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AuthForm } from "../components/AuthForm";
 import { Inbox } from "../components/Inbox";
+import { Rules } from "../components/Rules";
 import { fetchMe, tryRefresh, type AuthResponse, type PublicUser } from "../lib/api";
 
 /**
@@ -16,6 +17,7 @@ export default function HomePage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<PublicUser | null>(null);
   const [booting, setBooting] = useState(true);
+  const [view, setView] = useState<"inbox" | "rules">("inbox");
 
   useEffect(() => {
     tryRefresh().then(async (result) => {
@@ -55,5 +57,9 @@ export default function HomePage() {
     return <AuthForm onAuthenticated={handleAuthenticated} />;
   }
 
-  return <Inbox accessToken={accessToken} user={user} onLoggedOut={handleLoggedOut} />;
+  if (view === "rules") {
+    return <Rules accessToken={accessToken} user={user} onBack={() => setView("inbox")} />;
+  }
+
+  return <Inbox accessToken={accessToken} user={user} onLoggedOut={handleLoggedOut} onOpenRules={() => setView("rules")} />;
 }

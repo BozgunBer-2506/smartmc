@@ -15,6 +15,11 @@
 // category/lastReadAt (Smart Inbox). Still deferred: RLS, DB role
 // separation (DATABASE.md Section 21), Tag/MessageTag (Section 6.11) -
 // all tracked in docs/reviews/.
+// Phase 10 adds Rule/RuleExecutionLog/ScheduledJob (AUTOMATION_ENGINE.md,
+// DATABASE.md Section 6.12/6.13) and Conversation.tags - a plain string[]
+// column standing in for the still-deferred relational Tag/MessageTag
+// model (Section 6.11), scoped exactly to what the `tag.apply` automation
+// action needs; see docs/reviews/phase-10-review.md.
 // IDs are UUIDv7 (ADR-0007), generated application-side (see
 // packages/database/src/ids.ts) rather than via Prisma's @default(uuid()),
 // which only generates UUIDv4.
@@ -63,6 +68,7 @@ model Workspace {
   identityMergeSuggestions IdentityMergeSuggestion[]
   identityMergeLogs        IdentityMergeLog[]
   identitySplitLogs        IdentitySplitLog[]
+  rules                    Rule[]
 
   @@map("workspaces")
 }
@@ -362,6 +368,12 @@ model Conversation {
   isArchived    Boolean    @default(false) @map("is_archived")
   /// Free-form, user-set (Phase 9) - no auto-categorization yet.
   category      String?
+  /// Applied by the `tag.apply` automation action (Phase 10,
+  /// AUTOMATION_ENGINE.md Section 5.1) - a plain string array, not the
+  /// relational Tag/MessageTag model DATABASE.md Section 6.11 documents
+  /// (still deferred). Disclosed simplification: no per-workspace tag
+  /// catalog, no tag colors/metadata, just the names automations write.
+  tags          String[]   @default([])
   /// Null means never read - every message in the conversation is unread.
   /// Compared against lastMessageAt to compute the unread state the
   /// "Needs You" count (docs/PRODUCT.md UI Principles) is built from.
@@ -412,4 +424,98 @@ model Notification {
   message   Message?  @relation(fields: [messageId], references: [id])
 
   @@map("notifications")
+}
+
+/// The Automation Engine's rule definition (docs/AUTOMATION_ENGINE.md,
+/// docs/DATABASE.md Section 6.12). `trigger`/`conditions`/`actions` are
+/// jsonb, validated at the application layer against
+/// packages/automation-engine's types - not enforced by Postgres, matching
+/// every other jsonb column in this schema. `version` is the optimistic-
+/// locking column (DATABASE.md Section 9): every save increments it via an
+/// explicit `updateMany({ where: { id, version } })`, never relied on
+/// implicitly. Disclosed simplification vs. AUTOMATION_ENGINE.md Section
+/// 14.1: no separate draft/published version history table yet - an
+/// edit updates this row in place (still safe, since `version` still
+/// prevents two concurrent edits from silently clobbering each other) -
+/// see docs/reviews/phase-10-review.md.
+model Rule {
+  id             String    @id @db.Uuid
+  workspaceId    String    @map("workspace_id") @db.Uuid
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  name           String
+  isEnabled      Boolean   @default(true) @map("is_enabled")
+  priority       Int       @default(0)
+  /// Denormalized copy of `trigger.type` (jsonb below), indexed - what
+  /// AUTOMATION_ENGINE.md Section 10 means by "matching is indexed, not a
+  /// full scan": a workspace's rules for an incoming trigger type are
+  /// found via this column, not a jsonb scan of every rule.
+  triggerType    String    @map("trigger_type")
+  trigger        Json
+  conditions     Json
+  actions        Json
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
+
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id])
+  executionLogs  RuleExecutionLog[]
+  scheduledJobs  ScheduledJob[]
+
+  @@index([workspaceId, triggerType, isEnabled], name: "idx_rules_workspace_id_trigger_type_is_enabled")
+  @@map("rules")
+}
+
+/// Append-only execution trace (docs/AUTOMATION_ENGINE.md Section 5.4/10,
+/// docs/DATABASE.md Section 6.12 item 29). Idempotency (Section 10) is
+/// enforced by `@@unique([ruleId, ruleVersion, triggerEventId])` - a
+/// retried event can never cause the same rule version to log a second
+/// execution for the same underlying trigger.
+model RuleExecutionLog {
+  id             String   @id @db.Uuid
+  workspaceId    String   @map("workspace_id") @db.Uuid
+  ruleId         String   @map("rule_id") @db.Uuid
+  ruleVersion    Int      @map("rule_version")
+  triggerEventId String   @map("trigger_event_id")
+  messageId      String?  @map("message_id") @db.Uuid
+  matchedAt      DateTime @map("matched_at")
+  /// Per-action results (docs/AUTOMATION_ENGINE.md Section 5.4): partial
+  /// success is representable, never collapsed to one boolean.
+  actionsExecuted Json    @map("actions_executed")
+  status         String   // "success" | "partial_failure" | "failure" - AUTOMATION_ENGINE.md Section 5.4
+  errorDetail    String?  @map("error_detail")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  rule Rule @relation(fields: [ruleId], references: [id])
+
+  @@unique([ruleId, ruleVersion, triggerEventId], name: "uq_rule_execution_logs_rule_version_trigger_event")
+  @@index([ruleId, matchedAt], name: "idx_rule_execution_logs_rule_id_matched_at")
+  @@index([workspaceId, matchedAt], name: "idx_rule_execution_logs_workspace_id_matched_at")
+  @@map("rule_execution_logs")
+}
+
+/// Durable record of a relative-time trigger's pending fire, per
+/// docs/AUTOMATION_ENGINE.md Section 3.3 - the BullMQ delayed job is the
+/// execution mechanism, this row is the source of truth a crash or Redis
+/// eviction can't silently lose. Scoped to `time.no_reply_after`
+/// (Phase 10's only relative-time trigger type) - recurring/cron
+/// schedules (AUTOMATION_ENGINE.md Section 3.1's "Scheduled triggers")
+/// and a reconciliation sweep for missed fires are disclosed as deferred
+/// to Phase 11, per DATABASE.md Section 6.13's own note that the sweep is
+/// a Phase 11 concern.
+model ScheduledJob {
+  id             String    @id @db.Uuid
+  workspaceId    String    @map("workspace_id") @db.Uuid
+  ruleId         String    @map("rule_id") @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  scheduledFor   DateTime  @map("scheduled_for")
+  status         String    @default("pending") // "pending" | "completed" | "cancelled" - DATABASE.md Section 6.13
+  createdAt      DateTime  @default(now()) @map("created_at")
+  completedAt    DateTime? @map("completed_at")
+
+  rule Rule @relation(fields: [ruleId], references: [id])
+
+  @@unique([ruleId, conversationId], name: "uq_scheduled_jobs_rule_conversation")
+  @@index([status, scheduledFor], name: "idx_scheduled_jobs_status_scheduled_for")
+  @@map("scheduled_jobs")
 }

@@ -32,6 +32,7 @@ interface InboxProps {
   accessToken: string;
   user: PublicUser;
   onLoggedOut: () => void;
+  onOpenRules: () => void;
 }
 
 /**
@@ -42,7 +43,7 @@ interface InboxProps {
  * Phase 1's dev-only page that rendered whatever arrived on an
  * unauthenticated, unscoped WebSocket room.
  */
-export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
+export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -313,7 +314,10 @@ export function Inbox({ accessToken, user, onLoggedOut }: InboxProps) {
             Needs You: {needsYouCount}
           </span>
         </div>
-        <Button onClick={handleLogout}>Log out</Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button onClick={onOpenRules}>Automations</Button>
+          <Button onClick={handleLogout}>Log out</Button>
+        </div>
       </header>
 
       {mergeSuggestions.length > 0 && (

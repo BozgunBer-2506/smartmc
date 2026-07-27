@@ -4,11 +4,30 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
-Phase 10 - Automation Engine is next (`AUTOMATION_ENGINE.md`), the flagship differentiator.
-
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
 - `ROADMAP.md` Phase 19 - WhatsApp Connector, appended after Marketplace per explicit user direction. No other phase renumbered. No code yet - a planning-doc change only, no version bump.
+
+## [0.9.0] - 2026-07-28 - Phase 10: Automation Engine (`v0.9.0-phase10`)
+
+### Added
+- `packages/automation-engine` (new) - the trigger/condition/action/context model: a nested AND/OR/NOT condition evaluator, `{{message.bodyText}}`-style Context variable interpolation, a sequential action executor producing per-action results, and a registered-capability trigger catalog (`message.received`, `time.no_reply_after`)
+- `RuleExecutionService` (`apps/api/src/automation`) - real rule matching (indexed on `Rule.triggerType`) and idempotent, isolated execution, replacing `EventsProcessor`'s Phase 1-9 hardcoded stub rule
+- Four working action types: `notification.send`, `tag.apply` (`Conversation.tags`), `message.send` (real connector send), `webhook.call` (SSRF-guarded, blocks private/internal IP ranges - `AUTOMATION_ENGINE.md` Section 12 example #190)
+- `SchedulerService` - a durable `ScheduledJob` + BullMQ delayed job per `(rule, conversation)` implementing `time.no_reply_after`, cancelled by a reply
+- `RulesController` - full CRUD on `/v1/rules`, `POST /v1/rules/{id}/dry-run` (side-effect-free test), `GET /v1/rules/{id}/executions`
+- `Rule`/`RuleExecutionLog`/`ScheduledJob` tables, `Conversation.tags` (`DATABASE.md` Section 6.12/6.13)
+- Every new workspace now seeds a real, visible, disable-able "Notify me on every message" starter `Rule` (`AuthService.register()`), reproducing the old hardcoded notify-on-every-message behavior as data instead of code
+- `Rules.tsx` in `apps/web` - a functional (not visual-canvas) rule builder, reachable via a new "Automations" button in the Inbox header
+- `pnpm --filter @smc/scripts verify:phase10` (21/21 passing) - real, end-to-end regression check covering every feature above, including the scheduled trigger actually firing
+
+### Fixed
+- `packages/database/src/soft-delete.ts` - `Rule` was missing from `SOFT_DELETE_MODELS`, so a deleted rule kept appearing in `GET /v1/rules`
+- `SchedulerService` - BullMQ rejects `:` in a custom job id; the original `${ruleId}:${conversationId}` key silently failed every scheduling call, so `time.no_reply_after` rules never fired
+
+### Known Gaps
+- `AUTOMATION_ENGINE.md`'s full design (visual canvas, natural-language rule creation, marketplace, time-travel simulator, step debugger, retry policy/circuit breaker/DLQ, recurring/cron triggers, condition/action snippets, workspace variables, action-chain branching) is not built - this phase ships the engine's mechanics against a deliberately narrow, disclosed slice. Full built-vs-deferred breakdown in `docs/reviews/phase-10-review.md`.
+- The `Rules.tsx` UI was not click-tested in a real browser (no browser-automation tool available this session) - the API it calls is fully covered by `verify-phase10.mjs`, but the UI itself should get a real click-through.
 
 ## [0.8.0] - 2026-07-27 - Phase 9: Smart Inbox (`v0.8.0-phase9`)
 

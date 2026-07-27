@@ -1,31 +1,38 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { Job, Worker } from "bullmq";
-import { getPrismaClient, newId, type Contact, type Message } from "@smc/database";
+import { getPrismaClient, newId, type Contact, type Conversation, type Message } from "@smc/database";
 import { resolveIdentity } from "@smc/identity";
 import { createEvent, EventType, type EventEnvelope } from "@smc/event-model";
 import { computePriorityScore, DEV_ORGANIZATION_ID, DEV_WORKSPACE_ID, type InboundMessagePayload } from "@smc/shared";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { RuleExecutionService } from "../automation/rule-execution.service";
+import { SchedulerService } from "../automation/scheduler.service";
 import { EVENTS_QUEUE_NAME } from "./events.service";
 import { redisConnection } from "./redis-connection";
 
 /**
  * Consumes the event bus (docs/ARCHITECTURE.md Section 4 / ADR-0005) and
- * drives Phase 1's full vertical slice (docs/ROADMAP.md Phase 1 Sprint 2):
+ * drives the full pipeline (docs/ROADMAP.md Phase 1 Sprint 2, extended by
+ * Phase 10):
  *
- *   Mock Connector -> message.received -> IdentityGraph (exact-match) ->
- *   Database -> WebSocket -> Inbox UI -> stub rule -> stub notification
+ *   Connector -> message.received -> IdentityGraph (exact-match) ->
+ *   Database -> WebSocket -> Inbox UI -> Automation Engine -> notifications/
+ *   tags/replies/webhooks per matched rules
  *
- * The "rule" and "notification" steps here are deliberately minimal stubs
- * (docs/ROADMAP.md Phase 1 Sprint 2), not the real Automation Engine
- * (docs/AUTOMATION_ENGINE.md, Phase 10) or Notification Service (Phase 11) -
- * this class proves the pipeline's shape, not its final sophistication.
+ * The rule-matching/execution step was a hardcoded stub through Phase 9
+ * (docs/ROADMAP.md Phase 1 Sprint 2) - Phase 10 replaces it with the real
+ * Automation Engine (docs/AUTOMATION_ENGINE.md, RuleExecutionService).
  */
 @Injectable()
 export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EventsProcessor.name);
   private worker?: Worker;
 
-  constructor(private readonly realtime: RealtimeGateway) {}
+  constructor(
+    private readonly realtime: RealtimeGateway,
+    private readonly ruleExecution: RuleExecutionService,
+    private readonly scheduler: SchedulerService,
+  ) {}
 
   onModuleInit(): void {
     this.worker = new Worker(
@@ -180,60 +187,43 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
       priorityScore,
     });
 
-    await this.runStubRule(event, message, contact, payload.workspaceId);
+    await this.runAutomationEngine(event, message, contact, conversation, payload.providerKey, payload.workspaceId);
+
+    // A reply arriving on this conversation cancels any pending
+    // `time.no_reply_after` jobs (the condition that would fire them no
+    // longer holds); an inbound message (re)starts the clock for every
+    // such rule (docs/AUTOMATION_ENGINE.md Section 3.3).
+    if (payload.direction === "inbound") {
+      await this.scheduler.scheduleNoReplyRules(payload.workspaceId, conversation.id);
+    } else {
+      await this.scheduler.cancelNoReplyRules(payload.workspaceId, conversation.id);
+    }
   }
 
-  private async runStubRule(
+  private async runAutomationEngine(
     triggeringEvent: EventEnvelope<unknown>,
     message: Message,
     contact: Contact,
+    conversation: Conversation,
+    providerKey: string,
     workspaceId: string,
   ): Promise<void> {
-    const prisma = getPrismaClient();
-
     const triggeredEvent = createEvent({
       type: EventType.RULE_TRIGGERED,
-      producer: "stub-rule-engine",
+      producer: "automation-engine",
       workspaceId,
-      payload: { ruleId: "stub-rule-notify-on-message", messageId: message.id },
+      payload: { messageId: message.id },
       causedBy: triggeringEvent,
     });
     this.logger.log(`${triggeredEvent.type} (${triggeredEvent.eventId})`);
 
-    const notification = await prisma.notification.create({
-      data: {
-        id: newId(),
-        workspaceId,
-        messageId: message.id,
-        type: "message",
-        title: `New message from ${contact.displayName}`,
-        body: message.bodyText,
-      },
-    });
-
-    const actionExecutedEvent = createEvent({
-      type: EventType.RULE_ACTION_EXECUTED,
-      producer: "stub-rule-engine",
+    await this.ruleExecution.handleMessageReceived({
+      triggerEventId: triggeredEvent.eventId,
       workspaceId,
-      payload: { ruleId: "stub-rule-notify-on-message", notificationId: notification.id },
-      causedBy: triggeredEvent,
-    });
-    this.logger.log(`${actionExecutedEvent.type} (${actionExecutedEvent.eventId})`);
-
-    const notificationCreatedEvent = createEvent({
-      type: EventType.NOTIFICATION_CREATED,
-      producer: "stub-rule-engine",
-      workspaceId,
-      payload: { notificationId: notification.id },
-      causedBy: actionExecutedEvent,
-    });
-    this.logger.log(`${notificationCreatedEvent.type} (${notificationCreatedEvent.eventId})`);
-
-    this.realtime.emitToWorkspace(workspaceId, "notification.created", {
-      id: notification.id,
-      title: notification.title,
-      body: notification.body,
-      createdAt: notification.createdAt,
+      providerKey,
+      message,
+      conversation,
+      contact,
     });
   }
 }

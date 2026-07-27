@@ -16,6 +16,7 @@ const SOFT_DELETE_MODELS = new Set([
   "User",
   "WorkspaceMember",
   "LinkedAccount",
+  "Rule",
 ]);
 
 function uncapitalize(model: string): string {

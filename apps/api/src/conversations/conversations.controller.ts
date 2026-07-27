@@ -8,6 +8,7 @@ import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { SchedulerService } from "../automation/scheduler.service";
 
 /**
  * The inbox read path (docs/ROADMAP.md Phase 3, docs/API.md Section 10.3).
@@ -49,6 +50,7 @@ export class ConversationsController {
     private readonly realtime: RealtimeGateway,
     private readonly credentialsStore: CredentialsStoreService,
     private readonly auditLogService: AuditLogService,
+    private readonly scheduler: SchedulerService,
   ) {}
 
   /**
@@ -298,6 +300,11 @@ export class ConversationsController {
       resourceId: message.id,
       metadata: { conversationId: conversation.id, providerKey: conversation.provider.key },
     });
+
+    // A manual reply is exactly the event a `time.no_reply_after` rule was
+    // waiting to not happen - cancel any pending job for this conversation
+    // (docs/AUTOMATION_ENGINE.md Section 3.3).
+    await this.scheduler.cancelNoReplyRules(claims.workspaceId, conversation.id);
 
     return {
       id: message.id,

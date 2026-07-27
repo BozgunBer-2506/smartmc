@@ -14,11 +14,13 @@ import { DiscordModule } from "./discord/discord.module";
 import { SlackModule } from "./slack/slack.module";
 import { EmailModule } from "./email/email.module";
 import { IdentityModule } from "./identity/identity.module";
+import { AutomationModule } from "./automation/automation.module";
 
 @Module({
   imports: [
     HealthModule,
     RealtimeModule,
+    AutomationModule,
     EventsModule,
     MockConnectorModule,
     AuditLogModule,
