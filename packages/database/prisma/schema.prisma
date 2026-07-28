@@ -20,6 +20,9 @@
 // column standing in for the still-deferred relational Tag/MessageTag
 // model (Section 6.11), scoped exactly to what the `tag.apply` automation
 // action needs; see docs/reviews/phase-10-review.md.
+// Phase 11 adds NotificationPreference exactly per DATABASE.md Section
+// 6.14 (silent hours, VIP override, keyword alerts) - see
+// docs/reviews/phase-11-review.md for what Phase 11 did and didn't build.
 // IDs are UUIDv7 (ADR-0007), generated application-side (see
 // packages/database/src/ids.ts) rather than via Prisma's @default(uuid()),
 // which only generates UUIDv4.
@@ -69,6 +72,7 @@ model Workspace {
   identityMergeLogs        IdentityMergeLog[]
   identitySplitLogs        IdentitySplitLog[]
   rules                    Rule[]
+  notificationPreferences  NotificationPreference[]
 
   @@map("workspaces")
 }
@@ -87,6 +91,7 @@ model User {
   credentials UserCredentials?
   memberships WorkspaceMember[]
   sessions    Session[]
+  notificationPreferences NotificationPreference[]
 
   @@map("users")
 }
@@ -424,6 +429,33 @@ model Notification {
   message   Message?  @relation(fields: [messageId], references: [id])
 
   @@map("notifications")
+}
+
+/// Per-(workspace, user) delivery preferences (docs/DATABASE.md Section
+/// 6.14, docs/API.md's `PATCH /v1/notification-preferences`) - silent
+/// hours, VIP override, and keyword alerts. Self-only by design (API.md:
+/// "a notification preference is never settable on someone else's behalf,
+/// even by a workspace admin"). Consulted by the Automation Engine's
+/// Context Object (Phase 10's `workspace.isSilentHours` stub, now real -
+/// see docs/reviews/phase-11-review.md) using the workspace owner's row as
+/// the workspace-wide setting, a disclosed simplification until per-member
+/// notification targeting exists.
+model NotificationPreference {
+  id                 String    @id @db.Uuid
+  workspaceId        String    @map("workspace_id") @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  silentHoursStart   String?   @map("silent_hours_start") // "HH:mm", workspace-timezone-local (DATABASE.md Section 6.14's `time` column, stored as text - no migrations mechanism for a native `time` type via `db push`)
+  silentHoursEnd     String?   @map("silent_hours_end")
+  vipOverrideEnabled Boolean   @default(true) @map("vip_override_enabled")
+  keywordAlerts      String[]  @default([]) @map("keyword_alerts")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId], name: "uq_notification_preferences_workspace_user")
+  @@map("notification_preferences")
 }
 
 /// The Automation Engine's rule definition (docs/AUTOMATION_ENGINE.md,

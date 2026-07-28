@@ -362,6 +362,30 @@ export async function fetchRuleExecutions(accessToken: string, ruleId: string): 
   return parseOrThrow<RuleExecutionLogItem[]>(res);
 }
 
+export interface NotificationPreferences {
+  silentHoursStart: string | null;
+  silentHoursEnd: string | null;
+  vipOverrideEnabled: boolean;
+  keywordAlerts: string[];
+}
+
+export async function fetchNotificationPreferences(accessToken: string): Promise<NotificationPreferences> {
+  const res = await fetch(`${API_URL}/v1/notification-preferences`, { headers: authHeaders(accessToken) });
+  return parseOrThrow<NotificationPreferences>(res);
+}
+
+export async function updateNotificationPreferences(
+  accessToken: string,
+  input: Partial<NotificationPreferences>,
+): Promise<NotificationPreferences> {
+  const res = await fetch(`${API_URL}/v1/notification-preferences`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(input),
+  });
+  return parseOrThrow<NotificationPreferences>(res);
+}
+
 export async function triggerMockMessage(
   accessToken: string,
   input: { senderDisplayName: string; senderExternalId: string; bodyText: string },

@@ -27,6 +27,7 @@ import {
 } from "../lib/api";
 import { PasswordInput } from "./PasswordInput";
 import { connectSocket, disconnectSocket } from "../lib/socket";
+import { playPriorityChime } from "../lib/sound";
 
 interface InboxProps {
   accessToken: string;
@@ -117,7 +118,7 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
     const onConnect = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
 
-    const onMessage = () => {
+    const onMessage = (payload?: { priorityScore?: number }) => {
       // A new message arrived for this workspace - refresh the
       // conversation list (updates ordering/preview), and if the affected
       // conversation is the one currently open, refresh its messages too.
@@ -126,6 +127,13 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
       if (selectedIdRef.current) {
         fetchMessages(accessToken, selectedIdRef.current).then(setMessages).catch(() => undefined);
       }
+    };
+
+    // Priority-based sound cue (docs/ROADMAP.md Phase 11) - only for a
+    // real inbound message, never for the user's own outbound reply.
+    const onMessageReceived = (payload?: { priorityScore?: number }) => {
+      onMessage(payload);
+      playPriorityChime(payload?.priorityScore ?? 0);
     };
 
     const onNotification = (notification: NotificationItem) => {
@@ -138,14 +146,14 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
-    socket.on("message.received", onMessage);
+    socket.on("message.received", onMessageReceived);
     socket.on("message.sent", onMessage);
     socket.on("notification.created", onNotification);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
-      socket.off("message.received", onMessage);
+      socket.off("message.received", onMessageReceived);
       socket.off("message.sent", onMessage);
       socket.off("notification.created", onNotification);
       disconnectSocket();

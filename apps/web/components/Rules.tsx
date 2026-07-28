@@ -6,11 +6,14 @@ import {
   createRule,
   deleteRule,
   dryRunRule,
+  fetchNotificationPreferences,
   fetchRuleExecutions,
   fetchRules,
+  updateNotificationPreferences,
   updateRule,
   type ActionStep,
   type ConditionLeaf,
+  type NotificationPreferences,
   type PublicUser,
   type RuleExecutionLogItem,
   type RuleInput,
@@ -54,6 +57,10 @@ function actionParamFields(type: string): { key: string; label: string; placehol
   }
 }
 
+function defaultPreferences(): NotificationPreferences {
+  return { silentHoursStart: null, silentHoursEnd: null, vipOverrideEnabled: true, keywordAlerts: [] };
+}
+
 function emptyLeaf(): ConditionLeaf {
   return { field: FIELD_OPTIONS[0], operator: "is_true", value: "" };
 }
@@ -95,6 +102,10 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
   const [testResult, setTestResult] = useState<Awaited<ReturnType<typeof dryRunRule>> | null>(null);
   const [testing, setTesting] = useState(false);
 
+  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
+  const [savingPreferences, setSavingPreferences] = useState(false);
+  const [keywordAlertsText, setKeywordAlertsText] = useState("");
+
   async function load() {
     setLoading(true);
     try {
@@ -109,8 +120,37 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
 
   useEffect(() => {
     load();
+    fetchNotificationPreferences(accessToken)
+      .then((prefs) => {
+        setPreferences(prefs);
+        setKeywordAlertsText(prefs.keywordAlerts.join(", "));
+      })
+      .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleSavePreferences() {
+    setSavingPreferences(true);
+    try {
+      const keywordAlerts = keywordAlertsText
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0);
+      const updated = await updateNotificationPreferences(accessToken, {
+        silentHoursStart: preferences?.silentHoursStart || null,
+        silentHoursEnd: preferences?.silentHoursEnd || null,
+        vipOverrideEnabled: preferences?.vipOverrideEnabled ?? true,
+        keywordAlerts,
+      });
+      setPreferences(updated);
+      setKeywordAlertsText(updated.keywordAlerts.join(", "));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save notification preferences.");
+    } finally {
+      setSavingPreferences(false);
+    }
+  }
 
   async function handleToggleEnabled(rule: RuleSummary) {
     try {
@@ -222,6 +262,54 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
       {error && (
         <div style={{ ...cardStyle, borderColor: "#E05252", color: "#E05252", marginBottom: 16 }}>{error}</div>
       )}
+
+      <section style={{ ...cardStyle, marginBottom: 24 }}>
+        <h2 style={sectionHeading}>Notification preferences</h2>
+        <p style={{ fontSize: 12, color: "#9AA5B1", margin: "0 0 10px" }}>
+          Silent hours suppress the default &quot;notify me&quot; rule unless the sender is VIP (and VIP override is on) or the message matches a keyword alert below.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <label style={filterLabelStyle}>
+            Silent from
+            <input
+              style={{ ...inputStyle, marginLeft: 6 }}
+              type="time"
+              value={preferences?.silentHoursStart ?? ""}
+              onChange={(e) => setPreferences((p) => ({ ...(p ?? defaultPreferences()), silentHoursStart: e.target.value || null }))}
+            />
+          </label>
+          <label style={filterLabelStyle}>
+            until
+            <input
+              style={{ ...inputStyle, marginLeft: 6 }}
+              type="time"
+              value={preferences?.silentHoursEnd ?? ""}
+              onChange={(e) => setPreferences((p) => ({ ...(p ?? defaultPreferences()), silentHoursEnd: e.target.value || null }))}
+            />
+          </label>
+          <label style={filterLabelStyle}>
+            <input
+              type="checkbox"
+              checked={preferences?.vipOverrideEnabled ?? true}
+              onChange={(e) => setPreferences((p) => ({ ...(p ?? defaultPreferences()), vipOverrideEnabled: e.target.checked }))}
+            />{" "}
+            VIP senders break through silent hours
+          </label>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <input
+            style={{ ...inputStyle, width: "100%" }}
+            placeholder="Keyword alerts, comma-separated (e.g. urgent, outage, invoice)"
+            value={keywordAlertsText}
+            onChange={(e) => setKeywordAlertsText(e.target.value)}
+          />
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Button onClick={handleSavePreferences} disabled={savingPreferences}>
+            {savingPreferences ? "Saving..." : "Save preferences"}
+          </Button>
+        </div>
+      </section>
 
       <section style={{ ...cardStyle, marginBottom: 24 }}>
         <h2 style={sectionHeading}>New rule</h2>

@@ -1,3 +1,4 @@
+import { isSilentHoursActive, isVipOverrideActive, matchesAnyKeyword, type NotificationPreferenceInput } from "./silent-hours";
 import { TriggerType, type ContextObject, type RuleTrigger } from "./types";
 
 /** The registered-capability trigger catalog (AUTOMATION_ENGINE.md Section 3.4) - a lookup table, not a hardcoded switch buried in the matcher. Phase 10 registers two entries; a future connector or contact/conversation-event trigger is added here, not by editing the matcher. */
@@ -35,10 +36,17 @@ export function buildContext(input: {
   ruleVersion: number;
   triggerEventId: string;
   workspaceId: string;
+  /** The workspace's IANA timezone (docs/DATABASE.md `workspaces.timezone`) - required for workspace-timezone-aware silent hours (Section 3.3). Defaults to "UTC" if not supplied (e.g. the dry-run/test path). */
+  workspaceTimezone?: string;
+  /** The workspace owner's NotificationPreference row, or `null` if none exists yet (defaults: never silent, no keyword alerts) - Phase 11, docs/DATABASE.md Section 6.14. */
+  notificationPreference?: NotificationPreferenceInput | null;
   conversation: { id: string; title: string | null; tags: string[]; lastMessageAt: Date | null };
   message?: { id: string; bodyText: string; direction: "inbound" | "outbound"; receivedAt: Date };
   sender?: { id: string; displayName: string; isVip: boolean };
 }): ContextObject {
+  const timezone = input.workspaceTimezone ?? "UTC";
+  const pref = input.notificationPreference ?? null;
+
   return {
     message: input.message
       ? {
@@ -46,6 +54,7 @@ export function buildContext(input: {
           bodyText: input.message.bodyText,
           direction: input.message.direction,
           receivedAt: input.message.receivedAt.toISOString(),
+          matchesKeywordAlert: matchesAnyKeyword(input.message.bodyText, pref?.keywordAlerts ?? []),
         }
       : undefined,
     conversation: {
@@ -56,7 +65,11 @@ export function buildContext(input: {
       isStale: (hours: number) => isConversationStale(input.conversation.lastMessageAt, hours),
     },
     sender: input.sender,
-    workspace: { id: input.workspaceId, isSilentHours: false },
+    workspace: {
+      id: input.workspaceId,
+      isSilentHours: isSilentHoursActive(pref, timezone),
+      isVipOverrideActive: isVipOverrideActive(pref, timezone, input.sender?.isVip ?? false),
+    },
     execution: { ruleId: input.ruleId, ruleVersion: input.ruleVersion, triggerEventId: input.triggerEventId },
   };
 }

@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 3.9
+Version: 4.0
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -27,7 +27,7 @@ Living status file. Updated at the end of every work session. If a new session s
 
 ## Current Phase
 
-**Phase 0 (Product Foundation) through Phase 5 (Telegram Connector): COMPLETE.** **Phase 6 (Discord Connector) - COMPLETE and certified**, live verification explicitly postponed (see `docs/reviews/phase-6-review.md`). **Phase 7 (Slack Connector) - COMPLETE and certified**, live verification pending a real Slack App (see `docs/reviews/phase-7-review.md`). **Phase 8 (Email Connector) - COMPLETE and certified**, with four real connectors now on one SDK and `ROADMAP.md`'s own checkpoint answered: no SDK design flaw indicated (see `docs/reviews/phase-8-review.md`). **Phase 9 (Smart Inbox) - COMPLETE** as of 2026-07-27: unified priority scoring, VIP handling, archive/categories/filters, a trustworthy "Needs You" count, and IdentityGraph's fuzzy-match/merge-suggestion/split lifecycle, all real and verified end-to-end (22/22 checks) - see `docs/reviews/phase-9-review.md`. **Phase 10 (Automation Engine) - COMPLETE for its disclosed scope** as of 2026-07-28: a real trigger/condition/action/execution engine (`packages/automation-engine` + `apps/api/src/automation`) replaces the Phase 1-9 hardcoded stub rule - two trigger types, a nested AND/OR/NOT condition evaluator, four working action types (including an SSRF-guarded webhook call), an idempotent and isolated execution engine, and a durable scheduler for `time.no_reply_after` - verified end-to-end (21/21 checks). The full `AUTOMATION_ENGINE.md` vision (visual canvas, NL rule creation, marketplace, simulator, 200+ examples) is explicitly not all built - see `docs/reviews/phase-10-review.md` for the detailed built-vs-deferred breakdown.
+**Phase 0 (Product Foundation) through Phase 5 (Telegram Connector): COMPLETE.** **Phase 6 (Discord Connector) - COMPLETE and certified**, live verification explicitly postponed (see `docs/reviews/phase-6-review.md`). **Phase 7 (Slack Connector) - COMPLETE and certified**, live verification pending a real Slack App (see `docs/reviews/phase-7-review.md`). **Phase 8 (Email Connector) - COMPLETE and certified**, with four real connectors now on one SDK and `ROADMAP.md`'s own checkpoint answered: no SDK design flaw indicated (see `docs/reviews/phase-8-review.md`). **Phase 9 (Smart Inbox) - COMPLETE** as of 2026-07-27: unified priority scoring, VIP handling, archive/categories/filters, a trustworthy "Needs You" count, and IdentityGraph's fuzzy-match/merge-suggestion/split lifecycle, all real and verified end-to-end (22/22 checks) - see `docs/reviews/phase-9-review.md`. **Phase 10 (Automation Engine) - COMPLETE for its disclosed scope** as of 2026-07-28: a real trigger/condition/action/execution engine (`packages/automation-engine` + `apps/api/src/automation`) replaces the Phase 1-9 hardcoded stub rule - two trigger types, a nested AND/OR/NOT condition evaluator, four working action types (including an SSRF-guarded webhook call), an idempotent and isolated execution engine, and a durable scheduler for `time.no_reply_after` - verified end-to-end (21/21 checks). The full `AUTOMATION_ENGINE.md` vision (visual canvas, NL rule creation, marketplace, simulator, 200+ examples) is explicitly not all built - see `docs/reviews/phase-10-review.md` for the detailed built-vs-deferred breakdown. **Phase 11 (Notification Engine) - COMPLETE for its disclosed scope** as of 2026-07-28: `NotificationPreference` (silent hours, VIP override, keyword alerts - `DATABASE.md` Section 6.14) is real, and closes Phase 10's own `workspace.isSilentHours` stub - the starter rule now genuinely respects silent hours unless a VIP sender or a keyword alert overrides it. Priority-based sound cues ship in the Inbox. Custom per-contact sounds, a first-class Waiting-On/Commitments model, and escalation rules are explicitly not built - no existing schema/spec for any of the three - see `docs/reviews/phase-11-review.md`.
 
 ## What Actually Runs Right Now
 
@@ -227,7 +227,7 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 20 phases (Phase 19 - WhatsApp Connector added 2026-07-28), working rules, Phase 1-10 verified Definitions of Done |
+| `ROADMAP.md` | 20 phases (Phase 19 - WhatsApp Connector added 2026-07-28), working rules, Phase 1-11 verified Definitions of Done |
 | `STATUS.md` | This file |
 | `DECISIONS.md` | Index of all 20 ADRs |
 
@@ -256,21 +256,23 @@ Tagged `v0.2.0-phase2`.
 19. **Splitting a Contact whose merged identities share the same provider moves every message from that provider, not just the specific identity being split off** - `Message` has no direct per-sender provider/externalId of its own. Disclosed in `docs/reviews/phase-9-review.md`; correct in the common cross-provider-merge case, a narrower limitation in the same-provider case.
 
 20. **Phase 10's `Rules.tsx` UI was not click-tested in a real browser** - no browser-automation tool was available in that session. The API surface it calls is fully covered by `verify-phase10.mjs` (21/21), and `apps/web` typechecks/lints clean and serves without a compile error, but the actual form interactions (create/edit/enable/disable/test) haven't been manually confirmed. Disclosed in `docs/reviews/phase-10-review.md`.
+21. **Notifications remain workspace-scoped, not per-user with `readAt`** - `DATABASE.md` Section 6.14 specifies `user_id`/`read_at` columns; silent hours/VIP override are evaluated from the workspace *owner's* `NotificationPreference` row as a workspace-wide stand-in, not truly per-member. Disclosed in `docs/reviews/phase-11-review.md` as the prerequisite for genuinely per-member notification targeting.
+22. **Phase 11's notification-preferences panel and sound cues were not click-tested in a real browser either** - same standing limitation as gap #20. Disclosed in `docs/reviews/phase-11-review.md`.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
 
-Phase 10 (Automation Engine) is complete for its disclosed scope - a real trigger/condition/action/execution engine and scheduler, verified end-to-end (21/21, `verify-phase10.mjs`), replacing the Phase 1-9 hardcoded stub rule. Before picking a next phase:
+Phase 11 (Notification Engine) is complete for its disclosed scope - real silent hours/VIP override/keyword alerts wired into the Automation Engine's own condition primitives, priority-based sound cues, verified end-to-end (12/12, `verify-phase11.mjs`). Before picking a next phase:
 
-0. **Click-test the Rules UI in a real browser** (gap #20 above) - create a rule, toggle enable/disable, run a test, view execution history, confirm the "Automations" nav round-trips with the Inbox correctly.
+0. **Click-test the Rules and notification-preferences UI in a real browser** (gaps #20/#22 above) - create a rule, toggle enable/disable, run a test, view execution history, set silent hours and confirm the tiered chimes and suppression actually work live.
 
 Three connector live-verification items remain open from Phases 6-8, all blocked on external setup (a real Discord Application, a real Slack App, a real IMAP mailbox) rather than any code gap - none of them block the next phase:
 
 1. **Verify Discord live** whenever the Developer Portal is accessible again: register a real Discord Application, enable the privileged `MESSAGE_CONTENT` intent, add the bot to a test server, set `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID` in `apps/api/.env`, run `pnpm --filter @smc/scripts verify:discord`, and manually confirm a real message round-trip through the Inbox UI - the same bar Telegram already cleared. Phase 6 stays **feature-complete, not fully validated** until this runs (see gap #9 above).
 2. **Verify Slack live** whenever a real Slack App is available: register one at api.slack.com/apps, set `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`SLACK_SIGNING_SECRET`/`SLACK_PUBLIC_BASE_URL` in `apps/api/.env`, subscribe to the `message.channels` event on the Events API webhook (`{publicBaseUrl}/v1/connectors/slack/events`), install the app into a real workspace via a browser (not scriptable - see gap #14), and manually confirm a real message round-trip through the Inbox UI. Phase 7 stays **feature-complete, not fully validated** until this runs (see gap #14 above).
 3. **Verify Email live for receiving** whenever a real mailbox (with an app password) is available: set `EMAIL_TEST_IMAP_HOST`/`EMAIL_TEST_IMAP_PORT`/`EMAIL_TEST_SMTP_HOST`/`EMAIL_TEST_SMTP_PORT`/`EMAIL_TEST_USERNAME`/`EMAIL_TEST_PASSWORD`, run `pnpm --filter @smc/scripts verify:email`, and manually confirm a real message round-trip through the Inbox UI. The SMTP-send half is already live-verified (against local mailhog). Phase 8 stays **feature-complete, not fully validated** until the receive half runs too (see gap #16 above).
-4. Otherwise, begin Phase 11 - Notification Engine, or continue rounding out Phase 10's deferred scope (nested-condition-group UI, more trigger types, retry/circuit-breaker/DLQ, the simulator) per `docs/reviews/phase-10-review.md`'s Future Work - whichever the user directs.
+4. Otherwise, begin Phase 12 - Search, or continue rounding out Phase 10/11's deferred scope (nested-condition-group UI, more trigger types, retry/circuit-breaker/DLQ, the simulator, per-user notification targeting, Waiting-On/Commitments, escalation rules) per those phases' review docs' Future Work - whichever the user directs.
 
 ## How to Resume From Zero Context
 

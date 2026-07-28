@@ -26,6 +26,8 @@ export interface ContextObject {
     bodyText: string;
     direction: "inbound" | "outbound";
     receivedAt: string;
+    /** Phase 11 (docs/DATABASE.md Section 6.14's `keyword_alerts`) - true if `bodyText` contains any of the workspace owner's configured keyword alerts, case-insensitive. `false` when no keywords are configured, never `undefined`. */
+    matchesKeywordAlert: boolean;
   };
   conversation: {
     id: string;
@@ -41,8 +43,10 @@ export interface ContextObject {
   };
   workspace: {
     id: string;
-    /** Stubbed `false` always - silent-hours configuration isn't built yet (no settings surface exists to set it). Disclosed simplification, not a real evaluation. */
+    /** Real as of Phase 11 (docs/DATABASE.md Section 6.14) - computed from the workspace owner's `NotificationPreference.silentHoursStart/End` against the current time in the workspace's timezone. `false` when no silent hours are configured. Uses the *owner's* preference as the workspace-wide setting - a disclosed simplification until per-member notification targeting exists (see docs/reviews/phase-11-review.md). */
     isSilentHours: boolean;
+    /** AUTOMATION_ENGINE.md Section 4.2's `workspace.isVipOverrideActive` - true only when silent hours are currently active AND the message's sender is VIP AND the owner's `vipOverrideEnabled` is true. `false` on any trigger with no `sender` in context. */
+    isVipOverrideActive: boolean;
   };
   execution: {
     ruleId: string;

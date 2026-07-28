@@ -8,6 +8,7 @@ import {
   matchesTriggerScope,
   type ActionPorts,
   type ConditionNode,
+  type NotificationPreferenceInput,
   type RuleTrigger,
 } from "@smc/automation-engine";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
@@ -49,6 +50,9 @@ export class RuleExecutionService {
       where: { workspaceId: input.workspaceId, triggerType: "message.received", isEnabled: true },
       orderBy: { priority: "desc" },
     });
+    if (rules.length === 0) return;
+
+    const { timezone, notificationPreference } = await this.loadNotificationContext(input.workspaceId);
 
     for (const rule of rules) {
       const trigger = rule.trigger as unknown as RuleTrigger;
@@ -59,6 +63,8 @@ export class RuleExecutionService {
         ruleVersion: rule.version,
         triggerEventId: input.triggerEventId,
         workspaceId: input.workspaceId,
+        workspaceTimezone: timezone,
+        notificationPreference,
         conversation: {
           id: input.conversation.id,
           title: input.conversation.title,
@@ -158,11 +164,15 @@ export class RuleExecutionService {
     const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
     if (!conversation) return;
 
+    const { timezone, notificationPreference } = await this.loadNotificationContext(workspaceId);
+
     const context = buildContext({
       ruleId: rule.id,
       ruleVersion: rule.version,
       triggerEventId,
       workspaceId,
+      workspaceTimezone: timezone,
+      notificationPreference,
       conversation: { id: conversation.id, title: conversation.title, tags: conversation.tags, lastMessageAt: conversation.lastMessageAt },
     });
 
@@ -197,6 +207,39 @@ export class RuleExecutionService {
     };
     const result = await executeActions(rule.actions, context, noopPorts);
     return { matched, ...result };
+  }
+
+  /**
+   * The workspace-wide silent-hours/VIP-override/keyword-alert setting
+   * (Phase 11, docs/DATABASE.md Section 6.14) - taken from the workspace
+   * owner's `NotificationPreference` row, since notifications aren't
+   * per-member-targeted yet (disclosed simplification, docs/reviews/
+   * phase-11-review.md). `null` when no preference row exists yet -
+   * `buildContext()` treats that as "never silent, no keyword alerts."
+   */
+  private async loadNotificationContext(
+    workspaceId: string,
+  ): Promise<{ timezone: string; notificationPreference: NotificationPreferenceInput | null }> {
+    const prisma = getPrismaClient();
+    const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+    const owner = await prisma.workspaceMember.findFirst({ where: { workspaceId, role: "owner" }, orderBy: { joinedAt: "asc" } });
+    const pref = owner
+      ? await prisma.notificationPreference.findUnique({
+          where: { uq_notification_preferences_workspace_user: { workspaceId, userId: owner.userId } },
+        })
+      : null;
+
+    return {
+      timezone: workspace?.timezone ?? "UTC",
+      notificationPreference: pref
+        ? {
+            silentHoursStart: pref.silentHoursStart,
+            silentHoursEnd: pref.silentHoursEnd,
+            vipOverrideEnabled: pref.vipOverrideEnabled,
+            keywordAlerts: pref.keywordAlerts,
+          }
+        : null,
+    };
   }
 
   private buildPorts(workspaceId: string, conversationId: string): ActionPorts {

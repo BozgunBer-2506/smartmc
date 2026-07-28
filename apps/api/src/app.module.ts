@@ -15,6 +15,7 @@ import { SlackModule } from "./slack/slack.module";
 import { EmailModule } from "./email/email.module";
 import { IdentityModule } from "./identity/identity.module";
 import { AutomationModule } from "./automation/automation.module";
+import { NotificationPreferencesModule } from "./notification-preferences/notification-preferences.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AutomationModule } from "./automation/automation.module";
     UsersModule,
     ConversationsModule,
     NotificationsModule,
+    NotificationPreferencesModule,
     CredentialsStoreModule,
     TelegramModule,
     DiscordModule,

@@ -106,7 +106,20 @@ export class AuthService {
           priority: 0,
           triggerType: "message.received",
           trigger: { type: "message.received" },
-          conditions: { op: "AND", children: [] },
+          // Notify unless silent hours are active - unless the sender is
+          // VIP-overridden or the message matches a configured keyword
+          // alert (Phase 11, docs/DATABASE.md Section 6.14). With no
+          // NotificationPreference row yet (the common case right after
+          // registration), isSilentHours is always false, so this is
+          // vacuously "always notify" until the user sets silent hours.
+          conditions: {
+            op: "OR",
+            children: [
+              { op: "NOT", children: [{ field: "workspace.isSilentHours", operator: "is_true" }] },
+              { field: "workspace.isVipOverrideActive", operator: "is_true" },
+              { field: "message.matchesKeywordAlert", operator: "is_true" },
+            ],
+          },
           actions: [
             {
               type: "notification.send",

@@ -8,6 +8,22 @@ All notable changes to this project are documented here. Format based on [Keep a
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
 - `ROADMAP.md` Phase 19 - WhatsApp Connector, appended after Marketplace per explicit user direction. No other phase renumbered. No code yet - a planning-doc change only, no version bump.
 
+## [0.10.0] - 2026-07-28 - Phase 11: Notification Engine (`v0.10.0-phase11`)
+
+### Added
+- `NotificationPreference` (new model, `DATABASE.md` Section 6.14) - silent hours, VIP override, keyword alerts, one row per `(workspace, user)`
+- `GET`/`PATCH /v1/notification-preferences` (`apps/api/src/notification-preferences`) - self-only, per `API.md`'s explicit authorization exception
+- Real `workspace.isSilentHours`/`workspace.isVipOverrideActive`/`message.matchesKeywordAlert` Context Object primitives in `packages/automation-engine` - closes Phase 10's own disclosed `isSilentHours` stub
+- The starter "Notify me on every message" rule's conditions upgraded to `NOT(silentHours) OR isVipOverrideActive OR matchesKeywordAlert` - real Emergency/override mode and Keyword alerts, expressed as an ordinary rule condition, not new engine logic
+- Priority-based sound cues (`apps/web/lib/sound.ts`) - synthesized Web Audio API tones, tiered by the existing priority-score thresholds (30/60)
+- A notification-preferences settings panel in `apps/web`'s Automations screen
+- `pnpm --filter @smc/scripts verify:phase11` (12/12 passing) - real, end-to-end regression check, including a live silent-hours window with VIP/keyword override
+
+### Known Gaps
+- Custom sounds per VIP/contact, a first-class Waiting-On/Commitments model, and escalation rules are not built - no existing schema/spec for any of the three (unlike `notification_preferences`, which `DATABASE.md` already fully specified). Full reasoning in `docs/reviews/phase-11-review.md`.
+- Notifications remain workspace-scoped, not per-user with `readAt` - silent hours/VIP override use the workspace owner's preference row as a stand-in for a genuinely per-member setting.
+- The notification-preferences UI and sound cues were not click-tested in a real browser (no browser-automation tool available this session) - same disclosed limitation as Phase 10's Rules UI.
+
 ## [0.9.0] - 2026-07-28 - Phase 10: Automation Engine (`v0.9.0-phase10`)
 
 ### Added

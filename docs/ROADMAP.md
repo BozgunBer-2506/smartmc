@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.5
+Version: 2.6
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -358,12 +358,14 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 
 ## Phase 11 - Notification Engine
 
-- [ ] Priority-based sounds
-- [ ] Custom sounds per VIP/contact
-- [ ] Emergency/override mode
-- [ ] Keyword alerts
-- [ ] Reminder alerts (Waiting On / Commitments, per PRODUCT.md)
-- [ ] Escalation rules
+- [x] Priority-based sounds - synthesized Web Audio API tones, tiered by the existing priority-score thresholds (30/60), not shipped audio assets
+- [ ] Custom sounds per VIP/contact - deferred, no schema/spec exists for a per-contact sound choice - see [reviews/phase-11-review.md](reviews/phase-11-review.md)
+- [x] Emergency/override mode - `workspace.isVipOverrideActive`, a real Context Object primitive (AUTOMATION_ENGINE.md Section 4.2), wired into the starter rule
+- [x] Keyword alerts - `message.matchesKeywordAlert` against `NotificationPreference.keywordAlerts` (DATABASE.md Section 6.14)
+- [~] Reminder alerts (Waiting On / Commitments, per PRODUCT.md) - Phase 10's `time.no_reply_after` scheduler already covers the reminder-alert mechanism; a first-class Waiting-On/Commitments data model and dashboard is not built (no existing schema) - deferred
+- [ ] Escalation rules - deferred, no first-class escalation-policy concept exists; composable manually from existing rule primitives today
+
+**Phase Review completed 2026-07-28** - full report at [reviews/phase-11-review.md](reviews/phase-11-review.md). Tagged `v0.10.0-phase11`.
 
 ---
 
