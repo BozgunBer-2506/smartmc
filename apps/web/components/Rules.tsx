@@ -288,8 +288,15 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
   }
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: 32 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+    <main className="automations-main" style={{ maxWidth: 900, margin: "0 auto", padding: 32 }}>
+      <style>{`
+        @media (max-width: 720px) {
+          .automations-main { padding: 16px !important; }
+          .automations-header { flex-wrap: wrap; gap: 10px; }
+          .automations-toolbar { flex-wrap: wrap; }
+        }
+      `}</style>
+      <header className="automations-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Automations</h1>
           <p style={{ color: "#9AA5B1", fontSize: 13, margin: "4px 0 0" }}>
@@ -356,9 +363,9 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
         <p style={{ fontSize: 12, color: "#9AA5B1", margin: "0 0 8px" }}>
           Describe the rule in plain language - it only fills the form below as a draft; nothing is created until you review it and click &quot;Create rule&quot;.
         </p>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div className="automations-toolbar" style={{ display: "flex", gap: 6 }}>
           <input
-            style={{ ...inputStyle, flex: 1 }}
+            style={{ ...inputStyle, flex: 1, minWidth: 200 }}
             placeholder={'e.g. "notify me if a VIP messages" or "remind me if no reply in 2 days"'}
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
@@ -498,7 +505,7 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
         {rules.length === 0 && !loading && <p style={{ color: "#9AA5B1", fontSize: 13 }}>No rules yet - create one above.</p>}
         {rules.map((rule) => (
           <div key={rule.id} style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="automations-toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <div>
                 <strong>{rule.name}</strong>
                 <div style={{ fontSize: 12, color: "#9AA5B1", marginTop: 2 }}>
@@ -506,7 +513,7 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
                   {rule.trigger.params?.hours ? ` (${rule.trigger.params.hours}h)` : ""} · v{rule.version}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button type="button" style={smallButtonStyle} onClick={() => handleToggleEnabled(rule)}>
                   {rule.isEnabled ? "Disable" : "Enable"}
                 </button>

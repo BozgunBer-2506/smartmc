@@ -12,6 +12,7 @@
     "verify:phase12": "node verify-phase12.mjs",
     "verify:phase13": "node verify-phase13.mjs",
     "verify:mvp-hardening": "node verify-mvp-hardening.mjs",
+    "verify:phase14": "node verify-phase14.mjs",
     "certify:mock-connector": "node certify-mock-connector.mjs",
     "certify:telegram-connector": "node certify-telegram-connector.mjs",
     "verify:telegram": "node verify-telegram.cjs",

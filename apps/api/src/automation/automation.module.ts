@@ -3,12 +3,13 @@ import { AuthModule } from "../auth/auth.module";
 import { CredentialsStoreModule } from "../credentials-store/credentials-store.module";
 import { RealtimeModule } from "../realtime/realtime.module";
 import { AiModule } from "../ai/ai.module";
+import { PushModule } from "../push/push.module";
 import { RuleExecutionService } from "./rule-execution.service";
 import { RulesController } from "./rules.controller";
 import { SchedulerService } from "./scheduler.service";
 
 @Module({
-  imports: [AuthModule, CredentialsStoreModule, RealtimeModule, AiModule],
+  imports: [AuthModule, CredentialsStoreModule, RealtimeModule, AiModule, PushModule],
   controllers: [RulesController],
   providers: [RuleExecutionService, SchedulerService],
   exports: [RuleExecutionService, SchedulerService],

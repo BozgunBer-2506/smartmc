@@ -17,6 +17,25 @@ All notable changes to this project are documented here. Format based on [Keep a
 - No general API rate limiting exists beyond login-attempt throttling, despite `API.md` Section 9 fully specifying it - flagged as the top-priority item before real multi-tenant traffic.
 - No real cursor pagination exists anywhere, despite `API.md` Section 4 mandating it everywhere - every list endpoint uses a silent hardcoded `take` limit, and `GET /v1/rules`/`GET /v1/contacts` are fully unbounded.
 
+## [0.13.0] - 2026-07-29 - Phase 14: Progressive Web App (`v0.13.0-phase14`)
+
+### Added
+- Web app manifest (`apps/web/app/manifest.ts`, auto-served at `/manifest.webmanifest`) with generated icons (`icon.tsx`, `apple-icon.tsx`, `icon-192`/`icon-512` route handlers via `next/og`)
+- A hand-written service worker (`apps/web/public/sw.js`) covering offline app shell, Background Sync, and Web Push in one file - no `next-pwa`/workbox dependency added
+- Install prompt - `beforeinstallprompt` captured, a real in-product "Install app" button
+- Full Web Push stack: self-generated VAPID keys, `PushSubscription` model, `POST`/`DELETE /v1/push-subscriptions`, `PushService` wired into every automation `notification.send` action, client subscribe flow (`apps/web/lib/push.ts`)
+- Background sync: an IndexedDB outbox (`apps/web/lib/offline-queue.ts`) for a reply sent while offline, replayed via the Background Sync API with an `online`-event fallback for Safari/Firefox
+- Real single-pane, stack-based mobile navigation in the Inbox (`UI_GUIDE.md` Section 15) - closes a gap the earlier Phase 9 UI audit's simpler "stack vertically" fix had left open
+- `pnpm --filter @smc/scripts verify:phase14` (12/12 passing) - manifest, icons, service worker, and the full push subscribe/notify/unsubscribe lifecycle
+
+### Changed
+- `ROADMAP.md` Phase 14 redefined from a native React Native scaffold to this PWA (see the roadmap-consistency commit immediately prior) - the checklist above is that redefined scope, now built.
+
+### Known Gaps
+- Client-only behavior (SW registration, install flow, offline-queue replay, push delivery) is code-complete but unverified in a real browser - no browser-automation tool available this session. Top follow-up priority.
+- The service worker's app-shell cache is best-effort runtime caching, not versioned against Next's hashed build assets across deploys.
+- The generated icon is a real placeholder mark, not final brand artwork (`DESIGN_SYSTEM.md` has none yet).
+
 ## [0.12.0] - 2026-07-28 - Phase 13: AI (`v0.12.0-phase13`)
 
 ### Added

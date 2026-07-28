@@ -18,6 +18,7 @@ import { AutomationModule } from "./automation/automation.module";
 import { NotificationPreferencesModule } from "./notification-preferences/notification-preferences.module";
 import { SearchModule } from "./search/search.module";
 import { AiModule } from "./ai/ai.module";
+import { PushModule } from "./push/push.module";
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { AiModule } from "./ai/ai.module";
     NotificationPreferencesModule,
     SearchModule,
     AiModule,
+    PushModule,
     CredentialsStoreModule,
     TelegramModule,
     DiscordModule,

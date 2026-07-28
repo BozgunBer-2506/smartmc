@@ -86,6 +86,7 @@ model Workspace {
   rules                    Rule[]
   notificationPreferences  NotificationPreference[]
   messageAiSummaries       MessageAiSummary[]
+  pushSubscriptions        PushSubscription[]
 
   @@map("workspaces")
 }
@@ -105,6 +106,7 @@ model User {
   memberships WorkspaceMember[]
   sessions    Session[]
   notificationPreferences NotificationPreference[]
+  pushSubscriptions       PushSubscription[]
 
   @@map("users")
 }
@@ -609,4 +611,25 @@ model MessageAiSummary {
 
   @@index([workspaceId, createdAt], name: "idx_message_ai_summaries_workspace_id_created_at")
   @@map("message_ai_summaries")
+}
+
+/// A browser's Web Push subscription (docs/ROADMAP.md Phase 14) - one row
+/// per (user, device/browser). `endpoint` is unique per the Push API spec
+/// (the browser's push service issues a distinct URL per subscription);
+/// `p256dh`/`auth` are the subscription's own encryption keys, required to
+/// encrypt a push payload to it, never a credential of ours.
+model PushSubscription {
+  id          String   @id @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([workspaceId], name: "idx_push_subscriptions_workspace_id")
+  @@map("push_subscriptions")
 }

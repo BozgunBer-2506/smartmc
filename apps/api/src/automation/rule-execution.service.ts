@@ -14,6 +14,7 @@ import {
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AiEnrichmentService } from "../ai/ai-enrichment.service";
+import { PushService } from "../push/push.service";
 import { assertPublicWebhookTarget } from "./ssrf-guard";
 
 const WEBHOOK_TIMEOUT_MS = 5000;
@@ -37,6 +38,7 @@ export class RuleExecutionService {
     private readonly credentialsStore: CredentialsStoreService,
     private readonly realtime: RealtimeGateway,
     private readonly aiEnrichment: AiEnrichmentService,
+    private readonly push: PushService,
   ) {}
 
   async handleMessageReceived(input: {
@@ -264,6 +266,12 @@ export class RuleExecutionService {
           body: notification.body,
           createdAt: notification.createdAt,
         });
+        // Web Push (docs/ROADMAP.md Phase 14) - reaches a subscribed
+        // browser even when the tab isn't open/focused, unlike the
+        // realtime WebSocket toast above. Never blocks/fails the
+        // notification.send action itself if push delivery has an issue
+        // (PushService already swallows per-subscription errors).
+        await this.push.sendToWorkspace(workspaceId, { title, body });
         return { notificationId: notification.id };
       },
 

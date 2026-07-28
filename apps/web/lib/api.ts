@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export interface PublicUser {
   id: string;
@@ -456,6 +456,18 @@ export async function suggestRule(accessToken: string, naturalLanguagePrompt: st
     body: JSON.stringify({ naturalLanguagePrompt }),
   });
   return parseOrThrow(res);
+}
+
+export async function subscribeToPush(
+  accessToken: string,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/push-subscriptions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(subscription),
+  });
+  await parseOrThrow(res);
 }
 
 export async function triggerMockMessage(

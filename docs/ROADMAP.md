@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.9
+Version: 3.0
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-29
@@ -402,12 +402,14 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 **Redefined 2026-07-29 per user direction, replacing this phase's original "React Native app scaffold" scope.** A PWA is one implementation that makes `apps/web` installable and usable on both mobile and desktop - the original split (native-mobile-in-Phase-14, PWA-for-desktop-in-Phase-15) duplicated the same underlying work under two different platform labels. This phase is now that single, real implementation; Phase 15 shrinks accordingly (see below). The native-mobile-app idea this phase originally held is not a numbered phase at all anymore - it moves to v2, exactly matching `PRODUCT.md`'s own already-stated MVP exclusion ("web + Tauri desktop first, React Native is a v2 investment"), not appended as a new phase.
 
-- [ ] Web app manifest (installable, app icon, theme color)
-- [ ] Service worker (offline shell - the app loads and shows cached data with no network, not just a blank error page)
-- [ ] Install prompt (`beforeinstallprompt` handling, a real in-product "Install" affordance, not just relying on the browser's own menu)
-- [ ] Push notifications (Web Push API - browser/OS-level notifications when the tab isn't focused, distinct from the in-app toast/sound Phase 11 already built)
-- [ ] Background sync (queue an outbound reply sent while offline, deliver it once connectivity returns, rather than silently failing)
-- [ ] Responsive Inbox, Rule Builder (Automations), Search, and AI surfaces - usable on a phone-width viewport, not just a shrunk desktop layout
+- [x] Web app manifest (installable, app icon, theme color) - `apps/web/app/manifest.ts`, generated icons via `next/og` (real placeholder art, not a final brand mark - see [reviews/phase-14-review.md](reviews/phase-14-review.md))
+- [x] Service worker (offline shell - the app loads and shows cached data with no network, not just a blank error page) - hand-written (`apps/web/public/sw.js`), best-effort runtime caching, not a versioned precache
+- [x] Install prompt (`beforeinstallprompt` handling, a real in-product "Install" affordance, not just relying on the browser's own menu)
+- [x] Push notifications (Web Push API - browser/OS-level notifications when the tab isn't focused, distinct from the in-app toast/sound Phase 11 already built) - self-generated VAPID keys, wired into every `notification.send` action
+- [x] Background sync (queue an outbound reply sent while offline, deliver it once connectivity returns, rather than silently failing) - IndexedDB outbox + Background Sync API, `online`-event fallback for Safari/Firefox
+- [x] Responsive Inbox, Rule Builder (Automations), Search, and AI surfaces - usable on a phone-width viewport, not just a shrunk desktop layout - real single-pane stack navigation (list ↔ thread), per `UI_GUIDE.md` Section 15
+
+**Phase Review completed 2026-07-29** - full report at [reviews/phase-14-review.md](reviews/phase-14-review.md). Tagged `v0.13.0-phase14`. **Client-only behavior (SW registration, install, offline queue replay, push delivery) is code-complete and unverified in a real browser** - no browser-automation tool available this session; this is Phase 14's single most important follow-up, not assumed working.
 
 ---
 

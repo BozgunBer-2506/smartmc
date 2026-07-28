@@ -15,6 +15,7 @@ import {
   fetchNotifications,
   logout,
   markConversationRead,
+  API_URL,
   fetchAiCreditBalance,
   rejectMergeSuggestion,
   search,
@@ -30,9 +31,17 @@ import {
   type PublicUser,
   type SearchResults,
 } from "../lib/api";
+import { enqueueRequest } from "../lib/offline-queue";
+import { enablePushNotifications, isPushSupported } from "../lib/push";
 import { PasswordInput } from "./PasswordInput";
 import { connectSocket, disconnectSocket } from "../lib/socket";
 import { playPriorityChime } from "../lib/sound";
+
+/** Not in TypeScript's standard DOM lib yet (docs/ROADMAP.md Phase 14's install-prompt requirement) - the browser-standard shape of the `beforeinstallprompt` event. */
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
 
 interface InboxProps {
   accessToken: string;
@@ -57,6 +66,8 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [searching, setSearching] = useState(false);
   const [aiBalance, setAiBalance] = useState<number | null>(null);
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [pushStatus, setPushStatus] = useState<string | null>(null);
   const [conversationSummary, setConversationSummary] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
@@ -109,6 +120,32 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
       // "None yet" empty state trustworthy instead of misleading.
       setConversationsError(err instanceof Error ? err.message : "Could not load conversations.");
     }
+  }
+
+  useEffect(() => {
+    // The browser's own install-eligibility signal (docs/ROADMAP.md
+    // Phase 14) - fires only when the manifest/service-worker/HTTPS
+    // criteria are already met, never forced. Capturing it (instead of
+    // letting the browser show its own generic prompt) is what lets the
+    // product offer a real, in-context "Install" affordance.
+    function onBeforeInstallPrompt(e: Event) {
+      e.preventDefault();
+      setInstallPromptEvent(e as BeforeInstallPromptEvent);
+    }
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+  }, []);
+
+  async function handleInstall() {
+    if (!installPromptEvent) return;
+    await installPromptEvent.prompt();
+    await installPromptEvent.userChoice;
+    setInstallPromptEvent(null);
+  }
+
+  async function handleEnablePush() {
+    const result = await enablePushNotifications(accessToken);
+    setPushStatus(result.enabled ? "Push notifications enabled." : (result.reason ?? "Could not enable push notifications."));
   }
 
   useEffect(() => {
@@ -294,8 +331,33 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
       const msgs = await fetchMessages(accessToken, selectedId).catch(() => []);
       setMessages(msgs);
     } catch (err) {
-      // eslint-disable-next-line no-alert
-      alert(err instanceof Error ? err.message : "Failed to send reply.");
+      // A genuine network failure (offline, per docs/ROADMAP.md Phase 14's
+      // background-sync requirement) - not a server-side error (e.g. a
+      // mock conversation's 422) - gets queued instead of just failing.
+      // `fetch()` rejects with a TypeError specifically for network
+      // errors, distinct from the parsed API errors lib/api.ts throws for
+      // a real HTTP response.
+      if (!navigator.onLine || err instanceof TypeError) {
+        try {
+          await enqueueRequest({
+            id: `${selectedId}-${Date.now()}`,
+            url: `${API_URL}/v1/conversations/${selectedId}/messages`,
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ body: replyText }),
+          });
+          setReplyText("");
+          setToasts((prev) => [
+            { id: `queued-${Date.now()}`, type: "system", title: "Queued", body: "You're offline - this reply will send once you're back online.", createdAt: new Date().toISOString() },
+            ...prev,
+          ]);
+        } catch {
+          // eslint-disable-next-line no-alert
+          alert("Failed to send reply, and could not queue it for retry either.");
+        }
+      } else {
+        // eslint-disable-next-line no-alert
+        alert(err instanceof Error ? err.message : "Failed to send reply.");
+      }
     } finally {
       setReplying(false);
     }
@@ -373,6 +435,14 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
         @media (max-width: 720px) {
           .inbox-grid { grid-template-columns: 1fr !important; }
           .connector-row { flex-direction: column; align-items: stretch !important; }
+          /* Single-pane, stack-based navigation below the md breakpoint
+             (docs/UI_GUIDE.md Section 15, docs/DESIGN_SYSTEM.md's
+             responsive spec) - the list and thread are two full-screen
+             views a user pushes/pops between, never both crammed onto
+             one small screen at once. */
+          .conversations-pane[data-hidden-mobile="true"] { display: none; }
+          .messages-pane[data-hidden-mobile="true"] { display: none; }
+          .mobile-back-button { display: inline-block !important; }
         }
       `}</style>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 16 }}>
@@ -404,6 +474,8 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {installPromptEvent && <Button onClick={handleInstall}>Install app</Button>}
+          {isPushSupported() && <Button onClick={handleEnablePush}>Enable push</Button>}
           <Button onClick={onOpenRules}>Automations</Button>
           <Button onClick={handleLogout}>Log out</Button>
         </div>
@@ -504,6 +576,7 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
           </Button>
           {discordStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{discordStatus}</span>}
           {slackStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{slackStatus}</span>}
+          {pushStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{pushStatus}</span>}
         </div>
 
         <div className="connector-row" style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
@@ -525,7 +598,7 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
       </section>
 
       <div className="inbox-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
-        <section>
+        <section className="conversations-pane" data-hidden-mobile={selectedId ? "true" : "false"}>
           <h2 style={sectionHeading}>Conversations</h2>
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10, fontSize: 12, color: "#9AA5B1" }}>
             <label style={filterLabelStyle}>
@@ -590,7 +663,15 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
           ))}
         </section>
 
-        <section>
+        <section className="messages-pane" data-hidden-mobile={selectedId ? "false" : "true"}>
+          <button
+            type="button"
+            className="mobile-back-button"
+            onClick={() => setSelectedId(null)}
+            style={{ ...smallButtonStyle, display: "none", marginBottom: 10 }}
+          >
+            ← Back to conversations
+          </button>
           <h2 style={sectionHeading}>Messages</h2>
           {!selectedId && <p style={{ color: "#9AA5B1", fontSize: 13 }}>Select a conversation to see its history.</p>}
           {selectedId && messages.length > 0 && (
