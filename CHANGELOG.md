@@ -8,6 +8,27 @@ All notable changes to this project are documented here. Format based on [Keep a
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
 - `ROADMAP.md` Phase 19 - WhatsApp Connector, appended after Marketplace per explicit user direction. No other phase renumbered. No code yet - a planning-doc change only, no version bump.
 
+## [0.12.0] - 2026-07-28 - Phase 13: AI (`v0.12.0-phase13`)
+
+### Added
+- `packages/ai` (new) - the provider-agnostic `AIProvider` interface ([ADR-0021](docs/adr/0021-provider-agnostic-ai-abstraction.md)): structured input/output for `summarize`, `suggestReplies`, `detectCommitments`, `detectMeetings`, `classify`, `detectSentiment`, `detectLanguage`, `extractEntities`, `rewrite`, `suggestRule`
+- `HeuristicAIProvider` - the one real, working, zero-dependency implementation this phase ships (deterministic, no API key, no external network call), the same real-not-stub precedent `MockConnector` set for connectors
+- `Workspace.aiEnabled`, `AiCreditLedger`, `MessageAiSummary` (`DATABASE.md` Section 6.15, ADR-0021 Decision 5)
+- `GET`/`PATCH /v1/ai/settings`, `GET /v1/ai/credits/{balance,ledger}`, `POST /v1/ai/summaries`, `POST /v1/ai/suggested-replies`, `POST /v1/ai/detect-commitments`, `POST /v1/ai/rewrite`, `POST /v1/ai/rule-suggestions` - every endpoint gated by `aiEnabled` (403) and credit balance (402)
+- `AiEnrichmentService` - closes `AUTOMATION_ENGINE.md` Section 6/9's `ai` Context Object stub for real: `ai.classification`/`ai.sentiment` are now genuine rule-condition data, computed once per inbound message before rule matching, never bypassing the Automation Engine
+- A starter AI credit grant (50) and `aiEnabled: true` by default at registration
+- AI UI in `apps/web`: a credit-balance badge, Summarize/Suggest-replies buttons in the Inbox, and an AI rule-suggestion panel on the Automations screen (fills the rule-builder form as a draft, never auto-creates)
+- `pnpm --filter @smc/scripts verify:phase13` (21/21 passing) - real, end-to-end regression check, including `ai.classification` firing a real rule and gracefully not firing once AI is disabled
+
+### Answered
+- Architecture review performed before implementation (per explicit direction): no blocking architectural gap found - `AUTOMATION_ENGINE.md`, `DATABASE.md`, `API.md`, and `ARCHITECTURE.md` had all already reserved the extension points AI needed. The one real decision (provider-agnostic abstraction boundary) is ADR-0021.
+- MCP (Model Context Protocol) compatibility verified, not implemented - `AIProvider`'s structured contract doesn't block routing a future implementation through MCP tool calls; no external tool integration exists yet to justify building it now.
+
+### Known Gaps
+- Translation and smart/semantic search are not built - no real translation/embedding source exists in this environment; faking either was judged worse than not shipping.
+- Task/commitment detection returns candidates only, no persisted `Commitment` entity - no such schema exists yet (Phase 11's own flagged gap).
+- The new AI UI was not click-tested in a real browser (no browser-automation tool available this session).
+
 ## [0.11.0] - 2026-07-28 - Phase 12: Search (`v0.11.0-phase12`)
 
 ### Added

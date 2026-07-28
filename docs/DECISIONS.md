@@ -2,7 +2,7 @@
 
 ```yaml
 Title: DECISIONS.md
-Version: 1.2
+Version: 1.3
 Status: Living
 Owner: Architecture
 Last Updated: 2026-07-18
@@ -37,6 +37,7 @@ Full records live in [adr/](adr/). Each ADR follows the same shape: Status, Cont
 | [0018](adr/0018-linked-account-status-uses-connector-sdk-lifecycle.md) | LinkedAccount.status Uses CONNECTOR_SDK.md's Full Lifecycle Vocabulary | Accepted | 2026-07-19 | `DATABASE.md` Section 6.5 sketches a 5-value status enum; `CONNECTOR_SDK.md` Section 2's later, more detailed 9-state lifecycle is what Sprint 1's already-certified `ConnectorLifecycle` state machine actually implements. `LinkedAccount.status` persists the full 9-value set; `DATABASE.md` is superseded in effect for this column, not rewritten. |
 | [0019](adr/0019-discord-gateway-streaming-connector-extension.md) | Discord Gateway: a Streaming Ingestion Mode and a Connector Lifecycle Extension | Accepted | 2026-07-22 | Discord's Gateway is a persistent, provider-initiated WebSocket, not an HTTP webhook or interval poll - `CONNECTOR_SDK.md` Section 4 has no category for it. Adds `IngestionMode: "streaming"` and an optional `Connector.startListening()` method (returns a `StreamHandle`), the SDK interface change `ROADMAP.md` explicitly expected and sanctioned for Discord (Phase 6), not for Slack/Email. Discord's real history endpoint means `initialSync`/`reconcile` are implemented for real, not a no-op like Telegram (ADR-0017). No OAuth refresh plumbing added - Discord bot-token auth doesn't expire. Adds a minimal `ws` dependency (already indirectly present via `socket.io`). |
 | [0020](adr/0020-marketing-site-as-isolated-app.md) | Marketing Site as an Isolated `apps/marketing-site` App | Accepted | 2026-07-22 | A pre-built Next.js/Tailwind/Radix/Framer Motion marketing site (supplied externally) is added as `apps/marketing-site` - not part of `ADR-0011`'s original layout, so recorded here. Fully isolated: no imports to/from `packages/*` or other `apps/*`, its own port (3001), its own `next lint` setup matching `apps/web`'s precedent. Its stack is not a precedent for the product UI. An unused `playwright-core` dependency was removed during integration. |
+| [0021](adr/0021-provider-agnostic-ai-abstraction.md) | A Provider-Agnostic AI Abstraction, Not a Direct SDK Integration | Accepted | 2026-07-28 | Phase 13's AI layer is built behind one `AIProvider` interface (`packages/ai`) - structured input/output, no vendor SDK called directly from `apps/api`. Ships with `HeuristicAIProvider` (deterministic, no external call, no API key needed - the same real-not-stub pattern `MockConnector` established for connectors). Real LLM providers are additive implementations later. Triggered both on-demand (REST, `API.md` Section 10) and per-message via an event-consuming `AiMessageProcessor` (`ARCHITECTURE.md`'s "isolated AI service" framing) that populates `AUTOMATION_ENGINE.md` Section 6's previously-stubbed `ai` Context Object section - AI produces data, the existing rule engine is the only thing that ever acts on it, never bypassed. MCP considered and confirmed not architecturally blocked; not implemented (no external tool integration exists yet to justify it). |
 
 ## How to Add a New ADR
 

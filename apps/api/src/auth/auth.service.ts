@@ -129,6 +129,16 @@ export class AuthService {
         },
       });
 
+      // A starter AI credit grant (Phase 13, ADR-0021) - the same
+      // "working demo by default, explicitly disable-able" precedent the
+      // starter rule above set for the automation engine. `Workspace.
+      // aiEnabled` defaults `true` at the schema level; without any
+      // credit, though, every AI endpoint would 402 immediately, which
+      // isn't a useful default first-run experience.
+      await tx.aiCreditLedger.create({
+        data: { id: newId(), organizationId: organization.id, entryType: "grant", amount: 50, balanceAfter: 50, feature: "signup_grant" },
+      });
+
       return { user, organizationId: organization.id, membership };
     });
 

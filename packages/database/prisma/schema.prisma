@@ -23,6 +23,9 @@
 // Phase 11 adds NotificationPreference exactly per DATABASE.md Section
 // 6.14 (silent hours, VIP override, keyword alerts) - see
 // docs/reviews/phase-11-review.md for what Phase 11 did and didn't build.
+// Phase 13 adds Workspace.aiEnabled, AiCreditLedger, MessageAiSummary
+// (DATABASE.md Section 6.15, ADR-0021's provider-agnostic AI layer) - see
+// docs/reviews/phase-13-review.md.
 // IDs are UUIDv7 (ADR-0007), generated application-side (see
 // packages/database/src/ids.ts) rather than via Prisma's @default(uuid()),
 // which only generates UUIDv4.
@@ -49,6 +52,7 @@ model Organization {
   deletedAt DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7
 
   workspaces Workspace[]
+  aiCreditLedger AiCreditLedger[]
 
   @@map("organizations")
 }
@@ -58,6 +62,14 @@ model Workspace {
   organizationId String    @map("organization_id") @db.Uuid
   name           String
   timezone       String    @default("UTC")
+  /// Phase 13 (docs/adr/0021-provider-agnostic-ai-abstraction.md) - gates
+  /// every AI capability (ADR-0021 Decision 5). Referenced by API.md's
+  /// "requires the workspace to have AI enabled" language but never
+  /// previously modeled - this is that field. Defaults `true` with a
+  /// starter credit grant at registration (the same "working demo by
+  /// default, explicitly disable-able" precedent Phase 10's starter rule
+  /// set), so graceful degradation (turning it off) is actually testable.
+  aiEnabled      Boolean   @default(true) @map("ai_enabled")
   createdAt      DateTime  @default(now()) @map("created_at")
   deletedAt      DateTime? @map("deleted_at") // soft delete - docs/DATABASE.md Section 7, enforced via packages/database/src/soft-delete.ts
 
@@ -73,6 +85,7 @@ model Workspace {
   identitySplitLogs        IdentitySplitLog[]
   rules                    Rule[]
   notificationPreferences  NotificationPreference[]
+  messageAiSummaries       MessageAiSummary[]
 
   @@map("workspaces")
 }
@@ -550,4 +563,50 @@ model ScheduledJob {
   @@unique([ruleId, conversationId], name: "uq_scheduled_jobs_rule_conversation")
   @@index([status, scheduledFor], name: "idx_scheduled_jobs_status_scheduled_for")
   @@map("scheduled_jobs")
+}
+
+/// Append-only AI credit ledger (docs/DATABASE.md Section 6.15, ADR-0021) -
+/// billing-adjacent balances must be reconstructable/auditable, never a
+/// single mutable counter. `balanceAfter` is a denormalized running total
+/// for fast reads; the full ledger can always be summed to verify it.
+model AiCreditLedger {
+  id              String   @id @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  entryType       String   @map("entry_type") // "grant" | "consumption" | "purchase" | "expiry" - DATABASE.md Section 6.15
+  amount          Int // positive for grant/purchase, negative for consumption
+  balanceAfter    Int      @map("balance_after")
+  feature         String? // which AI feature consumed credits, e.g. "summarize", "classify"
+  relatedMessageId String? @map("related_message_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt], name: "idx_ai_credit_ledger_organization_id_created_at")
+  @@map("ai_credit_ledger")
+}
+
+/// A generated AI summary (docs/DATABASE.md Section 6.15, ADR-0021) - a
+/// separate table, never a column on Message, so AI output is trivially
+/// strippable (disabling AI for a workspace never touches Message rows).
+/// Exactly one of messageId/conversationId should be non-null (Section
+/// 6.15's CHECK constraint) - enforced at the application layer, not the
+/// database, since this project has no migrations mechanism beyond
+/// `prisma db push` to add a raw CHECK constraint safely (the same
+/// disclosed simplification `docs/reviews/phase-9-review.md`'s dedup
+/// check and `docs/reviews/phase-12-review.md`'s search vector already
+/// used for the identical reason).
+model MessageAiSummary {
+  id             String   @id @db.Uuid
+  workspaceId    String   @map("workspace_id") @db.Uuid
+  messageId      String?  @map("message_id") @db.Uuid
+  conversationId String?  @map("conversation_id") @db.Uuid
+  summaryText    String   @map("summary_text")
+  modelUsed      String   @map("model_used")
+  generatedAt    DateTime @map("generated_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, createdAt], name: "idx_message_ai_summaries_workspace_id_created_at")
+  @@map("message_ai_summaries")
 }

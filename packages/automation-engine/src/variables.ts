@@ -19,6 +19,9 @@ export function interpolate(template: string, context: ContextObject): string {
       case "workspace":
         root = context.workspace;
         break;
+      case "ai":
+        root = context.ai;
+        break;
       default:
         return match;
     }

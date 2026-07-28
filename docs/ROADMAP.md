@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.7
+Version: 2.8
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -383,15 +383,19 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 
 ## Phase 13 - AI (first AI in the product, not before)
 
-- [ ] Conversation summaries
-- [ ] Suggested replies
-- [ ] Task/commitment detection
-- [ ] Meeting detection
-- [ ] Translation
-- [ ] Rewrite
-- [ ] Smart/semantic search
+- [x] Conversation summaries - `POST /v1/ai/summaries`, per-message or per-conversation
+- [x] Suggested replies - `POST /v1/ai/suggested-replies`
+- [x] Task/commitment detection - `POST /v1/ai/detect-commitments`, returns candidates (no persisted Commitment entity - no schema exists yet, see [reviews/phase-13-review.md](reviews/phase-13-review.md))
+- [x] Meeting detection - folded into the same `detect-commitments` response
+- [ ] Translation - deferred, no real translation model/API available in this environment; faking it was judged worse than not shipping it
+- [x] Rewrite - `POST /v1/ai/rewrite` (formal/friendly/concise), heuristic-level quality, disclosed
+- [ ] Smart/semantic search - deferred, needs `pgvector`/a real embedding source per DATABASE.md Section 14, neither available here
 
-AI must be fully optional here and everywhere after. Every feature above must degrade gracefully (feature hidden or falls back to non-AI equivalent) if AI is disabled or unavailable. Per PRODUCT.md's AI Features section: no autopilot auto-send, ever.
+Built behind a provider-agnostic `AIProvider` abstraction (`packages/ai`, [ADR-0021](adr/0021-provider-agnostic-ai-abstraction.md)) - `HeuristicAIProvider` is the one real, working, zero-dependency implementation this phase ships; a real LLM provider is additive later. `AUTOMATION_ENGINE.md` Section 6/9's `ai` Context Object stub is now real - `ai.classification`/`ai.sentiment` are genuine rule-condition data, verified firing a real rule and gracefully not firing once AI is disabled.
+
+AI must be fully optional here and everywhere after. Every feature above must degrade gracefully (feature hidden or falls back to non-AI equivalent) if AI is disabled or unavailable. Per PRODUCT.md's AI Features section: no autopilot auto-send, ever - verified: AI never bypasses the Automation Engine, and `rule-suggestions` returns a draft that is never auto-persisted.
+
+**Phase Review completed 2026-07-28** - full report at [reviews/phase-13-review.md](reviews/phase-13-review.md). Tagged `v0.12.0-phase13`.
 
 ---
 

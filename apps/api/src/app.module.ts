@@ -17,6 +17,7 @@ import { IdentityModule } from "./identity/identity.module";
 import { AutomationModule } from "./automation/automation.module";
 import { NotificationPreferencesModule } from "./notification-preferences/notification-preferences.module";
 import { SearchModule } from "./search/search.module";
+import { AiModule } from "./ai/ai.module";
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SearchModule } from "./search/search.module";
     NotificationsModule,
     NotificationPreferencesModule,
     SearchModule,
+    AiModule,
     CredentialsStoreModule,
     TelegramModule,
     DiscordModule,

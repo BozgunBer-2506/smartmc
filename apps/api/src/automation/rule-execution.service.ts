@@ -13,6 +13,7 @@ import {
 } from "@smc/automation-engine";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { AiEnrichmentService } from "../ai/ai-enrichment.service";
 import { assertPublicWebhookTarget } from "./ssrf-guard";
 
 const WEBHOOK_TIMEOUT_MS = 5000;
@@ -35,6 +36,7 @@ export class RuleExecutionService {
   constructor(
     private readonly credentialsStore: CredentialsStoreService,
     private readonly realtime: RealtimeGateway,
+    private readonly aiEnrichment: AiEnrichmentService,
   ) {}
 
   async handleMessageReceived(input: {
@@ -53,6 +55,12 @@ export class RuleExecutionService {
     if (rules.length === 0) return;
 
     const { timezone, notificationPreference } = await this.loadNotificationContext(input.workspaceId);
+    // Computed once per message (Section 10's "context snapshot" model),
+    // not per rule - every matched rule for this message shares the same
+    // ai.* values. `undefined` when AI is disabled/out of credit - every
+    // rule referencing ai.* below then just resolves undefined, per the
+    // existing graceful-undefined-condition behavior (ADR-0021).
+    const ai = await this.aiEnrichment.enrichMessage(input.workspaceId, input.message.bodyText);
 
     for (const rule of rules) {
       const trigger = rule.trigger as unknown as RuleTrigger;
@@ -65,6 +73,7 @@ export class RuleExecutionService {
         workspaceId: input.workspaceId,
         workspaceTimezone: timezone,
         notificationPreference,
+        ai,
         conversation: {
           id: input.conversation.id,
           title: input.conversation.title,

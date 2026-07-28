@@ -10,6 +10,7 @@
     "verify:phase10": "node verify-phase10.mjs",
     "verify:phase11": "node verify-phase11.mjs",
     "verify:phase12": "node verify-phase12.mjs",
+    "verify:phase13": "node verify-phase13.mjs",
     "certify:mock-connector": "node certify-mock-connector.mjs",
     "certify:telegram-connector": "node certify-telegram-connector.mjs",
     "verify:telegram": "node verify-telegram.cjs",

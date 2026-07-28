@@ -9,10 +9,12 @@ import {
   fetchNotificationPreferences,
   fetchRuleExecutions,
   fetchRules,
+  suggestRule,
   updateNotificationPreferences,
   updateRule,
   type ActionStep,
   type ConditionLeaf,
+  type ConditionNode,
   type NotificationPreferences,
   type PublicUser,
   type RuleExecutionLogItem,
@@ -101,6 +103,10 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
   const [testRuleId, setTestRuleId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<Awaited<ReturnType<typeof dryRunRule>> | null>(null);
   const [testing, setTesting] = useState(false);
+
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiNote, setAiNote] = useState<string | null>(null);
+  const [suggestingRule, setSuggestingRule] = useState(false);
 
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [savingPreferences, setSavingPreferences] = useState(false);
@@ -196,6 +202,40 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
 
   function updateActionParam(index: number, key: string, value: string) {
     setActions((prev) => prev.map((action, i) => (i === index ? { ...action, params: { ...action.params, [key]: value } } : action)));
+  }
+
+  /** AI-suggested rule (docs/AUTOMATION_ENGINE.md Section 8, ADR-0021) - fills the New Rule form below with a draft; nothing is created until the user reviews and clicks "Create rule" themselves. */
+  async function handleSuggestRule() {
+    if (!aiPrompt.trim()) return;
+    setSuggestingRule(true);
+    setAiNote(null);
+    try {
+      const result = await suggestRule(accessToken, aiPrompt.trim());
+      if (!result.matched || !result.draft) {
+        setAiNote(result.note ?? "Could not map this prompt to a rule.");
+        return;
+      }
+      const draft = result.draft;
+      setName(draft.name);
+      setTriggerType(draft.trigger.type);
+      setHours(draft.trigger.params?.hours ?? 48);
+      setProviderScope(draft.trigger.scope?.providerKey ?? "");
+      const conditions = draft.conditions as ConditionNode;
+      if ("field" in conditions) {
+        setLeaves([conditions]);
+      } else if (conditions.children.length === 0) {
+        setLeaves([emptyLeaf()]);
+      } else {
+        setLeaves(conditions.children as ConditionLeaf[]);
+        setConditionOp(conditions.op === "OR" ? "OR" : "AND");
+      }
+      setActions(draft.actions);
+      setAiNote(`Draft filled in below from: "${aiPrompt.trim()}" - review and click "Create rule" to activate it.`);
+    } catch (err) {
+      setAiNote(err instanceof Error ? err.message : "AI rule suggestion failed.");
+    } finally {
+      setSuggestingRule(false);
+    }
   }
 
   async function handleCreate() {
@@ -309,6 +349,25 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
             {savingPreferences ? "Saving..." : "Save preferences"}
           </Button>
         </div>
+      </section>
+
+      <section style={{ ...cardStyle, marginBottom: 24, borderColor: "#5B8DEF" }}>
+        <h2 style={sectionHeading}>Suggest a rule with AI</h2>
+        <p style={{ fontSize: 12, color: "#9AA5B1", margin: "0 0 8px" }}>
+          Describe the rule in plain language - it only fills the form below as a draft; nothing is created until you review it and click &quot;Create rule&quot;.
+        </p>
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder={'e.g. "notify me if a VIP messages" or "remind me if no reply in 2 days"'}
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+          />
+          <Button onClick={handleSuggestRule} disabled={suggestingRule}>
+            {suggestingRule ? "Thinking..." : "Suggest"}
+          </Button>
+        </div>
+        {aiNote && <p style={{ fontSize: 12, color: "#9AA5B1", marginTop: 6 }}>{aiNote}</p>}
       </section>
 
       <section style={{ ...cardStyle, marginBottom: 24 }}>

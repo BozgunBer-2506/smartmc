@@ -16,6 +16,7 @@
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/platform-socket.io": "^10.4.0",
     "@nestjs/websockets": "^10.4.0",
+    "@smc/ai": "workspace:*",
     "@smc/automation-engine": "workspace:*",
     "@smc/connector-sdk": "workspace:*",
     "@smc/database": "workspace:*",

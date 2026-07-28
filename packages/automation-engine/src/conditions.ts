@@ -24,6 +24,9 @@ function resolveField(field: string, context: ContextObject): unknown {
     case "workspace":
       root = context.workspace;
       break;
+    case "ai":
+      root = context.ai;
+      break;
     default:
       return undefined;
   }

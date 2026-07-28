@@ -15,9 +15,12 @@ import {
   fetchNotifications,
   logout,
   markConversationRead,
+  fetchAiCreditBalance,
   rejectMergeSuggestion,
   search,
   sendMessage,
+  suggestReplies,
+  summarizeConversation,
   triggerMockMessage,
   updateConversation,
   type ConversationMessage,
@@ -52,6 +55,11 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [searching, setSearching] = useState(false);
+  const [aiBalance, setAiBalance] = useState<number | null>(null);
+  const [conversationSummary, setConversationSummary] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+  const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
+  const [suggestingReplies, setSuggestingReplies] = useState(false);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toasts, setToasts] = useState<NotificationItem[]>([]);
@@ -118,6 +126,7 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
     fetchNotifications(accessToken).then(setNotifications).catch(() => undefined);
     fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
     fetchMergeSuggestions(accessToken).then(setMergeSuggestions).catch(() => undefined);
+    fetchAiCreditBalance(accessToken).then((r) => setAiBalance(r.balance)).catch(() => undefined);
 
     const socket = connectSocket(accessToken);
     const onConnect = () => setConnected(true);
@@ -194,11 +203,42 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
 
   async function selectConversation(id: string) {
     setSelectedId(id);
+    setConversationSummary(null);
+    setReplySuggestions([]);
     const msgs = await fetchMessages(accessToken, id).catch(() => []);
     setMessages(msgs);
     await markConversationRead(accessToken, id).catch(() => undefined);
     refreshConversations();
     fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
+  }
+
+  async function handleSummarize() {
+    if (!selectedId) return;
+    setSummarizing(true);
+    try {
+      const result = await summarizeConversation(accessToken, selectedId);
+      setConversationSummary(result.summary);
+    } catch (err) {
+      setConversationSummary(err instanceof Error ? `Could not summarize: ${err.message}` : "Could not summarize.");
+    } finally {
+      setSummarizing(false);
+      fetchAiCreditBalance(accessToken).then((r) => setAiBalance(r.balance)).catch(() => undefined);
+    }
+  }
+
+  async function handleSuggestReplies() {
+    const lastInbound = [...messages].reverse().find((m) => m.direction === "inbound");
+    if (!lastInbound) return;
+    setSuggestingReplies(true);
+    try {
+      const result = await suggestReplies(accessToken, lastInbound.bodyText);
+      setReplySuggestions(result.replies);
+    } catch {
+      setReplySuggestions([]);
+    } finally {
+      setSuggestingReplies(false);
+      fetchAiCreditBalance(accessToken).then((r) => setAiBalance(r.balance)).catch(() => undefined);
+    }
   }
 
   async function handleToggleArchive(conversation: ConversationSummary) {
@@ -347,6 +387,11 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
           >
             Needs You: {needsYouCount}
           </span>
+          {aiBalance !== null && (
+            <span title="AI credits remaining" style={{ ...needsYouBadgeStyle, background: "#1B2333", color: "#9AA5B1", borderColor: "#2A3441" }}>
+              AI credits: {aiBalance}
+            </span>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Button onClick={onOpenRules}>Automations</Button>
@@ -528,6 +573,30 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
         <section>
           <h2 style={sectionHeading}>Messages</h2>
           {!selectedId && <p style={{ color: "#9AA5B1", fontSize: 13 }}>Select a conversation to see its history.</p>}
+          {selectedId && messages.length > 0 && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <button onClick={handleSummarize} disabled={summarizing} style={smallButtonStyle}>
+                {summarizing ? "Summarizing..." : "Summarize"}
+              </button>
+              <button onClick={handleSuggestReplies} disabled={suggestingReplies} style={smallButtonStyle}>
+                {suggestingReplies ? "Thinking..." : "Suggest replies"}
+              </button>
+            </div>
+          )}
+          {conversationSummary && (
+            <div style={{ ...cardStyle, borderColor: "#5B8DEF", fontSize: 13 }}>
+              <strong>AI summary:</strong> {conversationSummary}
+            </div>
+          )}
+          {replySuggestions.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {replySuggestions.map((r, i) => (
+                <button key={i} onClick={() => setReplyText(r)} style={smallButtonStyle}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
           {messages.map((m) => (
             <article key={m.id} style={cardStyle}>
               <strong>{m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}</strong>{" "}

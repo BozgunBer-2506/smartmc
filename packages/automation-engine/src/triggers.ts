@@ -43,6 +43,8 @@ export function buildContext(input: {
   conversation: { id: string; title: string | null; tags: string[]; lastMessageAt: Date | null };
   message?: { id: string; bodyText: string; direction: "inbound" | "outbound"; receivedAt: Date };
   sender?: { id: string; displayName: string; isVip: boolean };
+  /** Computed once by the caller before building context (ADR-0021) - `undefined` when AI is disabled or out of credit for this workspace, never computed lazily inside the engine. */
+  ai?: { sentiment: "positive" | "neutral" | "negative"; classification: string };
 }): ContextObject {
   const timezone = input.workspaceTimezone ?? "UTC";
   const pref = input.notificationPreference ?? null;
@@ -71,5 +73,6 @@ export function buildContext(input: {
       isVipOverrideActive: isVipOverrideActive(pref, timezone, input.sender?.isVip ?? false),
     },
     execution: { ruleId: input.ruleId, ruleVersion: input.ruleVersion, triggerEventId: input.triggerEventId },
+    ai: input.ai,
   };
 }

@@ -19,7 +19,7 @@ export interface RuleTrigger {
   params?: { hours?: number };
 }
 
-/** The Context Object (AUTOMATION_ENGINE.md Section 6) - Phase 10's populated subset: message, conversation, sender, workspace, execution. `ai`/`automation_memory`/`location` sections are deferred (Section 9/6/3.1 respectively). */
+/** The Context Object (AUTOMATION_ENGINE.md Section 6) - message, conversation, sender, workspace, execution (Phase 10), plus `ai` (Phase 13, ADR-0021 - real when the workspace has AI enabled and credit available, `undefined` otherwise, exactly matching Section 9's "only for workspaces with AI enabled" boundary). `automation_memory`/`location` remain deferred (Section 6/3.1). */
 export interface ContextObject {
   message?: {
     id: string;
@@ -52,6 +52,21 @@ export interface ContextObject {
     ruleId: string;
     ruleVersion: number;
     triggerEventId: string;
+  };
+  /**
+   * AUTOMATION_ENGINE.md Section 6/9, ADR-0021 - populated only when the
+   * workspace has AI enabled and had credit available at the moment this
+   * context was built (computed once by the caller, not lazily inside the
+   * engine - Section 10's "context snapshot for determinism" applies here
+   * too). A condition referencing `ai.sentiment` on a trigger where this
+   * is `undefined` resolves to `undefined` in `resolveField`, which every
+   * operator already treats as non-matching - the same graceful-
+   * degradation behavior every other optional context field gets, no
+   * special-casing needed.
+   */
+  ai?: {
+    sentiment: "positive" | "neutral" | "negative";
+    classification: string;
   };
 }
 

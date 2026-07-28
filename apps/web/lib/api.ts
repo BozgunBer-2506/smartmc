@@ -411,6 +411,53 @@ export async function search(accessToken: string, query: string): Promise<Search
   return parseOrThrow<SearchResults>(res);
 }
 
+export interface AiCreditBalance {
+  balance: number;
+}
+
+export async function fetchAiCreditBalance(accessToken: string): Promise<AiCreditBalance> {
+  const res = await fetch(`${API_URL}/v1/ai/credits/balance`, { headers: authHeaders(accessToken) });
+  return parseOrThrow<AiCreditBalance>(res);
+}
+
+export async function summarizeConversation(accessToken: string, conversationId: string): Promise<{ summary: string }> {
+  const res = await fetch(`${API_URL}/v1/ai/summaries`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ conversationId }),
+  });
+  return parseOrThrow(res);
+}
+
+export async function suggestReplies(accessToken: string, text: string): Promise<{ replies: string[] }> {
+  const res = await fetch(`${API_URL}/v1/ai/suggested-replies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ text }),
+  });
+  return parseOrThrow(res);
+}
+
+export interface RuleSuggestionResponse {
+  matched: boolean;
+  note?: string;
+  draft?: {
+    name: string;
+    trigger: { type: string; scope?: { providerKey?: string }; params?: { hours?: number } };
+    conditions: ConditionNode;
+    actions: ActionStep[];
+  };
+}
+
+export async function suggestRule(accessToken: string, naturalLanguagePrompt: string): Promise<RuleSuggestionResponse> {
+  const res = await fetch(`${API_URL}/v1/ai/rule-suggestions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ naturalLanguagePrompt }),
+  });
+  return parseOrThrow(res);
+}
+
 export async function triggerMockMessage(
   accessToken: string,
   input: { senderDisplayName: string; senderExternalId: string; bodyText: string },
