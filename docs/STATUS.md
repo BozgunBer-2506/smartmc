@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 4.2
+Version: 4.3
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -220,7 +220,7 @@ Tagged `v0.2.0-phase2`.
 | `PRODUCT.md` | Vision, personas, 100 problems/solutions, competitor analysis, MVP/V2, pricing, brand, Never Build list |
 | `ARCHITECTURE.md` | System architecture, folder structure, DB schema draft, event flow, API design draft, **Section 6: Authentication Flow (corrected, ADR-0014)**, Section 13: IdentityGraph |
 | `DATABASE.md` | Full PostgreSQL schema spec - Phase 1+2 together implement Organization/Workspace/User/UserCredentials/WorkspaceMember/Session/AuditLog + the messaging core |
-| `API.md` | Full REST+GraphQL contract |
+| `API.md` | Full REST+GraphQL contract - rate limiting (Section 9) and cursor pagination (Section 4) are both fully specified but not yet implemented, see `docs/reviews/mvp-hardening-report.md` |
 | `SECURITY.md` | Threat model, credential/secrets management, GDPR operational policy, audit logging spec - Section 4 (Auth) now implemented |
 | `AUTOMATION_ENGINE.md` | The flagship differentiator - Phase 10 implements its trigger/condition/action/execution core; Phase 13 makes Section 6/9's `ai` Context Object real; the visual canvas, full NL rule creation, marketplace, and simulator remain undone, see `docs/reviews/phase-10-review.md` and `phase-13-review.md` |
 | `CONNECTOR_SDK.md` | The contract any provider integration conforms to (Phase 4) |
@@ -229,7 +229,7 @@ Tagged `v0.2.0-phase2`.
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
 | `ROADMAP.md` | 20 phases (Phase 19 - WhatsApp Connector added 2026-07-28), working rules, Phase 1-13 verified Definitions of Done |
 | `STATUS.md` | This file |
-| `DECISIONS.md` | Index of all 20 ADRs |
+| `DECISIONS.md` | Index of all 21 ADRs |
 
 **ADRs 0001-0020**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path, interim envelope-encrypted secrets store, Telegram sync/reconciliation strategy given Bot API's shape, LinkedAccount.status uses the SDK's full lifecycle vocabulary, Discord Gateway streaming ingestion mode, **marketing site as an isolated app**.
 
@@ -262,10 +262,15 @@ Tagged `v0.2.0-phase2`.
 24. **Phase 12's search box was not click-tested in a real browser** - same standing limitation as gaps #20/#22. The endpoint is fully covered by `verify-phase12.mjs` plus a manual smoke test. Disclosed in `docs/reviews/phase-12-review.md`.
 25. **Phase 13's `HeuristicAIProvider` is deterministic keyword/regex logic, not an LLM** - every AI feature genuinely works, but summary/sentiment/classification quality is heuristic-level by design (no AI provider API key configured in this environment). A real LLM-backed provider is additive later per ADR-0021 - no rewrite needed. Disclosed in `docs/reviews/phase-13-review.md`.
 26. **Phase 13's new AI UI (summarize/suggest-replies buttons, rule-suggestion panel) was not click-tested in a real browser** - same standing limitation as gaps #20/#22/#24. Disclosed in `docs/reviews/phase-13-review.md`.
+27. **No general API rate limiting exists** - only login-attempt throttling; `API.md` Section 9's Redis-token-bucket design (per-credential, tiered by plan, tighter limits on AI endpoints) is fully specified but not built. Found during the MVP Hardening pass, flagged as top priority before real multi-tenant traffic - see `docs/reviews/mvp-hardening-report.md`.
+28. **No real cursor pagination exists anywhere** - `API.md` Section 4 mandates it everywhere; every list endpoint uses a silent hardcoded `take` limit instead (50, mostly), and `GET /v1/rules`/`GET /v1/contacts` are fully unbounded. Harmless at current data volume, a real correctness gap once any workspace's data exceeds it. Found during the MVP Hardening pass - see `docs/reviews/mvp-hardening-report.md`.
+29. **Optimistic locking uses a request-body `version` field, not the documented `ETag`/`If-Match` HTTP transport** (`API.md` Section 8) - functionally correct (still 409s on a stale write), just not the specified transport. Found during the MVP Hardening pass - see `docs/reviews/mvp-hardening-report.md`.
 
 All other previously-open decisions are resolved, including the lint/Husky gap (closed 2026-07-18, see above) - see [DECISIONS.md](DECISIONS.md).
 
 ## Next Action
+
+**MVP Hardening pass complete** (2026-07-29, post-Phase 13, pre-Phase 14) - a real, timed, end-to-end user-journey check (13/13, `verify-mvp-hardening.mjs`), an API contract audit, a frontend resilience code review, real performance measurement (every target met), a technical-debt scan (clean), and a security re-verification. One real bug found and fixed (`Inbox.tsx`'s conversation-list fetch failure looked identical to a genuinely empty inbox). Two real, disclosed gaps surfaced and deliberately deferred (rate limiting, cursor pagination - gaps #27/#28) since building either is a new feature, not a bug fix. **No blocking issues - Phase 14 can proceed.** Full report: `docs/reviews/mvp-hardening-report.md`.
 
 Phase 13 (AI) is complete for its disclosed scope - a provider-agnostic `AIProvider` abstraction with `HeuristicAIProvider` as the one real implementation, `ai.classification`/`ai.sentiment` genuinely wired into the Automation Engine's Context Object, verified end-to-end including graceful degradation (21/21, `verify-phase13.mjs`). Before picking a next phase:
 

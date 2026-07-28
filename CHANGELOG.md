@@ -7,6 +7,14 @@ All notable changes to this project are documented here. Format based on [Keep a
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
 - `ROADMAP.md` Phase 19 - WhatsApp Connector, appended after Marketplace per explicit user direction. No other phase renumbered. No code yet - a planning-doc change only, no version bump.
+- **MVP Hardening pass** (post-Phase 13, pre-Phase 14) - a cross-cutting readiness check, not a roadmap phase: a real timed end-to-end user-journey script (`scripts/verify-mvp-hardening.mjs`, 13/13 passing), an API contract audit, a frontend resilience code review, real performance measurement (all targets met), a technical-debt scan (clean), and a security re-verification. Full findings in [docs/reviews/mvp-hardening-report.md](docs/reviews/mvp-hardening-report.md).
+
+### Fixed
+- `Inbox.tsx` - a failed conversation-list fetch was indistinguishable from a genuinely empty inbox (both showed "None yet"); now shows a distinct error banner with Retry.
+
+### Known Gaps (surfaced by the hardening pass, not new code changes)
+- No general API rate limiting exists beyond login-attempt throttling, despite `API.md` Section 9 fully specifying it - flagged as the top-priority item before real multi-tenant traffic.
+- No real cursor pagination exists anywhere, despite `API.md` Section 4 mandating it everywhere - every list endpoint uses a silent hardcoded `take` limit, and `GET /v1/rules`/`GET /v1/contacts` are fully unbounded.
 
 ## [0.12.0] - 2026-07-28 - Phase 13: AI (`v0.12.0-phase13`)
 

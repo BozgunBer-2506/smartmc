@@ -51,6 +51,7 @@ interface InboxProps {
  */
 export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [conversationsError, setConversationsError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
@@ -92,13 +93,22 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
   selectedIdRef.current = selectedId;
 
   async function refreshConversations() {
-    const list = await fetchConversations(accessToken, {
-      archived: showArchived,
-      vip: vipOnly || undefined,
-      unread: unreadOnly || undefined,
-      category: categoryFilter.trim() || undefined,
-    }).catch(() => []);
-    setConversations(list);
+    try {
+      const list = await fetchConversations(accessToken, {
+        archived: showArchived,
+        vip: vipOnly || undefined,
+        unread: unreadOnly || undefined,
+        category: categoryFilter.trim() || undefined,
+      });
+      setConversations(list);
+      setConversationsError(null);
+    } catch (err) {
+      // MVP Hardening finding: an empty list here previously looked
+      // identical whether the workspace genuinely had no conversations or
+      // the request just failed - distinguishing them is what makes the
+      // "None yet" empty state trustworthy instead of misleading.
+      setConversationsError(err instanceof Error ? err.message : "Could not load conversations.");
+    }
   }
 
   useEffect(() => {
@@ -534,7 +544,17 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
               style={inputStyle({ width: 100, fontSize: 12 })}
             />
           </div>
-          {conversations.length === 0 && <p style={{ color: "#9AA5B1", fontSize: 13 }}>None yet - send a mock message above.</p>}
+          {conversationsError && (
+            <div style={{ ...cardStyle, borderColor: "#E05252", color: "#E05252", fontSize: 13, marginBottom: 8 }}>
+              Could not load conversations: {conversationsError}{" "}
+              <button onClick={refreshConversations} style={{ ...smallButtonStyle, marginLeft: 6 }}>
+                Retry
+              </button>
+            </div>
+          )}
+          {!conversationsError && conversations.length === 0 && (
+            <p style={{ color: "#9AA5B1", fontSize: 13 }}>None yet - send a mock message above.</p>
+          )}
           {conversations.map((c) => (
             <article
               key={c.id}
