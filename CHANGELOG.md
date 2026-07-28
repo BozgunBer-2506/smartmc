@@ -8,6 +8,21 @@ All notable changes to this project are documented here. Format based on [Keep a
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
 - `ROADMAP.md` Phase 19 - WhatsApp Connector, appended after Marketplace per explicit user direction. No other phase renumbered. No code yet - a planning-doc change only, no version bump.
 
+## [0.11.0] - 2026-07-28 - Phase 12: Search (`v0.11.0-phase12`)
+
+### Added
+- `GET /v1/search/messages?q=` - real Postgres full-text search (`to_tsvector`/`plainto_tsquery`, `ts_rank`-ordered) over message body + sender display name + conversation title
+- `GET /v1/search/contacts?q=` - case-insensitive substring match on `Contact.displayName`
+- `GET /v1/search?q=` - the combined cross-domain endpoint, fans out to both above
+- A search box in `apps/web`'s Inbox - results show messages (click to open the conversation) and contacts
+- `pnpm --filter @smc/scripts verify:phase12` (9/9 passing) - real, end-to-end regression check including cross-workspace isolation
+
+### Known Gaps
+- Attachments search is not built - no `Attachment`/`MessageAttachment` model exists anywhere (no connector has ever ingested attachments), a connector-scope gap, not this phase's.
+- Semantic search correctly awaits Phase 13's AI layer, per the checklist's own annotation.
+- The search vector is computed live per-query, not a persisted generated column with a GIN index (no migrations mechanism to add one safely yet).
+- The search UI was not click-tested in a real browser (no browser-automation tool available this session).
+
 ## [0.10.0] - 2026-07-28 - Phase 11: Notification Engine (`v0.10.0-phase11`)
 
 ### Added

@@ -16,6 +16,7 @@ import {
   logout,
   markConversationRead,
   rejectMergeSuggestion,
+  search,
   sendMessage,
   triggerMockMessage,
   updateConversation,
@@ -24,6 +25,7 @@ import {
   type MergeSuggestion,
   type NotificationItem,
   type PublicUser,
+  type SearchResults,
 } from "../lib/api";
 import { PasswordInput } from "./PasswordInput";
 import { connectSocket, disconnectSocket } from "../lib/socket";
@@ -47,6 +49,9 @@ interface InboxProps {
 export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
+  const [searching, setSearching] = useState(false);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toasts, setToasts] = useState<NotificationItem[]>([]);
@@ -165,6 +170,27 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
     refreshConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived, vipOnly, unreadOnly, categoryFilter]);
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSearching(true);
+    try {
+      setSearchResults(await search(accessToken, searchQuery.trim()));
+    } catch {
+      setSearchResults(null);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function clearSearch() {
+    setSearchQuery("");
+    setSearchResults(null);
+  }
 
   async function selectConversation(id: string) {
     setSelectedId(id);
@@ -327,6 +353,50 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
           <Button onClick={handleLogout}>Log out</Button>
         </div>
       </header>
+
+      <section style={{ margin: "0 0 20px" }}>
+        <form onSubmit={handleSearch} style={{ display: "flex", gap: 8 }}>
+          <input
+            style={inputStyle({ flex: 1 })}
+            placeholder="Search messages and contacts..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Button type="submit" disabled={searching}>
+            {searching ? "Searching..." : "Search"}
+          </Button>
+          {searchResults && <Button onClick={clearSearch}>Clear</Button>}
+        </form>
+
+        {searchResults && (
+          <div style={{ ...cardStyle, marginTop: 8 }}>
+            <h2 style={sectionHeading}>
+              Messages ({searchResults.messages.length}) - Contacts ({searchResults.contacts.length})
+            </h2>
+            {searchResults.messages.length === 0 && searchResults.contacts.length === 0 && (
+              <p style={{ fontSize: 13, color: "#9AA5B1" }}>No results.</p>
+            )}
+            {searchResults.messages.map((m) => (
+              <div
+                key={m.id}
+                onClick={() => {
+                  selectConversation(m.conversationId);
+                  clearSearch();
+                }}
+                style={{ padding: "6px 0", borderBottom: "1px solid #2A3441", cursor: "pointer", fontSize: 13 }}
+              >
+                <strong>{m.senderDisplayName ?? m.conversationTitle ?? "Unknown"}</strong>
+                <span style={{ color: "#9AA5B1" }}> - {m.bodyText}</span>
+              </div>
+            ))}
+            {searchResults.contacts.map((c) => (
+              <div key={c.id} style={{ padding: "6px 0", fontSize: 13 }}>
+                {c.displayName} {c.isVip && <span style={{ color: "#E0A458" }}>(VIP)</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {mergeSuggestions.length > 0 && (
         <section style={{ margin: "0 0 20px" }}>

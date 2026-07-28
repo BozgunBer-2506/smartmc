@@ -2,7 +2,7 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.6
+Version: 2.7
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -371,11 +371,13 @@ This is where the product stops being "an aggregator" and starts being Smart Mes
 
 ## Phase 12 - Search
 
-- [ ] Global search (Postgres full-text, per ARCHITECTURE.md)
-- [ ] Attachments search
-- [ ] Contacts search
-- [ ] Messages search
-- [ ] Semantic search (deferred to Phase 13 dependency - requires AI layer)
+- [x] Global search (Postgres full-text, per ARCHITECTURE.md) - `GET /v1/search`, fans out to messages + contacts
+- [ ] Attachments search - deferred, no `Attachment`/`MessageAttachment` model exists anywhere (no connector ingests attachments yet) - see [reviews/phase-12-review.md](reviews/phase-12-review.md)
+- [x] Contacts search - case-insensitive substring match on `Contact.displayName` (DATABASE.md Section 14 calls full-text "optional" here)
+- [x] Messages search - real Postgres `tsvector`/`tsquery` full-text search over body + sender name + conversation title, ranked with `ts_rank`
+- [ ] Semantic search (deferred to Phase 13 dependency - requires AI layer) - correctly not attempted
+
+**Phase Review completed 2026-07-28** - full report at [reviews/phase-12-review.md](reviews/phase-12-review.md). Tagged `v0.11.0-phase12`.
 
 ---
 

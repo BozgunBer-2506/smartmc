@@ -16,6 +16,7 @@ import { EmailModule } from "./email/email.module";
 import { IdentityModule } from "./identity/identity.module";
 import { AutomationModule } from "./automation/automation.module";
 import { NotificationPreferencesModule } from "./notification-preferences/notification-preferences.module";
+import { SearchModule } from "./search/search.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { NotificationPreferencesModule } from "./notification-preferences/notifi
     ConversationsModule,
     NotificationsModule,
     NotificationPreferencesModule,
+    SearchModule,
     CredentialsStoreModule,
     TelegramModule,
     DiscordModule,

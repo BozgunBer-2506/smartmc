@@ -9,6 +9,7 @@
     "verify:phase9": "node verify-phase9.mjs",
     "verify:phase10": "node verify-phase10.mjs",
     "verify:phase11": "node verify-phase11.mjs",
+    "verify:phase12": "node verify-phase12.mjs",
     "certify:mock-connector": "node certify-mock-connector.mjs",
     "certify:telegram-connector": "node certify-telegram-connector.mjs",
     "verify:telegram": "node verify-telegram.cjs",

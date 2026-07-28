@@ -386,6 +386,31 @@ export async function updateNotificationPreferences(
   return parseOrThrow<NotificationPreferences>(res);
 }
 
+export interface MessageSearchResult {
+  id: string;
+  conversationId: string;
+  bodyText: string;
+  receivedAt: string;
+  senderDisplayName: string | null;
+  conversationTitle: string | null;
+}
+
+export interface ContactSearchResult {
+  id: string;
+  displayName: string;
+  isVip: boolean;
+}
+
+export interface SearchResults {
+  messages: MessageSearchResult[];
+  contacts: ContactSearchResult[];
+}
+
+export async function search(accessToken: string, query: string): Promise<SearchResults> {
+  const res = await fetch(`${API_URL}/v1/search?q=${encodeURIComponent(query)}`, { headers: authHeaders(accessToken) });
+  return parseOrThrow<SearchResults>(res);
+}
+
 export async function triggerMockMessage(
   accessToken: string,
   input: { senderDisplayName: string; senderExternalId: string; bodyText: string },
