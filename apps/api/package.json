@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "pnpm --filter \"@smc/api^...\" run build",
     "build": "tsc -p tsconfig.json",
     "dev": "nodemon --watch src --watch ../../packages --ext ts,json --exec \"ts-node src/main.ts\"",
     "start": "node dist/main.js",

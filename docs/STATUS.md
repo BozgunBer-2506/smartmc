@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 4.5
+Version: 4.6
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -229,7 +229,7 @@ Tagged `v0.2.0-phase2`.
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
 | `ROADMAP.md` | 21 phases (Phase 19 - WhatsApp Connector added 2026-07-28; Phase 20 - Production Readiness added 2026-07-29; Phase 14/15 reconciled with `PRODUCT.md`/`ARCHITECTURE.md` 2026-07-29 - Phase 14 is now the PWA, native React Native mobile is v2, not a numbered phase), working rules, Phase 1-14 verified Definitions of Done |
 | `STATUS.md` | This file |
-| `DECISIONS.md` | Index of all 21 ADRs |
+| `DECISIONS.md` | Index of all 22 ADRs |
 
 **ADRs 0001-0020**: PostgreSQL, Prisma, REST-over-GraphQL-by-default, Connector SDK, event-driven architecture, URI versioning, UUIDv7 primary keys, two-level multi-tenancy, modular monolith + connector workers, Telegram Bot API only, monorepo layout, IdentityGraph as a first-class capability, identity merge safety over matching cleverness, custom JWT/session auth instead of Auth.js, REST (not GraphQL) for the Phase 3 inbox read path, interim envelope-encrypted secrets store, Telegram sync/reconciliation strategy given Bot API's shape, LinkedAccount.status uses the SDK's full lifecycle vocabulary, Discord Gateway streaming ingestion mode, **marketing site as an isolated app**.
 

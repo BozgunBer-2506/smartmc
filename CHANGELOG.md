@@ -4,6 +4,9 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
+### Fixed
+- **Railway build failure** (`Module not found: Can't resolve '@smc/ui'`) - `apps/web`/`apps/api` now each have a `prebuild` script (`pnpm --filter "<pkg>^..." run build`) that builds their own workspace dependencies before their own build runs, correct regardless of what directory the build is invoked from. Root cause: gitignored `packages/*/dist` output was only ever built by Turborepo's root-level `^build` graph, which a PaaS build scoped to an app's own subdirectory skips entirely. See [ADR-0022](docs/adr/0022-self-sufficient-app-build-scripts.md).
+
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.
 - `ROADMAP.md` Phase 19 - WhatsApp Connector, appended after Marketplace per explicit user direction. No other phase renumbered. No code yet - a planning-doc change only, no version bump.
