@@ -186,12 +186,12 @@ One consistent visual treatment, applied everywhere AI output appears (summaries
 
 ---
 
-## 15. Mobile Experience (Future, Phase 14)
+## 15. Mobile Experience (`ROADMAP.md` Phase 14 - Progressive Web App)
 
 - **Single-pane, stack-based navigation** (list → thread → context, each a full screen, standard mobile push/pop) - the three-pane desktop layout (Section 6.1) never gets crammed into a small screen; it's redesigned for the medium, not shrunk.
-- **Push notification quality is the actual product bet on mobile** (`ROADMAP.md` Phase 14's stated rationale for building mobile only after server-side priority scoring is proven, Sections 6-11) - native push must carry the same priority/VIP/silent-hours intelligence as desktop, never a lowest-common-denominator "new message" ping.
-- **Offline-first for reading**: previously-loaded conversations remain readable with no connection; composing while offline queues visibly (a clear "will send when back online" state, never a silent failure) - matching Section 18's error-state philosophy.
-- Biometric unlock (`ROADMAP.md` Phase 14) gates the app itself, consistent with the elevated sensitivity of what this app aggregates (PRODUCT.md's Brand section: "messaging aggregators are a high-value target").
+- **Push notification quality is the actual product bet on mobile** (`ROADMAP.md` Phase 14's stated rationale for shipping mobile only after server-side priority scoring is proven, Sections 6-11) - Web Push must carry the same priority/VIP/silent-hours intelligence as desktop, never a lowest-common-denominator "new message" ping.
+- **Offline-first for reading**: previously-loaded conversations remain readable with no connection; composing while offline queues visibly (a clear "will send when back online" state, never a silent failure) - matching Section 18's error-state philosophy, and the concrete product requirement behind Phase 14's service-worker offline shell and background sync.
+- Biometric unlock gates the app itself where the platform supports it (WebAuthn platform authenticators - Face ID/Touch ID/Windows Hello - work in a browser/PWA context, not exclusively in a native app), consistent with the elevated sensitivity of what this app aggregates (PRODUCT.md's Brand section: "messaging aggregators are a high-value target"). A native-app-only biometric API is v2 scope, not Phase 14's.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ```yaml
 Title: STATUS.md
-Version: 4.3
+Version: 4.4
 Status: Living
 Owner: Founder/CTO
 Last Updated: 2026-07-28
@@ -227,7 +227,7 @@ Tagged `v0.2.0-phase2`.
 | `EVENT_MODEL.md` | The canonical ~40-event registry (4 implemented so far) |
 | `UI_GUIDE.md` | Complete UX philosophy - no UI built against it yet beyond the Phase 1 dev Inbox stub |
 | `DESIGN_SYSTEM.md` | Implementation-ready design system - not yet built against |
-| `ROADMAP.md` | 20 phases (Phase 19 - WhatsApp Connector added 2026-07-28), working rules, Phase 1-13 verified Definitions of Done |
+| `ROADMAP.md` | 21 phases (Phase 19 - WhatsApp Connector added 2026-07-28; Phase 20 - Production Readiness added 2026-07-29; Phase 14/15 reconciled with `PRODUCT.md`/`ARCHITECTURE.md` 2026-07-29 - Phase 14 is now the PWA, native React Native mobile is v2, not a numbered phase), working rules, Phase 1-13 verified Definitions of Done |
 | `STATUS.md` | This file |
 | `DECISIONS.md` | Index of all 21 ADRs |
 
@@ -281,7 +281,7 @@ Three connector live-verification items remain open from Phases 6-8, all blocked
 1. **Verify Discord live** whenever the Developer Portal is accessible again: register a real Discord Application, enable the privileged `MESSAGE_CONTENT` intent, add the bot to a test server, set `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`DISCORD_BOT_TOKEN`/`DISCORD_PUBLIC_BASE_URL`/`DISCORD_TEST_GUILD_ID` in `apps/api/.env`, run `pnpm --filter @smc/scripts verify:discord`, and manually confirm a real message round-trip through the Inbox UI - the same bar Telegram already cleared. Phase 6 stays **feature-complete, not fully validated** until this runs (see gap #9 above).
 2. **Verify Slack live** whenever a real Slack App is available: register one at api.slack.com/apps, set `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`SLACK_SIGNING_SECRET`/`SLACK_PUBLIC_BASE_URL` in `apps/api/.env`, subscribe to the `message.channels` event on the Events API webhook (`{publicBaseUrl}/v1/connectors/slack/events`), install the app into a real workspace via a browser (not scriptable - see gap #14), and manually confirm a real message round-trip through the Inbox UI. Phase 7 stays **feature-complete, not fully validated** until this runs (see gap #14 above).
 3. **Verify Email live for receiving** whenever a real mailbox (with an app password) is available: set `EMAIL_TEST_IMAP_HOST`/`EMAIL_TEST_IMAP_PORT`/`EMAIL_TEST_SMTP_HOST`/`EMAIL_TEST_SMTP_PORT`/`EMAIL_TEST_USERNAME`/`EMAIL_TEST_PASSWORD`, run `pnpm --filter @smc/scripts verify:email`, and manually confirm a real message round-trip through the Inbox UI. The SMTP-send half is already live-verified (against local mailhog). Phase 8 stays **feature-complete, not fully validated** until the receive half runs too (see gap #16 above).
-4. Otherwise, begin Phase 14 - Mobile, or continue rounding out Phase 10-13's deferred scope (nested-condition-group UI, more trigger types, retry/circuit-breaker/DLQ, the simulator, per-user notification targeting, Waiting-On/Commitments, escalation rules, attachment ingestion, a real LLM provider, translation, semantic search) per those phases' review docs' Future Work - whichever the user directs.
+4. Otherwise, begin Phase 14 - Progressive Web App, or continue rounding out Phase 10-13's deferred scope (nested-condition-group UI, more trigger types, retry/circuit-breaker/DLQ, the simulator, per-user notification targeting, Waiting-On/Commitments, escalation rules, attachment ingestion, a real LLM provider, translation, semantic search) per those phases' review docs' Future Work - whichever the user directs.
 
 ## How to Resume From Zero Context
 

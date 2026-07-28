@@ -2,10 +2,10 @@
 
 ```yaml
 Title: ROADMAP.md
-Version: 2.8
+Version: 2.9
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-28
+Last Updated: 2026-07-29
 Depends On:
   - PRODUCT.md
   - ARCHITECTURE.md
@@ -61,15 +61,14 @@ smartmc/
 │   ├── web/            Next.js unified inbox UI
 │   ├── api/            NestJS backend (modular monolith, ADR-0009)
 │   ├── marketing-site/     Isolated Next.js/Tailwind marketing site (ADR-0020, added 2026-07-22) - not part of the product, no shared code with apps/web
-│   ├── desktop/          Tauri wrapper (Phase 15)
-│   └── mobile/           React Native (added when Phase 14 starts)
+│   └── desktop/          Tauri wrapper (Phase 15, deferred - only if the Phase 14 PWA proves insufficient)
 ├── packages/
 │   ├── connector-sdk/       Connector interface + registry + test harness (ADR-0004)
 │   ├── automation-engine/    Trigger/condition/action evaluation (Phase 10)
 │   ├── database/          Prisma schema, client, migrations (DATABASE.md)
 │   ├── auth/             Auth.js integration, JWT/session logic
 │   ├── shared/            Canonical domain types (Message, Conversation, Contact...)
-│   ├── design-tokens/       Platform-agnostic design tokens (DESIGN_SYSTEM.md) - added 2026-07-18, consumed by ui/ today and a future React Native mapping in Phase 14
+│   ├── design-tokens/       Platform-agnostic design tokens (DESIGN_SYSTEM.md) - added 2026-07-18, consumed by ui/ today; a future React Native mapping is v2, not a numbered phase (see Phase 14's note)
 │   ├── ui/              shadcn/ui-based component library (DESIGN_SYSTEM.md)
 │   ├── ai/              AI feature integrations (Phase 13), isolated per PRODUCT.md
 │   └── config/            eslint, tsconfig, tailwind presets
@@ -399,22 +398,25 @@ AI must be fully optional here and everywhere after. Every feature above must de
 
 ---
 
-## Phase 14 - Mobile
+## Phase 14 - Progressive Web App
 
-- [ ] React Native app scaffold
-- [ ] Push notifications (native - the reason this waits until now, see PRODUCT.md V2 rationale)
-- [ ] Offline support
-- [ ] Biometrics
+**Redefined 2026-07-29 per user direction, replacing this phase's original "React Native app scaffold" scope.** A PWA is one implementation that makes `apps/web` installable and usable on both mobile and desktop - the original split (native-mobile-in-Phase-14, PWA-for-desktop-in-Phase-15) duplicated the same underlying work under two different platform labels. This phase is now that single, real implementation; Phase 15 shrinks accordingly (see below). The native-mobile-app idea this phase originally held is not a numbered phase at all anymore - it moves to v2, exactly matching `PRODUCT.md`'s own already-stated MVP exclusion ("web + Tauri desktop first, React Native is a v2 investment"), not appended as a new phase.
+
+- [ ] Web app manifest (installable, app icon, theme color)
+- [ ] Service worker (offline shell - the app loads and shows cached data with no network, not just a blank error page)
+- [ ] Install prompt (`beforeinstallprompt` handling, a real in-product "Install" affordance, not just relying on the browser's own menu)
+- [ ] Push notifications (Web Push API - browser/OS-level notifications when the tab isn't focused, distinct from the in-app toast/sound Phase 11 already built)
+- [ ] Background sync (queue an outbound reply sent while offline, deliver it once connectivity returns, rather than silently failing)
+- [ ] Responsive Inbox, Rule Builder (Automations), Search, and AI surfaces - usable on a phone-width viewport, not just a shrunk desktop layout
 
 ---
 
 ## Phase 15 - Desktop
 
-**Desktop Strategy, added 2026-07-19 per user direction**: the initial desktop experience is delivered as a Progressive Web App (PWA), not a native Tauri client. A native desktop client (Tauri, as originally specified in `ARCHITECTURE.md`) is only built if real customer demand or a genuine technical limitation of the PWA approach justifies the added maintenance cost of a second build target. This is the lower-risk, more cost-effective strategy for the product's current stage: it delivers an "app-like" experience from day one on a single codebase, while keeping Tauri available as a later, deliberate upgrade rather than a default.
+**Shrunk 2026-07-29**: PWA packaging (installable shell, offline support) moved to Phase 14, since one PWA implementation serves both mobile and desktop installability - see Phase 14's note. What's left here is exactly what the original 2026-07-19 Desktop Strategy already deferred:
 
-- [ ] PWA packaging of `apps/web` (installable, offline-capable shell, app icon) - the actual Phase 15 starting point, not Tauri
-- [ ] System tray / native notifications / background sync - evaluated against what the PWA platform APIs can already deliver before treating any of them as a reason to build Tauri
-- [ ] Tauri app (wraps the web app, per `ARCHITECTURE.md`) - **deferred**, built only if the PWA approach proves insufficient
+- [ ] Evaluate Tauri (per `ARCHITECTURE.md`) against what Phase 14's PWA can already deliver - system tray, deeper native OS integration, or a genuine limitation the PWA approach can't cover
+- [ ] Tauri app (wraps the web app) - **deferred**, built only if that evaluation finds a real gap the PWA doesn't close
 
 ---
 
@@ -463,9 +465,25 @@ Added to the roadmap 2026-07-28, per explicit user direction - `PRODUCT.md` alre
 
 ---
 
+## Phase 20 - Production Readiness
+
+Added to the roadmap 2026-07-29, per the MVP Hardening pass's own findings (`docs/reviews/mvp-hardening-report.md`) - two real, previously-undisclosed gaps between `API.md`'s documented contract and the shipped implementation, both deliberately deferred there as "new features, not bug fixes." Appended here rather than inserted earlier, so no other phase's number changes - same precedent as Phase 19.
+
+- [ ] Real rate limiting (`API.md` Section 9) - per-credential sliding window via Redis token buckets, tiered by plan, with separate tighter limits for expensive endpoints (AI, bulk export) called out by name in the spec. Today only `LoginThrottleService` exists (failed-login brute-force protection specifically, not general API throttling) - every other endpoint, including every credit-consuming `/v1/ai/*` call, currently has no request-volume ceiling at all.
+- [ ] Real cursor pagination (`API.md` Section 4) - replacing the hardcoded `take` limits every list endpoint uses today (`GET /v1/notifications`, `/v1/rules/:id/executions`, `/v1/search/*`, `/v1/ai/credits/ledger`, all silently capped at 50 with no way to reach anything past it) and the two fully unbounded queries (`GET /v1/rules`, `GET /v1/contacts`) with the opaque-cursor `{data, cursor}` envelope the contract specifies.
+- [ ] `?sortBy=`/`?order=` support per the documented allowlist-per-resource convention - currently every list endpoint's sort order is hardcoded.
+- [ ] `ETag`/`If-Match` HTTP-native optimistic concurrency (`API.md` Section 8) - `Rule.version` conflict detection is real today (a stale write correctly 409s) but transported as a request-body field, not the documented conditional-request headers.
+- [ ] Observability (OTel/Prometheus/Grafana/Loki, per `ARCHITECTURE.md`'s Phase 2 - Hardening sketch) - no metrics/tracing/structured log aggregation exists yet beyond NestJS's default console logging.
+
+None of these block a small number of real users - `docs/reviews/mvp-hardening-report.md` explicitly found no blocking issue for Phase 14 to proceed. They block *growth* past that point: unbounded queries and missing rate limits are correctness/abuse-resistance concerns that scale with usage, not with feature count.
+
+---
+
 ## Notes on Sequencing
 
 - Phases 0-3 produce zero user-visible product. That is intentional: the Connector SDK (Phase 4) is the highest-leverage, hardest-to-retrofit piece of this system, and it must be built on a stable domain model, not against a moving one.
 - Phases 5-8 exist specifically to pressure-test Phase 4. If any of them require changing the SDK interface, that's expected for Discord (Phase 6) - it's the first real second connector - but should not happen by Slack (Phase 7) or Email (Phase 8). Treat a forced SDK change at Phase 7/8 as a signal to stop and reassess, not as a routine cost.
 - AI (Phase 13) is deliberately positioned after the automation engine, notifications, and search all have working non-AI versions. This enforces the "AI is optional, never load-bearing" principle structurally, not just by policy.
-- Mobile (Phase 14) is deliberately after the AI layer, not before, because push-notification quality depends on priority scoring already working well server-side (Phase 9-11) - a mobile app built earlier would just ship the same notification chaos natively.
+- The PWA (Phase 14) is deliberately after the AI layer, not before, because push-notification quality depends on priority scoring already working well server-side (Phase 9-11) - a mobile-installable app built earlier would just ship the same notification chaos through a new channel.
+- Native React Native mobile is deliberately not a numbered phase in this document at all - `PRODUCT.md`'s own MVP-exclusion section already frames it as a v2 investment, after web + PWA + (conditionally) Tauri desktop have real usage to validate against. Revisiting this - giving it a real phase number - is appropriate once Phase 14 ships and there's an actual product-market-fit signal calling for a native app specifically, not before.
+- Production Readiness (Phase 20) is deliberately placed after every product-facing phase (through Marketplace, Phase 18) rather than earlier, because its scope - real rate limiting, real cursor pagination, observability - is exactly the set of things `docs/reviews/mvp-hardening-report.md` found genuinely safe to defer past MVP: correctness-at-scale and abuse-resistance concerns that don't block a small number of real users, but do block growth past that point. Appended at the end, not inserted mid-sequence, per this project's own established "smallest-footprint roadmap edit" precedent (see the WhatsApp Connector phase's identical reasoning, Phase 19).

@@ -14,7 +14,7 @@ Related ADRs:
   - ADR-0011
 ```
 
-Author role: Senior Design Systems Engineer. Scope: the complete, implementation-ready design system for Smart Message Center, built on shadcn/ui + Tailwind CSS, and structured to serve three targets from one source of truth: the Next.js web app, the Tauri desktop app, and a future React Native mobile app (`ROADMAP.md` Phase 14).
+Author role: Senior Design Systems Engineer. Scope: the complete, implementation-ready design system for Smart Message Center, built on shadcn/ui + Tailwind CSS, and structured to serve three targets from one source of truth: the Next.js web app (installable as a PWA, `ROADMAP.md` Phase 14), the Tauri desktop app (conditional, Phase 15), and a future React Native mobile app (v2, per `PRODUCT.md`'s MVP-exclusion section - not a numbered phase).
 
 ---
 
@@ -26,7 +26,7 @@ Three layers, strictly separated, because the alternative - values hardcoded per
 2. **Primitive components** (Section 9) - shadcn/ui components, customized via Tailwind + CSS variables to consume the tokens. Web/desktop-specific (React + DOM).
 3. **Composite/product components** (Section 10) - Smart Message Center-specific components (message bubbles, rule builder nodes, identity chips) built from primitives, implementing `UI_GUIDE.md`'s screens.
 
-**Why tokens are a separate layer from day one, even though React Native doesn't exist until Phase 14**: `packages/ui` (shadcn/Tailwind, DOM-based) cannot be reused by React Native (no DOM, no Tailwind runtime) - but the *tokens* (a color is `#1B2333`, a spacing unit is `8px`) are platform-agnostic and can be. Tokens live in `packages/design-tokens` (a plain TypeScript/JSON package with no React dependency at all), consumed by `packages/ui`'s Tailwind config today and by a React Native `StyleSheet`-mapping layer in Phase 14 - avoiding a full design-system rewrite when mobile actually starts, per this whole documentation set's established discipline of not deferring architectural decisions past the point they're cheap to make.
+**Why tokens are a separate layer from day one, even though React Native doesn't exist until v2**: `packages/ui` (shadcn/Tailwind, DOM-based) cannot be reused by React Native (no DOM, no Tailwind runtime) - but the *tokens* (a color is `#1B2333`, a spacing unit is `8px`) are platform-agnostic and can be. Tokens live in `packages/design-tokens` (a plain TypeScript/JSON package with no React dependency at all), consumed by `packages/ui`'s Tailwind config today and by a React Native `StyleSheet`-mapping layer whenever v2 mobile work actually starts - avoiding a full design-system rewrite at that point, per this whole documentation set's established discipline of not deferring architectural decisions past the point they're cheap to make.
 
 ---
 
@@ -129,7 +129,7 @@ Component-internal padding, gaps between elements, and section margins all draw 
 
 - **Breakpoints**: `sm` (640px), `md` (768px), `lg` (1024px), `xl` (1280px) - standard Tailwind defaults, deliberately not customized, so the breakpoint system stays legible to any engineer already familiar with Tailwind without needing this document open.
 - **Below `lg`**: the three-pane Inbox (Section 7) collapses to two panes (list + thread; context pane becomes an overlay/drawer, not a third column) - a direct, deliberate step toward the single-pane mobile layout (`UI_GUIDE.md` Section 15), not a separate design.
-- **Below `md`**: single-pane, stack-based navigation (list → thread → context, each a full view) - this is the same layout React Native (Phase 14) will use, so the responsive web behavior below `md` is effectively a live rehearsal of the mobile experience, keeping the two from diverging.
+- **Below `md`**: single-pane, stack-based navigation (list → thread → context, each a full view) - this is the PWA's real mobile layout (`ROADMAP.md` Phase 14), and the same layout a future React Native app (v2) would use, so this responsive web behavior is both the shipping mobile experience today and a live rehearsal keeping the two from diverging later.
 - **Desktop app (Tauri) minimum window size** is clamped to never render below the `md` breakpoint's layout - a desktop app rendering the single-pane mobile layout would contradict `UI_GUIDE.md` Section 14's positioning of desktop as a full, primary surface.
 
 ---
@@ -229,13 +229,13 @@ Implemented purely through Section 4's paired light/dark token values resolved v
 
 ## 16. Cross-Platform Support Strategy
 
-| Layer | Web (`apps/web`) | Desktop (`apps/desktop`, Tauri) | Mobile (`apps/mobile`, future React Native) |
+| Layer | Web + PWA (`apps/web`, Phase 14) | Desktop (`apps/desktop`, Tauri, Phase 15, conditional) | Mobile (`apps/mobile`, future React Native, v2) |
 |---|---|---|---|
-| Design tokens (`packages/design-tokens`) | Consumed directly | Consumed directly (same web bundle) | Consumed via a token-to-`StyleSheet` mapping layer, built when Phase 14 starts |
+| Design tokens (`packages/design-tokens`) | Consumed directly | Consumed directly (same web bundle) | Consumed via a token-to-`StyleSheet` mapping layer, built if/when v2 mobile work starts |
 | Primitives (`packages/ui`, shadcn/Tailwind) | Native | Native (Tauri wraps the same web build, per `ARCHITECTURE.md`) | Not reused - React Native requires native-equivalent primitives, built against the same tokens |
 | Composites (Section 10) | Native | Native | Rebuilt against React Native primitives, same visual spec (this document), same component names where feasible |
 
-**Why this is an acceptable, deliberate cost, not a gap**: `packages/ui`'s shadcn/Tailwind foundation is fundamentally DOM-based and cannot run natively on React Native regardless of token-sharing - attempting to force a single component implementation across web and native (via a heavy abstraction layer) has historically produced worse results on both platforms than accepting two implementations that share a token source of truth and a visual specification (this document). Phase 14's mobile work re-implements Section 10's composites against React Native primitives, guided by this document, not by re-deriving Sections 2-8 from scratch - the expensive design thinking is shared even though the component code isn't.
+**Why this is an acceptable, deliberate cost, not a gap**: `packages/ui`'s shadcn/Tailwind foundation is fundamentally DOM-based and cannot run natively on React Native regardless of token-sharing - attempting to force a single component implementation across web and native (via a heavy abstraction layer) has historically produced worse results on both platforms than accepting two implementations that share a token source of truth and a visual specification (this document). A future v2 native mobile effort would re-implement Section 10's composites against React Native primitives, guided by this document, not by re-deriving Sections 2-8 from scratch - the expensive design thinking is shared even though the component code isn't.
 
 ---
 
