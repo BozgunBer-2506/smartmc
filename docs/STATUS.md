@@ -2,10 +2,10 @@
 
 ```yaml
 Title: STATUS.md
-Version: 4.6
+Version: 4.7
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-28
+Last Updated: 2026-07-29
 Depends On:
   - ROADMAP.md
 Related ADRs:
@@ -36,7 +36,7 @@ From a clean checkout:
 ```
 pnpm install          # see the environment note below - must run from real WSL, not a Windows UNC path
 docker compose up -d   # Postgres (host port 5433), Redis, mailhog
-pnpm db:generate && pnpm db:push
+pnpm db:generate && pnpm db:migrate:deploy   # see ADR-0023 - db:push is now local-prototyping only
 pnpm dev               # apps/web on :3000, apps/api on :4000, 6 packages in tsc --watch
 ```
 
@@ -98,6 +98,16 @@ smartmc/
 ├── LICENSE        (all-rights-reserved)
 ```
 GitHub remote: `https://github.com/BozgunBer-2506/smartmc` - public, connected.
+
+## Railway Production Deployment (live, first deploy 2026-07-29)
+
+The product is now deployed on Railway (`desirable-passion` project): `@smc/api`, `@smc/web`, `@smc/marketing-site`, Postgres, and Redis all online. Three real incidents were hit and fixed getting there, in order:
+
+1. **Build failure** (`Module not found: Can't resolve '@smc/ui'`) - fixed by [ADR-0022](adr/0022-self-sufficient-app-build-scripts.md)'s `prebuild` scripts.
+2. **`P2021: linked_accounts` does not exist** - production Postgres was provisioned empty; nothing ever ran `db push`/`migrate` against it. Unblocked with a one-time manual `prisma db push`, then the underlying gap closed for good via [ADR-0023](adr/0023-prisma-migrate-replaces-db-push.md) (Prisma Migrate adoption, baseline migration, `prestart` hook, CI drift check).
+3. **`[ioredis] ECONNREFUSED 127.0.0.1:6379`** - two layered causes: Railway's `REDIS_HOST`/`REDIS_PORT` variables were never set on `@smc/api` (fixed by adding them, referencing the Redis service), and the code had no `password` field at all despite Railway's managed Redis requiring AUTH (fixed - all 5 `new Redis({...})` call sites now pass `REDIS_PASSWORD`).
+
+Known follow-up, not yet done: the production Postgres password was exposed in plaintext during incident #2's troubleshooting (pasted into this session to run a one-time `db push`) - it should be rotated in Railway's dashboard next time someone touches that service.
 
 ## Marketing Site (new, isolated addition - not a roadmap phase)
 
@@ -252,7 +262,7 @@ Tagged `v0.2.0-phase2`.
 15. **Slack sender identity is the raw Slack user ID, not a resolved display name** (`users.info` is never called) - disclosed in `docs/reviews/phase-7-review.md`, deferred until real usage prioritizes it.
 16. **Email's connector has not been verified live for receiving against a real IMAP mailbox** - the SMTP-send half *is* live-verified (against this project's own local mailhog); the IMAP-receive half needs a real mailbox with an app password, since this project's dev stack has no local IMAP test server. Disclosed in `docs/reviews/phase-8-review.md`, the concrete next step before this connector is production-ready.
 17. **`Tag`/`MessageTag` (`DATABASE.md` Section 6.11) is not implemented in `packages/database`'s Prisma schema** - Email's Phase 8 checklist explicitly named "Labels/folders mapped to Tags," making this the first connector to surface the gap directly rather than incidentally. Disclosed in `docs/reviews/phase-8-review.md`, deferred as a cross-connector feature bigger than any one connector's core receive/send loop.
-18. **IdentityGraph's fuzzy-matching signal is normalized display-name comparison only** (no shared-conversation-participant or cross-provider handle-similarity signal), `findMergeCandidates()` is O(n²) in Contact count, and pending/rejected-suggestion dedup is enforced at the application level rather than a database partial-unique index (this project has no migrations mechanism beyond `prisma db push`). All three disclosed in `docs/reviews/phase-9-review.md`, deferred until real usage or a migrations mechanism makes them worth closing.
+18. **IdentityGraph's fuzzy-matching signal is normalized display-name comparison only** (no shared-conversation-participant or cross-provider handle-similarity signal), `findMergeCandidates()` is O(n²) in Contact count, and pending/rejected-suggestion dedup is enforced at the application level rather than a database partial-unique index. The last of these is no longer blocked on tooling - [ADR-0023](adr/0023-prisma-migrate-replaces-db-push.md) gave the project a real migrations mechanism - it's just not been written yet. All three disclosed in `docs/reviews/phase-9-review.md`, deferred until real usage makes them worth closing.
 19. **Splitting a Contact whose merged identities share the same provider moves every message from that provider, not just the specific identity being split off** - `Message` has no direct per-sender provider/externalId of its own. Disclosed in `docs/reviews/phase-9-review.md`; correct in the common cross-provider-merge case, a narrower limitation in the same-provider case.
 
 20. **Phase 10's `Rules.tsx` UI was not click-tested in a real browser** - no browser-automation tool was available in that session. The API surface it calls is fully covered by `verify-phase10.mjs` (21/21), and `apps/web` typechecks/lints clean and serves without a compile error, but the actual form interactions (create/edit/enable/disable/test) haven't been manually confirmed. Disclosed in `docs/reviews/phase-10-review.md`.

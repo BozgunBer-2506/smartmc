@@ -8,6 +8,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: smc
+          POSTGRES_PASSWORD: smc_ci_password
+          POSTGRES_DB: smc_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -32,3 +46,11 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Check migrations match schema.prisma
+        working-directory: packages/database
+        env:
+          DATABASE_URL: postgresql://smc:smc_ci_password@localhost:5432/smc_ci
+        run: |
+          pnpm exec prisma migrate deploy
+          pnpm run db:migrate:diff-check

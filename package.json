@@ -18,6 +18,8 @@
     "prepare": "husky",
     "db:generate": "pnpm --filter @smc/database db:generate",
     "db:push": "pnpm --filter @smc/database db:push",
+    "db:migrate:dev": "pnpm --filter @smc/database db:migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @smc/database db:migrate:deploy",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },

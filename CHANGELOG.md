@@ -4,8 +4,13 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
+### Added
+- **Prisma Migrate adoption** - replaces `db push` as the schema change mechanism. A baseline migration (`packages/database/prisma/migrations/20260729000000_baseline/`) snapshots the schema as of adoption, marked applied on both local dev and production without altering either. `pnpm db:migrate:dev` for local schema changes, a `prestart` hook (`prisma migrate deploy`) applies pending migrations before `apps/api` starts, and CI now runs a Postgres service container to catch `schema.prisma`/`migrations/` drift. See [ADR-0023](docs/adr/0023-prisma-migrate-replaces-db-push.md).
+
 ### Fixed
 - **Railway build failure** (`Module not found: Can't resolve '@smc/ui'`) - `apps/web`/`apps/api` now each have a `prebuild` script (`pnpm --filter "<pkg>^..." run build`) that builds their own workspace dependencies before their own build runs, correct regardless of what directory the build is invoked from. Root cause: gitignored `packages/*/dist` output was only ever built by Turborepo's root-level `^build` graph, which a PaaS build scoped to an app's own subdirectory skips entirely. See [ADR-0022](docs/adr/0022-self-sufficient-app-build-scripts.md).
+- **Railway runtime crash** (`[ioredis] Unhandled error event: ECONNREFUSED`) - all 5 Redis call sites in `apps/api/src` now pass `password: process.env.REDIS_PASSWORD`. Railway's managed Redis requires AUTH; the code previously had no password field at all, so connections were rejected even once `REDIS_HOST`/`REDIS_PORT` were correctly configured.
+- **Railway runtime error** (`PrismaClientKnownRequestError P2021: the table public.linked_accounts does not exist`) - production Postgres was provisioned empty and nothing in the deploy pipeline had ever run `db push`/`migrate deploy` against it. Unblocked with a one-time manual `prisma db push`; the underlying gap is closed by the Prisma Migrate adoption above.
 
 ### Added
 - `apps/marketing-site` - a pre-built Next.js/Tailwind/Radix UI/Framer Motion marketing site, integrated as a fully isolated app (no shared code with `apps/web` or `packages/*`), port 3001. See [ADR-0020](docs/adr/0020-marketing-site-as-isolated-app.md). Not a roadmap phase, so no version bump - tracked here until the next tagged phase.

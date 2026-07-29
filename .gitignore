@@ -26,6 +26,7 @@ docker-compose.override.yml
 
 # Database dumps / backups - may contain real user or message data
 *.sql
+!packages/database/prisma/migrations/**/*.sql
 *.dump
 *.bak
 *.backup

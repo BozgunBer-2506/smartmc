@@ -6,6 +6,7 @@
     "prebuild": "pnpm --filter \"@smc/api^...\" run build",
     "build": "tsc -p tsconfig.json",
     "dev": "nodemon --watch src --watch ../../packages --ext ts,json --exec \"ts-node src/main.ts\"",
+    "prestart": "pnpm --filter @smc/database db:migrate:deploy",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts"

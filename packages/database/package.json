@@ -11,6 +11,9 @@
     "lint": "eslint . --ext .ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:diff-check": "prisma migrate diff --from-url \"$DATABASE_URL\" --to-schema-datamodel prisma/schema.prisma --exit-code",
     "db:studio": "prisma studio"
   },
   "dependencies": {
