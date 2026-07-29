@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "prebuild": "pnpm --filter \"@smc/web^...\" run build",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p ${PORT:-3000}",
     "typecheck": "tsc --noEmit",
     "lint": "next lint"
   },
