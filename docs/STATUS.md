@@ -2,10 +2,10 @@
 
 ```yaml
 Title: STATUS.md
-Version: 4.7
+Version: 4.8
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-29
+Last Updated: 2026-07-30
 Depends On:
   - ROADMAP.md
 Related ADRs:
@@ -106,8 +106,15 @@ The product is now deployed on Railway (`desirable-passion` project): `@smc/api`
 1. **Build failure** (`Module not found: Can't resolve '@smc/ui'`) - fixed by [ADR-0022](adr/0022-self-sufficient-app-build-scripts.md)'s `prebuild` scripts.
 2. **`P2021: linked_accounts` does not exist** - production Postgres was provisioned empty; nothing ever ran `db push`/`migrate` against it. Unblocked with a one-time manual `prisma db push`, then the underlying gap closed for good via [ADR-0023](adr/0023-prisma-migrate-replaces-db-push.md) (Prisma Migrate adoption, baseline migration, `prestart` hook, CI drift check).
 3. **`[ioredis] ECONNREFUSED 127.0.0.1:6379`** - two layered causes: Railway's `REDIS_HOST`/`REDIS_PORT` variables were never set on `@smc/api` (fixed by adding them, referencing the Redis service), and the code had no `password` field at all despite Railway's managed Redis requiring AUTH (fixed - all 5 `new Redis({...})` call sites now pass `REDIS_PASSWORD`).
+4. **`@smc/web` unreachable** (no public domain existed, then `502` once one did) - `apps/web`/`apps/marketing-site` hardcoded `next start -p <fixed port>`, ignoring Railway's dynamically-assigned `PORT`; `apps/api` was unaffected since it already read `process.env.PORT`. Fixed by using `next start -p ${PORT:-<default>}` in both. `NEXT_PUBLIC_API_URL` was also never set on `@smc/web` - since it's build-time-inlined, the shipped bundle would have called `localhost:4000` from every real visitor's browser. Fixed and confirmed present in the actual served JS bundle.
+5. **Session lost on every page reload** - `apps/web` and `apps/api` are on different Railway subdomains (`smcweb-*`/`smcapi-*.up.railway.app`); `up.railway.app` is in the Mozilla Public Suffix List (confirmed directly against publicsuffix.org), so browsers treat them as different sites. The refresh-token cookie was `SameSite=Strict`, silently dropped on the cross-site fetch `tryRefresh()` makes - every reload looked like a fresh, logged-out session even with a valid refresh token. Fixed: `SameSite=None` in production (paired with the already-conditional `Secure`), made configurable via `AUTH_COOKIE_SAMESITE` for topologies `NODE_ENV` can't predict. Confirmed live: `Set-Cookie` header now reads `SameSite=None; Secure; HttpOnly`, and a real browser reload no longer drops the session.
+6. **Slack connect `500 missing_scope`, then `500 not_in_channel`** - found during live Slack verification (see `docs/reviews/phase-7-review.md`'s 2026-07-30 update). Two real bugs: the default bot OAuth scopes never requested `groups:read` (needed for `conversations.list`'s `private_channel` half), and `syncChannels()` called `conversations.history` on every channel returned by `conversations.list`, including ones the bot was never a member of. Both fixed; a real message round-trip (Slack → Events API webhook → BullMQ → Postgres → Inbox) is now live-verified.
+7. **A real, pushed, committed bug fix silently never deployed** - three separate deploy attempts (git push, `railway redeploy`, `railway up`) all ran, but `@smc/api`'s Railway **Watch Paths** setting was scoped to just `/apps/api/**`; the Slack fix lived in `packages/connector-sdk`, outside that path, so Railway's change-detection skipped rebuilding every time (`"no changes detected in watch paths, build will skip"` in the build log). Fixed by adding `/packages/**` to Watch Paths - see [ADR-0024](adr/0024-railway-watch-paths-must-cover-workspace-dependencies.md). No code change; a Railway dashboard config fix.
 
-Known follow-up, not yet done: the production Postgres password was exposed in plaintext during incident #2's troubleshooting (pasted into this session to run a one-time `db push`) - it should be rotated in Railway's dashboard next time someone touches that service.
+Known follow-ups, not yet done:
+- The production Postgres password was exposed in plaintext during incident #2's troubleshooting (pasted into this session to run a one-time `db push`) - should be rotated in Railway's dashboard.
+- A real Telegram bot token and a real Slack Client Secret/Signing Secret/Bot Token were also pasted into this session's chat during Telegram and Slack live verification - lower urgency (test-only bots, no real user data), but worth rotating (`/revoke` in BotFather; regenerate in Slack's app dashboard) next time either is touched.
+- **Connector reconnect fails after soft delete** - `TelegramController`/`DiscordController`/`SlackController`'s "already connected" check (`findFirst({ where: { workspaceId, providerId, externalAccountId } })`) never filters `deletedAt: null`. Once any `LinkedAccount` row exists for a given external account - even one that was disconnected (soft-deleted) or left broken by a failed connect attempt - the same account can never be reconnected; every future attempt hits `already_connected` forever. Found and worked around repeatedly during this session's Discord/Slack verification (each failed attempt required a manual DB row deletion before retrying). Real production bug, all three connectors, not yet fixed - the fix is small (add `deletedAt: null` to each existing-check query, or a shared soft-delete-aware query helper) but was kept out of scope of the live-verification session per explicit instruction to fix only what blocks the task at hand.
 
 ## Marketing Site (new, isolated addition - not a roadmap phase)
 
