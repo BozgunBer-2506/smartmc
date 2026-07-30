@@ -48,6 +48,9 @@ export class MockConnectorController {
     // unauthorized callers (docs/SECURITY.md's 404-vs-403 policy, Section
     // "Application Security" - existence-sensitive vs not).
     if (process.env.NODE_ENV === "production") {
+      // Intentional 404, not a routing bug - see the class-level comment
+      // above and the Phase 1 review. Verified live 2026-07-29: this is
+      // exactly what production returns, by design.
       throw new NotFoundException();
     }
 
