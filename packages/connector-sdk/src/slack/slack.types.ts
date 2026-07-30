@@ -15,6 +15,8 @@ export interface SlackChannel {
   name?: string;
   is_channel?: boolean;
   is_im?: boolean;
+  /** Whether the bot user is actually a member of this channel - conversations.history 400s with not_in_channel otherwise, even with the right scopes. */
+  is_member?: boolean;
 }
 
 /**

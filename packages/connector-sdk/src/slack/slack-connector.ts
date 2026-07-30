@@ -167,7 +167,13 @@ export class SlackConnector extends BaseConnector {
       cursor = JSON.parse(checkpoint.cursor) as SlackSyncCursor;
     } else {
       const channels = await this.apiClient.listConversations(botToken);
-      const channelIds = channels.slice(0, MAX_CHANNELS_TO_SYNC).map((channel) => channel.id);
+      // conversations.list returns every channel in the workspace, most of
+      // which the bot has never joined - conversations.history 400s with
+      // not_in_channel on any of those despite channels:history/
+      // groups:history being granted. Only channels the bot is actually a
+      // member of can have their history read.
+      const joinedChannels = channels.filter((channel) => channel.is_member);
+      const channelIds = joinedChannels.slice(0, MAX_CHANNELS_TO_SYNC).map((channel) => channel.id);
       cursor = { channelIds, channelIndex: 0 };
     }
 
