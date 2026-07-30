@@ -96,19 +96,13 @@ export class AuthController {
   }
 
   private setRefreshCookie(res: Response, token: string): void {
-    // "strict" works in local dev (web/api share the "localhost" site
-    // despite different ports), but breaks in production, where web and
-    // api are on different Railway subdomains under the public-suffix
-    // "up.railway.app" - different sites, so a Strict/Lax cookie never
-    // rides along on the cross-site fetch to /v1/auth/refresh, silently
-    // failing that call on every page reload. "none" (paired with
-    // Secure, already conditional on production here) is required for
-    // any cross-site cookie to be sent at all.
-    const isProduction = process.env.NODE_ENV === "production";
+    // See authConfig.refreshCookieSameSite for why this can't just be
+    // "strict" once web/api are on different sites (e.g. Railway).
+    const sameSite = authConfig.refreshCookieSameSite;
     res.cookie(authConfig.refreshCookieName, token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "strict",
+      secure: sameSite === "none" || process.env.NODE_ENV === "production",
+      sameSite,
       path: authConfig.refreshCookiePath,
       maxAge: authConfig.refreshTokenTtlDays * 24 * 60 * 60 * 1000,
     });
@@ -118,11 +112,11 @@ export class AuthController {
     // Must match setRefreshCookie's sameSite/secure attributes - a
     // mismatched clearCookie silently fails to delete a SameSite=None
     // cookie in some browsers.
-    const isProduction = process.env.NODE_ENV === "production";
+    const sameSite = authConfig.refreshCookieSameSite;
     res.clearCookie(authConfig.refreshCookieName, {
       path: authConfig.refreshCookiePath,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "strict",
+      secure: sameSite === "none" || process.env.NODE_ENV === "production",
+      sameSite,
     });
   }
 }
