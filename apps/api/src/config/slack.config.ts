@@ -16,7 +16,14 @@ export const slackConfig = {
   publicBaseUrl: () => process.env.SLACK_PUBLIC_BASE_URL || undefined,
   /** Where to send the user's browser after a successful/failed connect. */
   webAppBaseUrl: () => process.env.SLACK_WEB_APP_BASE_URL ?? "http://localhost:3000",
-  /** Bot scopes requested during install - chat:write to send, channels:history/groups:history to read, channels:read to list conversations. */
-  botScopes: () => process.env.SLACK_BOT_SCOPES ?? "chat:write,channels:history,groups:history,channels:read",
+  /**
+   * Bot scopes requested during install - chat:write to send,
+   * channels:history/groups:history to read messages, channels:read/
+   * groups:read to list conversations. RealSlackApiClient.listConversations
+   * calls conversations.list with types "public_channel,private_channel" -
+   * groups:read is required for the private_channel half of that same
+   * call, not just an unrelated nice-to-have scope.
+   */
+  botScopes: () => process.env.SLACK_BOT_SCOPES ?? "chat:write,channels:history,groups:history,channels:read,groups:read",
   reconciliationIntervalMs: () => Number(process.env.SLACK_RECONCILIATION_INTERVAL_MS ?? 15 * 60 * 1000),
 };
