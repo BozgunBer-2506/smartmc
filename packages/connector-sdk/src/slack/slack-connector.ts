@@ -54,6 +54,36 @@ function placeholderBodyText(message: SlackMessage): string {
 }
 
 /**
+ * Slack's channel/group housekeeping notices ("X joined the channel", "X
+ * changed the topic", etc.) all carry `type: "message"` with one of these
+ * subtypes set - real content, including attachment-only messages
+ * (`file_share`, which placeholderBodyText() above turns into
+ * "[Attachment]"), has either no subtype or one outside this set. Used by
+ * both the Events API webhook path (apps/api/src/slack/slack.controller.ts)
+ * and initialSync's history scan below, so the two never drift apart.
+ */
+const NON_CONTENT_SLACK_SUBTYPES = new Set([
+  "channel_join",
+  "channel_leave",
+  "channel_topic",
+  "channel_purpose",
+  "channel_name",
+  "channel_archive",
+  "channel_unarchive",
+  "group_join",
+  "group_leave",
+  "group_topic",
+  "group_purpose",
+  "group_name",
+  "group_archive",
+  "group_unarchive",
+]);
+
+export function isSlackContentMessage(message: Pick<SlackMessage, "subtype">): boolean {
+  return !message.subtype || !NON_CONTENT_SLACK_SUBTYPES.has(message.subtype);
+}
+
+/**
  * The third real connector (docs/ROADMAP.md Phase 7), and the first to
  * combine `oauth2_redirect` auth (like Discord) with "hybrid" webhook +
  * reconciliation ingestion (like Telegram) - no new SDK interface member
@@ -200,7 +230,7 @@ export class SlackConnector extends BaseConnector {
     // implied by the request) - attached here so mapMessage() sees the
     // same shape as an Events API payload always does.
     const messages = rawMessages
-      .filter((message) => !message.bot_id && message.type === "message")
+      .filter((message) => !message.bot_id && message.type === "message" && isSlackContentMessage(message))
       .map((message) => this.mapMessage({ ...message, channel: channelId }));
 
     const nextCursor: SlackSyncCursor = { channelIds: cursor.channelIds, channelIndex: cursor.channelIndex + 1 };

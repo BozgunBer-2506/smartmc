@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Controller, Get, HttpStatus, Logger, Param, Post, Query, RawBodyRequest, Req, Res, UseGuards } from "@nestjs/common";
 import type { Request, Response } from "express";
-import { defaultConnectorRegistry, SLACK_PROVIDER_KEY, type LifecycleState, type SlackConnector, type SlackEventEnvelope } from "@smc/connector-sdk";
+import { defaultConnectorRegistry, isSlackContentMessage, SLACK_PROVIDER_KEY, type LifecycleState, type SlackConnector, type SlackEventEnvelope } from "@smc/connector-sdk";
 import { getPrismaClient, newId } from "@smc/database";
 import { createEvent, EventType } from "@smc/event-model";
 import type { InboundMessagePayload } from "@smc/shared";
@@ -195,11 +195,12 @@ export class SlackController {
     }
 
     const event = envelope.event;
-    // Never ingest our own sends or other bots' messages, and only ever
-    // ingest plain messages - avoids self-loops and non-message subtypes
-    // (channel_join, etc.) the same way Discord filters `author.bot` and
-    // Telegram filters to message/edited_message updates only.
-    if (!event || event.type !== "message" || event.bot_id) {
+    // Never ingest our own sends, other bots' messages, or channel
+    // housekeeping notices (join/leave/topic-change - isSlackContentMessage
+    // excludes those but keeps real content like file_share attachments)
+    // - the same way Discord filters `author.bot` and Telegram filters to
+    // message/edited_message updates only.
+    if (!event || event.type !== "message" || event.bot_id || !isSlackContentMessage(event)) {
       res.status(HttpStatus.OK).json({ ok: true });
       return;
     }

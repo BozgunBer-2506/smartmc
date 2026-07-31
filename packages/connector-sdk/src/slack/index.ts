@@ -1,4 +1,4 @@
-export { SlackConnector, SLACK_PROVIDER_KEY, type SlackCredential } from "./slack-connector";
+export { SlackConnector, SLACK_PROVIDER_KEY, isSlackContentMessage, type SlackCredential } from "./slack-connector";
 export { RealSlackApiClient, SlackRawApiError } from "./slack-api-client";
 export type { SlackApiClient } from "./slack-api-client";
 export type {

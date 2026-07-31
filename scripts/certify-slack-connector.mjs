@@ -26,7 +26,7 @@ const fakeApiClient = {
     return { teamId: TEAM_ID, team: "Cert Team", userId: "U0000000000" };
   },
   async listConversations() {
-    return [{ id: CHANNEL_ID, name: "general", is_channel: true }];
+    return [{ id: CHANNEL_ID, name: "general", is_channel: true, is_member: true }];
   },
   async conversationsHistory() {
     return { messages: CHANNEL_MESSAGES };
