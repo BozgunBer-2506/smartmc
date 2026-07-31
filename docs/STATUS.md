@@ -2,10 +2,10 @@
 
 ```yaml
 Title: STATUS.md
-Version: 4.9
+Version: 4.10
 Status: Living
 Owner: Founder/CTO
-Last Updated: 2026-07-31
+Last Updated: 2026-08-01
 Depends On:
   - ROADMAP.md
 Related ADRs:
@@ -114,6 +114,8 @@ The product is now deployed on Railway (`desirable-passion` project): `@smc/api`
 9. **Production was "encrypting" every connector credential with a public, hardcoded key** - `CREDENTIALS_ENCRYPTION_KEY` was never set on Railway, so `credentials-store.config.ts` fell back to a key derived from a literal string committed in this public repo (`DEV_KEY_MATERIAL`). Anyone reading the source could decrypt every stored bot token. Fixed: generated a real random 64-hex-char key, set it on Railway, and - since only today's own test connections existed (verified via a DB check first, per explicit discussion of the safer alternative) - deleted the old `LinkedAccount`/`secret_records` rows rather than writing a re-encryption migration for throwaway data, then reconnected Telegram/Slack fresh under the new key.
 
 **Secret rotation, 2026-07-30/31** (prompted by finding #9, then extended to everything pasted into this chat session): Telegram bot token (`/revoke` + reconnect), Slack bot token (rotated automatically by Slack on every fresh OAuth install), Slack Client Secret (regenerated, `SLACK_CLIENT_SECRET` updated, OAuth flow re-verified live), Slack Signing Secret (regenerated, `SLACK_SIGNING_SECRET` updated, Events API signature re-verified live with a real HMAC), and the production Postgres password (changed directly via `ALTER USER`, `POSTGRES_PASSWORD`/`DATABASE_URL` updated on Railway - both auto-propagated to `@smc/api`'s referenced `DATABASE_URL` - `@smc/api` manually redeployed to pick up the new value after a brief `database: "error"` health-check window, then confirmed `database: "ok"` and a full login → `/v1/conversations` round trip). All rotations verified against the live system, not just "value changed."
+
+10. **Email connector's `testConnection()` always fails in production - outbound SMTP is platform-blocked** - live-verified with a real Gmail account: IMAP (receive, port 993) connects and authenticates in under 2 seconds. SMTP (send, port 587) genuinely times out (`ETIMEDOUT` at the raw TCP `CONN` stage, ~15s) - not a credentials/TLS/SNI issue (all independently ruled out via a temporary diagnostic endpoint, since removed - raw TCP, TLS handshake with explicit SNI, and ImapFlow with real credentials all worked fine and fast; only the SMTP port genuinely can't be reached). This matches the well-known pattern of cloud/PaaS providers (AWS, GCP, Azure, Heroku, Railway) blocking outbound SMTP submission ports (25/465/587) by default as an anti-spam measure - not a code bug. Since `EmailApiClient.testConnection()` requires both IMAP and SMTP to succeed, the connector currently cannot complete `connect` at all in production, even though the receive half works perfectly. Deliberately not fixed this session (explicitly deferred) - real options for later: request Railway lift the SMTP block, switch outbound send to an HTTPS-based transactional email API (SendGrid/Mailgun/Resend/etc.), or relax `testConnection()` to allow an IMAP-only "receive-only" connection.
 
 Known follow-up, not yet done:
 - **Connector reconnect fails after soft delete** - `TelegramController`/`DiscordController`/`SlackController`'s "already connected" check (`findFirst({ where: { workspaceId, providerId, externalAccountId } })`) never filters `deletedAt: null`. Once any `LinkedAccount` row exists for a given external account - even one that was disconnected (soft-deleted) or left broken by a failed connect attempt - the same account can never be reconnected; every future attempt hits `already_connected` forever. Found and worked around repeatedly during this session's Slack verification and again during the encryption-key rotation (each time required a manual DB row deletion before retrying). Real production bug, all three connectors, not yet fixed - the fix is small (add `deletedAt: null` to each existing-check query, or a shared soft-delete-aware query helper) but was kept out of scope of this session's live-verification/rotation work per explicit instruction to fix only what blocks the task at hand.
