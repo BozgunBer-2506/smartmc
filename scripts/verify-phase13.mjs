@@ -23,12 +23,29 @@ async function req(method, url, accessToken, body) {
     headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  return { status: res.status, body: await res.json().catch(() => ({})) };
+  return { status: res.status, headers: res.headers, body: await res.json().catch(() => ({})) };
 }
 
 async function getJson(url, accessToken) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  return { status: res.status, body: await res.json().catch(() => ({})) };
+  return { status: res.status, headers: res.headers, body: await res.json().catch(() => ({})) };
+}
+
+/**
+ * Phase 20.1's real AI rate limit (apps/api/src/config/rate-limit.config.ts)
+ * now applies to every /v1/ai/* call this script makes - a well-behaved
+ * client self-throttles using the X-RateLimit-* headers the guard sends
+ * on every response, rather than assuming unlimited calls. Used only by
+ * the credit-drain loop below, which deliberately makes far more AI
+ * calls than any real single-session usage would.
+ */
+async function waitForAiBudgetIfExhausted(res) {
+  const remaining = Number(res.headers.get("x-ratelimit-remaining"));
+  if (remaining > 0) return;
+  const resetAt = Number(res.headers.get("x-ratelimit-reset"));
+  const waitMs = Math.max(0, resetAt * 1000 - Date.now()) + 1000;
+  console.log(`  (AI rate limit window exhausted - waiting ${Math.ceil(waitMs / 1000)}s for it to reset)`);
+  await sleep(waitMs);
 }
 
 async function sendMock(accessToken, { senderDisplayName, senderExternalId, bodyText }) {
@@ -138,15 +155,25 @@ async function main() {
   const reEnabled = await getJson(`${BASE}/v1/ai/settings`, accessToken);
   check("re-enabling AI succeeds", reEnabled.body.aiEnabled === true);
 
-  // 7. Credit exhaustion -> 402, not a broken state.
+  // 7. Credit exhaustion -> 402, not a broken state. Drains far more
+  // credits than any real single-session AI rate limit allows, so this
+  // deliberately paces itself against the X-RateLimit-* headers rather
+  // than assuming every call succeeds immediately (see
+  // waitForAiBudgetIfExhausted above).
   let balance = (await getJson(`${BASE}/v1/ai/credits/balance`, accessToken)).body.balance;
   let lastStatus = 201;
   let guard = 0;
-  while (balance > 0 && guard < 60) {
+  while (balance > 0 && guard < 200) {
     const res = await req("POST", `${BASE}/v1/ai/rewrite`, accessToken, { text: "quick test", style: "concise" });
     lastStatus = res.status;
-    balance -= 1;
     guard += 1;
+    if (res.status === 201) {
+      balance -= 1;
+    } else if (res.status === 429) {
+      await waitForAiBudgetIfExhausted(res);
+    } else {
+      break; // an unexpected status - stop draining and let the check below report it honestly
+    }
   }
   check("credits were drained to 0 via repeated calls", balance === 0);
   const exhausted = await req("POST", `${BASE}/v1/ai/rewrite`, accessToken, { text: "one more", style: "concise" });

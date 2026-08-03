@@ -19,6 +19,7 @@ import { NotificationPreferencesModule } from "./notification-preferences/notifi
 import { SearchModule } from "./search/search.module";
 import { AiModule } from "./ai/ai.module";
 import { PushModule } from "./push/push.module";
+import { RateLimitModule } from "./rate-limit/rate-limit.module";
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PushModule } from "./push/push.module";
     SearchModule,
     AiModule,
     PushModule,
+    RateLimitModule,
     CredentialsStoreModule,
     TelegramModule,
     DiscordModule,
