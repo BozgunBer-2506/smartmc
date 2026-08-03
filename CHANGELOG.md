@@ -5,6 +5,7 @@ All notable changes to this project are documented here. Format based on [Keep a
 ## [Unreleased]
 
 ### Added
+- **Phase 20.1 - Real rate limiting** (`API.md` Section 9) - a global Redis-backed `RateLimitGuard`, tiered by `Organization.planTier`, with a separate tighter budget for `/v1/ai/*`. `X-RateLimit-Limit`/`Remaining`/`Reset` headers on every request, `429` RFC 7807 with `Retry-After` once exceeded. Live-verified in production: correct headers and 429s at the documented free-tier limits (60/min general, 30/min AI), independent AI/general buckets, real Redis counters, and an 80-concurrent-request load test landing exactly 60/60 - the Redis `INCR` counter is race-free under real concurrency. `docs/ROADMAP.md`'s Phase 20 (Production Readiness) is being delivered as independent sub-phases (20.1-20.5), each with its own commit and live verification, rather than one large effort - 20.2 (cursor pagination) onward remain.
 - **Prisma Migrate adoption** - replaces `db push` as the schema change mechanism. A baseline migration (`packages/database/prisma/migrations/20260729000000_baseline/`) snapshots the schema as of adoption, marked applied on both local dev and production without altering either. `pnpm db:migrate:dev` for local schema changes, a `prestart` hook (`prisma migrate deploy`) applies pending migrations before `apps/api` starts, and CI now runs a Postgres service container to catch `schema.prisma`/`migrations/` drift. See [ADR-0023](docs/adr/0023-prisma-migrate-replaces-db-push.md).
 
 ### Fixed
