@@ -100,27 +100,44 @@ async function main() {
   );
 
   // --- Conversations: sortBy=lastMessageAt asc/desc via the Mock Connector ---
+  // /dev/mock-connector/send is intentionally 404 in production
+  // (mock-connector.controller.ts's own documented NODE_ENV==="production"
+  // guard, verified live 2026-07-29) - so this half only runs where the
+  // Mock Connector is reachable (local dev / CI), matching how
+  // verify-telegram.cjs etc. skip their real-credential-only sections
+  // rather than reporting a false FAIL for something the environment
+  // deliberately doesn't support.
   const senders = ["Casey", "Avery", "Blair"];
-  for (const name of senders) {
-    await fetch(`${BASE}/dev/mock-connector/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ senderDisplayName: name, senderExternalId: `${name}-sortverify`, bodyText: `hello from ${name}` }),
-    });
-    await new Promise((resolve) => setTimeout(resolve, 250));
+  const firstSendRes = await fetch(`${BASE}/dev/mock-connector/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ senderDisplayName: senders[0], senderExternalId: `${senders[0]}-sortverify`, bodyText: `hello from ${senders[0]}` }),
+  });
+
+  if (firstSendRes.status === 404) {
+    console.log("\nSKIP: conversations sortBy=lastMessageAt checks (/dev/mock-connector/send is 404 here - expected in production)");
+  } else {
+    for (const name of senders.slice(1)) {
+      await fetch(`${BASE}/dev/mock-connector/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ senderDisplayName: name, senderExternalId: `${name}-sortverify`, bodyText: `hello from ${name}` }),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const convAsc = await getJson(`${BASE}/v1/conversations?limit=10&sortBy=lastMessageAt&order=asc`, accessToken);
+    const convAscSenders = convAsc.body.data.map((c) => c.lastMessage?.sender?.displayName).filter((n) => senders.includes(n));
+    check("conversations sortBy=lastMessageAt&order=asc returns senders oldest-message-first", JSON.stringify(convAscSenders) === JSON.stringify(senders));
+
+    const convDesc = await getJson(`${BASE}/v1/conversations?limit=10&sortBy=lastMessageAt&order=desc`, accessToken);
+    const convDescSenders = convDesc.body.data.map((c) => c.lastMessage?.sender?.displayName).filter((n) => senders.includes(n));
+    check(
+      "conversations sortBy=lastMessageAt&order=desc returns senders newest-message-first (reverse of asc)",
+      JSON.stringify(convDescSenders) === JSON.stringify([...senders].reverse()),
+    );
   }
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const convAsc = await getJson(`${BASE}/v1/conversations?limit=10&sortBy=lastMessageAt&order=asc`, accessToken);
-  const convAscSenders = convAsc.body.data.map((c) => c.lastMessage?.sender?.displayName).filter((n) => senders.includes(n));
-  check("conversations sortBy=lastMessageAt&order=asc returns senders oldest-message-first", JSON.stringify(convAscSenders) === JSON.stringify(senders));
-
-  const convDesc = await getJson(`${BASE}/v1/conversations?limit=10&sortBy=lastMessageAt&order=desc`, accessToken);
-  const convDescSenders = convDesc.body.data.map((c) => c.lastMessage?.sender?.displayName).filter((n) => senders.includes(n));
-  check(
-    "conversations sortBy=lastMessageAt&order=desc returns senders newest-message-first (reverse of asc)",
-    JSON.stringify(convDescSenders) === JSON.stringify([...senders].reverse()),
-  );
 
   // --- Contacts: sortBy=displayName order=desc ---
   const contactsDesc = await getJson(`${BASE}/v1/contacts?limit=10&sortBy=displayName&order=desc`, accessToken);
