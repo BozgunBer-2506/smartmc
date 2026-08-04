@@ -104,7 +104,7 @@ async function main() {
   await sendMock(accessToken, { senderDisplayName: "Push Test", senderExternalId: "push-test", bodyText: "Hello" });
   await sleep(700);
   const executions = await req("GET", `${BASE}/v1/rules/${ruleId}/executions`, accessToken);
-  check("the rule still executes successfully despite an undeliverable push subscription", executions.body.length > 0 && executions.body[0].status === "success");
+  check("the rule still executes successfully despite an undeliverable push subscription", executions.body.data.length > 0 && executions.body.data[0].status === "success");
 
   // 6. Unsubscribe.
   const unsubscribeRes = await req("DELETE", `${BASE}/v1/push-subscriptions`, accessToken, { endpoint: fakeEndpoint });

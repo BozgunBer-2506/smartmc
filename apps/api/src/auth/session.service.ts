@@ -186,12 +186,21 @@ export class SessionService {
     return result.count;
   }
 
-  /** Active sessions for the session-visibility surface (SECURITY.md Section 4.3). */
+  /**
+   * Active sessions for the session-visibility surface (SECURITY.md
+   * Section 4.3) - a single user's own active devices, naturally bounded
+   * to a small number in practice. Not given full cursor pagination
+   * (ROADMAP.md Phase 20.2) since building a paged UI for "your own
+   * device list" is disproportionate to the risk; a flat safety cap
+   * instead closes the genuinely-unbounded-query gap a pathological
+   * session-creation bug could otherwise hit.
+   */
   async listActiveForUser(userId: string): Promise<Session[]> {
     const prisma = getPrismaClient();
     return prisma.session.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "desc" },
+      take: 200,
     });
   }
 }

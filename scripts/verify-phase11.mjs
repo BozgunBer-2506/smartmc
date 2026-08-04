@@ -76,7 +76,7 @@ async function main() {
   // 2. With no silent hours configured, a plain message still notifies (no regression vs. Phase 10's unconditional starter rule).
   await sendMock(accessToken, { senderDisplayName: "Jordan Plain", senderExternalId: "jordan-plain", bodyText: "Just saying hi." });
   await sleep(600);
-  let notifications = await getJson(`${BASE}/v1/notifications`, accessToken);
+  let notifications = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;
   check("a plain message notifies when no silent hours are configured", notifications.some((n) => n.title.includes("Jordan Plain")));
 
   // 3. Configure a silent-hours window covering right now (UTC, the dev workspace's default timezone).
@@ -97,33 +97,33 @@ async function main() {
   // 4. During silent hours, a plain non-VIP, non-keyword message does NOT notify.
   await sendMock(accessToken, { senderDisplayName: "Casey Quiet", senderExternalId: "casey-quiet", bodyText: "Nothing important." });
   await sleep(600);
-  notifications = await getJson(`${BASE}/v1/notifications`, accessToken);
+  notifications = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;
   check("a plain message during silent hours does not notify", !notifications.some((n) => n.title.includes("Casey Quiet")));
 
   // 5. A VIP sender's message DOES notify during silent hours (VIP override).
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip-11", bodyText: "First message." });
   await sleep(400);
-  const contacts = await getJson(`${BASE}/v1/contacts`, accessToken);
+  const contacts = (await getJson(`${BASE}/v1/contacts`, accessToken)).data;
   const priya = contacts.find((c) => c.displayName === "Priya VIP");
   check("Priya VIP contact exists", Boolean(priya));
   if (priya) await req("PATCH", `${BASE}/v1/contacts/${priya.id}`, accessToken, { isVip: true });
 
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip-11", bodyText: "Second message, now VIP." });
   await sleep(600);
-  notifications = await getJson(`${BASE}/v1/notifications`, accessToken);
+  notifications = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;
   check("a VIP sender's message notifies during silent hours (VIP override)", notifications.some((n) => n.title.includes("Priya VIP")));
 
   // 6. A keyword-matching message DOES notify during silent hours, even from a non-VIP sender.
   await sendMock(accessToken, { senderDisplayName: "Alex Keyword", senderExternalId: "alex-keyword", bodyText: "This is urgent, please call me." });
   await sleep(600);
-  notifications = await getJson(`${BASE}/v1/notifications`, accessToken);
+  notifications = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;
   check("a keyword-matching message notifies during silent hours", notifications.some((n) => n.title.includes("Alex Keyword")));
 
   // 7. Disabling VIP override means even a VIP sender stays silent.
   await req("PATCH", `${BASE}/v1/notification-preferences`, accessToken, { vipOverrideEnabled: false });
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip-11", bodyText: "Third message, override disabled." });
   await sleep(600);
-  const notificationsAfterDisable = await getJson(`${BASE}/v1/notifications`, accessToken);
+  const notificationsAfterDisable = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;
   const priyaNotificationCount = notificationsAfterDisable.filter((n) => n.title.includes("Priya VIP")).length;
   check("disabling VIP override means a VIP sender no longer breaks through silent hours", priyaNotificationCount === 1);
 

@@ -1,11 +1,17 @@
-import { Body, Controller, Get, HttpStatus, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpStatus, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { getPrismaClient, newId } from "@smc/database";
 import { defaultAIProviderRegistry, DEFAULT_AI_PROVIDER_NAME, type RewriteStyle } from "@smc/ai";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
+import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
 import { AiCreditsService } from "./ai-credits.service";
+
+interface LedgerCursor {
+  createdAt: string;
+  id: string;
+}
 
 interface SummarizeDto {
   messageId?: string;
@@ -65,9 +71,12 @@ export class AiController {
   }
 
   @Get("credits/ledger")
-  async getLedger(@CurrentUser() claims: JwtPayload) {
+  async getLedger(@CurrentUser() claims: JwtPayload, @Query("limit") limitParam?: string, @Query("cursor") cursorParam?: string) {
     const organizationId = await this.organizationIdFor(claims.workspaceId);
-    return this.credits.listLedger(organizationId);
+    const limit = parseLimit(limitParam);
+    const cursor = decodeCursor<LedgerCursor>(cursorParam);
+    const entries = await this.credits.listLedger(organizationId, limit + 1, cursor ?? undefined);
+    return buildPage(entries, limit, (last) => ({ createdAt: last.createdAt.toISOString(), id: last.id }));
   }
 
   @Post("summaries")

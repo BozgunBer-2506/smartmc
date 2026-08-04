@@ -1,4 +1,4 @@
-import { Controller, Get, HttpStatus, Param, Post, UseGuards } from "@nestjs/common";
+import { Controller, Get, HttpStatus, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { getPrismaClient } from "@smc/database";
 import { approveMergeSuggestion, MergeSuggestionNotPendingError, rejectMergeSuggestion } from "@smc/identity";
 import { AuditLogService } from "../audit/audit-log.service";
@@ -6,6 +6,12 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
+import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
+
+interface MergeSuggestionCursor {
+  createdAt: string;
+  id: string;
+}
 
 /**
  * The human-review surface for IdentityGraph's merge-suggestion queue
@@ -19,30 +25,45 @@ export class IdentityController {
 
   @Get("merge-suggestions")
   @UseGuards(JwtAuthGuard)
-  async listSuggestions(@CurrentUser() claims: JwtPayload) {
+  async listSuggestions(@CurrentUser() claims: JwtPayload, @Query("limit") limitParam?: string, @Query("cursor") cursorParam?: string) {
     const prisma = getPrismaClient();
+    const limit = parseLimit(limitParam);
+    const cursor = decodeCursor<MergeSuggestionCursor>(cursorParam);
+
     const suggestions = await prisma.identityMergeSuggestion.findMany({
-      where: { workspaceId: claims.workspaceId, status: "pending" },
-      orderBy: { createdAt: "desc" },
+      where: {
+        workspaceId: claims.workspaceId,
+        status: "pending",
+        ...(cursor
+          ? { OR: [{ createdAt: { lt: new Date(cursor.createdAt) } }, { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } }] }
+          : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
     });
 
-    const contactIds = [...new Set(suggestions.flatMap((s) => [s.candidateContactIdA, s.candidateContactIdB]))];
+    const page = buildPage(suggestions, limit, (last) => ({ createdAt: last.createdAt.toISOString(), id: last.id }));
+
+    const contactIds = [...new Set(page.data.flatMap((s) => [s.candidateContactIdA, s.candidateContactIdB]))];
     const contacts = await prisma.contact.findMany({ where: { id: { in: contactIds } } });
     const contactById = new Map(contacts.map((c) => [c.id, c]));
 
-    return suggestions.map((suggestion) => ({
-      id: suggestion.id,
-      confidenceScore: Number(suggestion.confidenceScore),
-      matchingSignals: suggestion.matchingSignals as unknown,
-      contactA: contactById.has(suggestion.candidateContactIdA)
-        ? { id: suggestion.candidateContactIdA, displayName: contactById.get(suggestion.candidateContactIdA)?.displayName }
-        : null,
-      contactB: contactById.has(suggestion.candidateContactIdB)
-        ? { id: suggestion.candidateContactIdB, displayName: contactById.get(suggestion.candidateContactIdB)?.displayName }
-        : null,
-      createdAt: suggestion.createdAt,
-      expiresAt: suggestion.expiresAt,
-    }));
+    return {
+      ...page,
+      data: page.data.map((suggestion) => ({
+        id: suggestion.id,
+        confidenceScore: Number(suggestion.confidenceScore),
+        matchingSignals: suggestion.matchingSignals as unknown,
+        contactA: contactById.has(suggestion.candidateContactIdA)
+          ? { id: suggestion.candidateContactIdA, displayName: contactById.get(suggestion.candidateContactIdA)?.displayName }
+          : null,
+        contactB: contactById.has(suggestion.candidateContactIdB)
+          ? { id: suggestion.candidateContactIdB, displayName: contactById.get(suggestion.candidateContactIdB)?.displayName }
+          : null,
+        createdAt: suggestion.createdAt,
+        expiresAt: suggestion.expiresAt,
+      })),
+    };
   }
 
   @Post("merge-suggestions/:id/approve")

@@ -110,7 +110,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 1500)); // event bus processing
 
   const conversationsRes = await fetch(`${BASE}/v1/conversations`, { headers: { Authorization: `Bearer ${accessToken}` } });
-  const conversations = await conversationsRes.json();
+  const conversations = (await conversationsRes.json()).data;
   check("the simulated Telegram message appears in the real Inbox", conversations.length >= 1);
   check(
     "the sender resolved through IdentityGraph and is shown by name",

@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, HttpStatus, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpStatus, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { getPrismaClient, newId, type Rule, type RuleExecutionLog } from "@smc/database";
 import type { ActionStep, ConditionNode } from "@smc/automation-engine";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
+import { buildPage, decodeCursor, parseLimit, type CursorPage } from "../common/cursor-pagination";
 import { RuleExecutionService } from "./rule-execution.service";
 import { validateRuleInput } from "./rule-validation";
 
@@ -12,6 +13,17 @@ interface DryRunDto {
   bodyText?: string;
   senderDisplayName?: string;
   senderIsVip?: boolean;
+}
+
+interface RuleListCursor {
+  priority: number;
+  createdAt: string;
+  id: string;
+}
+
+interface RuleExecutionCursor {
+  matchedAt: string;
+  id: string;
 }
 
 /**
@@ -27,13 +39,33 @@ export class RulesController {
   constructor(private readonly ruleExecution: RuleExecutionService) {}
 
   @Get()
-  async list(@CurrentUser() claims: JwtPayload): Promise<Rule[]> {
+  async list(
+    @CurrentUser() claims: JwtPayload,
+    @Query("limit") limitParam?: string,
+    @Query("cursor") cursorParam?: string,
+  ): Promise<CursorPage<Rule>> {
     const prisma = getPrismaClient();
+    const limit = parseLimit(limitParam);
+    const cursor = decodeCursor<RuleListCursor>(cursorParam);
+
     const rules = await prisma.rule.findMany({
-      where: { workspaceId: claims.workspaceId },
-      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+      where: {
+        workspaceId: claims.workspaceId,
+        ...(cursor
+          ? {
+              OR: [
+                { priority: { lt: cursor.priority } },
+                { priority: cursor.priority, createdAt: { lt: new Date(cursor.createdAt) } },
+                { priority: cursor.priority, createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
     });
-    return rules;
+
+    return buildPage(rules, limit, (last) => ({ priority: last.priority, createdAt: last.createdAt.toISOString(), id: last.id }));
   }
 
   @Get(":id")
@@ -142,15 +174,30 @@ export class RulesController {
   }
 
   @Get(":id/executions")
-  async executions(@Param("id") id: string, @CurrentUser() claims: JwtPayload): Promise<RuleExecutionLog[]> {
+  async executions(
+    @Param("id") id: string,
+    @CurrentUser() claims: JwtPayload,
+    @Query("limit") limitParam?: string,
+    @Query("cursor") cursorParam?: string,
+  ): Promise<CursorPage<RuleExecutionLog>> {
     const prisma = getPrismaClient();
     const rule = await prisma.rule.findFirst({ where: { id, workspaceId: claims.workspaceId } });
     if (!rule) throw httpError(HttpStatus.NOT_FOUND, "RULE_NOT_FOUND", "Rule not found.");
 
-    return prisma.ruleExecutionLog.findMany({
-      where: { ruleId: id },
-      orderBy: { matchedAt: "desc" },
-      take: 50,
+    const limit = parseLimit(limitParam);
+    const cursor = decodeCursor<RuleExecutionCursor>(cursorParam);
+
+    const executions = await prisma.ruleExecutionLog.findMany({
+      where: {
+        ruleId: id,
+        ...(cursor
+          ? { OR: [{ matchedAt: { lt: new Date(cursor.matchedAt) } }, { matchedAt: new Date(cursor.matchedAt), id: { lt: cursor.id } }] }
+          : {}),
+      },
+      orderBy: [{ matchedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
     });
+
+    return buildPage(executions, limit, (last) => ({ matchedAt: last.matchedAt.toISOString(), id: last.id }));
   }
 }

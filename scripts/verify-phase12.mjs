@@ -65,24 +65,24 @@ async function main() {
 
   // 2. Full-text search matches body content.
   const invoiceSearch = await getJson(`${BASE}/v1/search/messages?q=invoice`, accessToken);
-  check("searching 'invoice' finds the invoice message", invoiceSearch.body.some((m) => m.bodyText.includes("invoice")));
-  check("searching 'invoice' does not return the unrelated casual message", !invoiceSearch.body.some((m) => m.bodyText.includes("checking in")));
+  check("searching 'invoice' finds the invoice message", invoiceSearch.body.data.some((m) => m.bodyText.includes("invoice")));
+  check("searching 'invoice' does not return the unrelated casual message", !invoiceSearch.body.data.some((m) => m.bodyText.includes("checking in")));
 
   // 3. Full-text search also matches on sender display name, not just body.
   const senderSearch = await getJson(`${BASE}/v1/search/messages?q=Jordan`, accessToken);
-  check("searching a sender's name finds their message", senderSearch.body.some((m) => m.senderDisplayName === "Jordan Ops"));
+  check("searching a sender's name finds their message", senderSearch.body.data.some((m) => m.senderDisplayName === "Jordan Ops"));
 
   // 4. A term with no match returns an empty array, not an error.
   const noMatch = await getJson(`${BASE}/v1/search/messages?q=xylophone`, accessToken);
-  check("a non-matching query returns 200 with an empty array", noMatch.status === 200 && Array.isArray(noMatch.body) && noMatch.body.length === 0);
+  check("a non-matching query returns 200 with an empty array", noMatch.status === 200 && Array.isArray(noMatch.body.data) && noMatch.body.data.length === 0);
 
   // 5. Contact search - case-insensitive substring match.
   const contactSearch = await getJson(`${BASE}/v1/search/contacts?q=priya`, accessToken);
-  check("case-insensitive contact search finds 'Priya Vendor'", contactSearch.body.some((c) => c.displayName === "Priya Vendor"));
+  check("case-insensitive contact search finds 'Priya Vendor'", contactSearch.body.data.some((c) => c.displayName === "Priya Vendor"));
 
   // 6. The combined endpoint fans out to both.
   const combined = await getJson(`${BASE}/v1/search?q=priya`, accessToken);
-  check("the combined endpoint returns both messages and contacts", combined.body.messages.length > 0 && combined.body.contacts.length > 0);
+  check("the combined endpoint returns both messages and contacts", combined.body.messages.data.length > 0 && combined.body.contacts.data.length > 0);
 
   // 7. Workspace isolation - a second user's search never sees the first user's data.
   const otherEmail = `phase12-other-${randomBytes(6).toString("hex")}@example.com`;
@@ -93,7 +93,7 @@ async function main() {
   });
   const otherToken = (await otherRes.json()).accessToken;
   const otherSearch = await getJson(`${BASE}/v1/search/messages?q=invoice`, otherToken);
-  check("a second, unrelated user's search is empty (workspace isolation)", otherSearch.body.length === 0);
+  check("a second, unrelated user's search is empty (workspace isolation)", otherSearch.body.data.length === 0);
 
   console.log(`\n${passCount} passed, ${failCount} failed`);
   process.exit(failCount === 0 ? 0 : 1);

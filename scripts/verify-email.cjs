@@ -125,7 +125,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   const conversationsRes = await fetch(`${BASE}/v1/conversations`, { headers: { Authorization: `Bearer ${accessToken}` } });
-  const conversations = await conversationsRes.json();
+  const conversations = (await conversationsRes.json()).data;
   check("GET /v1/conversations responds for the connected mailbox", conversationsRes.status === 200 && Array.isArray(conversations));
 
   console.log(`\n${passCount} passed, ${failCount} failed`);

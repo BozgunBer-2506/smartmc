@@ -63,19 +63,19 @@ async function main() {
   // 1. Base priority score for a plain message.
   await sendMock(accessToken, { senderDisplayName: "Alice Baseline", senderExternalId: "alice-baseline", bodyText: "Just checking in." });
   await sleep(500);
-  let conversations = await getJson(`${BASE}/v1/conversations`, accessToken);
+  let conversations = (await getJson(`${BASE}/v1/conversations`, accessToken)).data;
   const aliceConvo = conversations.find((c) => c.lastMessage?.sender?.displayName === "Alice Baseline");
   check("a plain message gets the base priority score (10)", aliceConvo?.priorityScore === 10);
 
   // 2. Urgency-keyword boost.
   await sendMock(accessToken, { senderDisplayName: "Bob Urgent", senderExternalId: "bob-urgent", bodyText: "URGENT: need this asap." });
   await sleep(500);
-  conversations = await getJson(`${BASE}/v1/conversations`, accessToken);
+  conversations = (await getJson(`${BASE}/v1/conversations`, accessToken)).data;
   const bobConvo = conversations.find((c) => c.lastMessage?.sender?.displayName === "Bob Urgent");
   check("an urgency-keyword message scores higher than the base (>= 30)", (bobConvo?.priorityScore ?? 0) >= 30);
 
   // 3. VIP boost - toggle VIP, then a later message from the same contact scores higher still.
-  const contacts = await getJson(`${BASE}/v1/contacts`, accessToken);
+  const contacts = (await getJson(`${BASE}/v1/contacts`, accessToken)).data;
   const bobContact = contacts.find((c) => c.displayName === "Bob Urgent");
   check("the contact list includes Bob Urgent", Boolean(bobContact));
   const vipRes = await fetch(`${BASE}/v1/contacts/${bobContact.id}`, {
@@ -87,7 +87,7 @@ async function main() {
 
   await sendMock(accessToken, { senderDisplayName: "Bob Urgent", senderExternalId: "bob-urgent", bodyText: "Just a follow-up, nothing urgent." });
   await sleep(500);
-  conversations = await getJson(`${BASE}/v1/conversations`, accessToken);
+  conversations = (await getJson(`${BASE}/v1/conversations`, accessToken)).data;
   const bobConvoAfterVip = conversations.find((c) => c.lastMessage?.sender?.displayName === "Bob Urgent");
   check("a VIP sender's message scores higher even without urgency keywords (>= 60)", (bobConvoAfterVip?.priorityScore ?? 0) >= 60);
 
@@ -96,7 +96,7 @@ async function main() {
   check("needsYouCount is at least 1 with an unread VIP conversation", summaryBefore.needsYouCount >= 1);
 
   await fetch(`${BASE}/v1/conversations/${bobConvoAfterVip.id}/read`, { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } });
-  const conversationsAfterRead = await getJson(`${BASE}/v1/conversations`, accessToken);
+  const conversationsAfterRead = (await getJson(`${BASE}/v1/conversations`, accessToken)).data;
   const bobAfterRead = conversationsAfterRead.find((c) => c.id === bobConvoAfterVip.id);
   check("marking a conversation read flips its unread flag", bobAfterRead?.unread === false);
 
@@ -108,13 +108,13 @@ async function main() {
   });
   check("PATCH /v1/conversations/:id archives and categorizes", archiveRes.status === 200);
 
-  const defaultList = await getJson(`${BASE}/v1/conversations?archived=false`, accessToken);
+  const defaultList = (await getJson(`${BASE}/v1/conversations?archived=false`, accessToken)).data;
   check("archived=false excludes the archived conversation", !defaultList.some((c) => c.id === aliceConvo.id));
 
-  const archivedList = await getJson(`${BASE}/v1/conversations?archived=true`, accessToken);
+  const archivedList = (await getJson(`${BASE}/v1/conversations?archived=true`, accessToken)).data;
   check("archived=true includes only the archived conversation", archivedList.some((c) => c.id === aliceConvo.id));
 
-  const categoryList = await getJson(`${BASE}/v1/conversations?archived=true&category=personal`, accessToken);
+  const categoryList = (await getJson(`${BASE}/v1/conversations?archived=true&category=personal`, accessToken)).data;
   check("category filter returns the categorized conversation", categoryList.some((c) => c.id === aliceConvo.id));
 
   // 6. IdentityGraph fuzzy matching -> suggestion -> approve -> merge.
@@ -125,7 +125,7 @@ async function main() {
   const triggerRes = await postJson(`${BASE}/dev/identity-matching/run`, null);
   check("the dev identity-matching trigger runs", triggerRes.status === 201 || triggerRes.status === 200);
 
-  const suggestions = await getJson(`${BASE}/v1/identity/merge-suggestions`, accessToken);
+  const suggestions = (await getJson(`${BASE}/v1/identity/merge-suggestions`, accessToken)).data;
   const carolSuggestion = suggestions.find((s) => s.contactA?.displayName === "Carol Diaz" && s.contactB?.displayName === "Carol Diaz");
   check("a merge suggestion is created for two identically-named contacts", Boolean(carolSuggestion));
 
@@ -133,7 +133,7 @@ async function main() {
     const approveRes = await postJson(`${BASE}/v1/identity/merge-suggestions/${carolSuggestion.id}/approve`, accessToken);
     check("approving the suggestion succeeds", approveRes.status === 200 || approveRes.status === 201);
 
-    const contactsAfterMerge = await getJson(`${BASE}/v1/contacts`, accessToken);
+    const contactsAfterMerge = (await getJson(`${BASE}/v1/contacts`, accessToken)).data;
     const survivingCarol = contactsAfterMerge.find((c) => c.displayName === "Carol Diaz");
     check("exactly one Carol Diaz contact remains after merge", contactsAfterMerge.filter((c) => c.displayName === "Carol Diaz").length === 1);
     check("the surviving contact now holds both provider identities", (survivingCarol?.identities?.length ?? 0) >= 2);
@@ -147,7 +147,7 @@ async function main() {
       });
       check("splitting the merged contact succeeds", splitRes.status === 200 || splitRes.status === 201);
 
-      const contactsAfterSplit = await getJson(`${BASE}/v1/contacts`, accessToken);
+      const contactsAfterSplit = (await getJson(`${BASE}/v1/contacts`, accessToken)).data;
       check("two Carol Diaz contacts exist again after the split", contactsAfterSplit.filter((c) => c.displayName === "Carol Diaz").length === 2);
     }
   }
@@ -157,14 +157,14 @@ async function main() {
   await sendMock(accessToken, { senderDisplayName: "Dana Reyes", senderExternalId: "dana-reyes-two", bodyText: "Hi again." });
   await sleep(500);
   await postJson(`${BASE}/dev/identity-matching/run`, null);
-  const danaSuggestions = await getJson(`${BASE}/v1/identity/merge-suggestions`, accessToken);
+  const danaSuggestions = (await getJson(`${BASE}/v1/identity/merge-suggestions`, accessToken)).data;
   const danaSuggestion = danaSuggestions.find((s) => s.contactA?.displayName === "Dana Reyes" && s.contactB?.displayName === "Dana Reyes");
   check("a merge suggestion is created for the Dana Reyes pair", Boolean(danaSuggestion));
 
   if (danaSuggestion) {
     const rejectRes = await postJson(`${BASE}/v1/identity/merge-suggestions/${danaSuggestion.id}/reject`, accessToken);
     check("rejecting the suggestion succeeds", rejectRes.status === 200 || rejectRes.status === 201);
-    const contactsAfterReject = await getJson(`${BASE}/v1/contacts`, accessToken);
+    const contactsAfterReject = (await getJson(`${BASE}/v1/contacts`, accessToken)).data;
     check("both Dana Reyes contacts still exist after rejection (no merge happened)", contactsAfterReject.filter((c) => c.displayName === "Dana Reyes").length === 2);
   }
 

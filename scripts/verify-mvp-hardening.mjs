@@ -95,7 +95,7 @@ async function main() {
     // Poll until it's visible in the inbox, rather than a fixed sleep - a more honest "time to visible" measurement.
     for (let i = 0; i < 20; i++) {
       const convos = await getJson(`${BASE}/v1/conversations`, accessToken);
-      if (convos.body.some((c) => c.lastMessage?.sender?.displayName === "Priya Vendor")) return convos.body;
+      if (convos.body.data.some((c) => c.lastMessage?.sender?.displayName === "Priya Vendor")) return convos.body.data;
       await sleep(150);
     }
     return [];
@@ -109,7 +109,7 @@ async function main() {
 
   // 6. Search
   const searchResult = await timed("Search (GET /v1/search)", () => getJson(`${BASE}/v1/search?q=broken`, accessToken));
-  check("search finds the message", searchResult.body.messages?.some((m) => m.bodyText.includes("broken")));
+  check("search finds the message", searchResult.body.messages?.data?.some((m) => m.bodyText.includes("broken")));
 
   // 7. Automation rule creation + trigger
   const ruleCreate = await timed("Rule creation (POST /v1/rules)", () =>
@@ -132,7 +132,7 @@ async function main() {
   });
   for (let i = 0; i < 20; i++) {
     const executions = await getJson(`${BASE}/v1/rules/${ruleId}/executions`, accessToken);
-    if (executions.body.length > 0) { ruleExecuted = true; break; }
+    if (executions.body.data.length > 0) { ruleExecuted = true; break; }
     await sleep(150);
   }
   const ruleMs = Math.round(performance.now() - ruleTriggerStart);
@@ -157,7 +157,7 @@ async function main() {
   });
   for (let i = 0; i < 20; i++) {
     const executions = await getJson(`${BASE}/v1/rules/${aiRuleId}/executions`, accessToken);
-    if (executions.body.length > 0) { aiExecuted = true; break; }
+    if (executions.body.data.length > 0) { aiExecuted = true; break; }
     await sleep(150);
   }
   const aiMs = Math.round(performance.now() - aiStart);
@@ -167,7 +167,7 @@ async function main() {
 
   // 9. Notification
   const notifications = await getJson(`${BASE}/v1/notifications`, accessToken);
-  check("notifications include at least one entry by now", notifications.body.length > 0);
+  check("notifications include at least one entry by now", notifications.body.data.length > 0);
 
   // 10. Logout - must present the real session cookie for the server to know which session to revoke.
   const logoutRes = await timed("Logout", () =>

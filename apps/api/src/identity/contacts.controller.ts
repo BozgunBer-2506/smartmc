@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpStatus, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpStatus, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { getPrismaClient } from "@smc/database";
 import { ContactNotFoundError, NoIdentitiesToSplitError, splitContact } from "@smc/identity";
 import { AuditLogService } from "../audit/audit-log.service";
@@ -6,9 +6,15 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
+import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
 
 interface UpdateContactDto {
   isVip?: boolean;
+}
+
+interface ContactListCursor {
+  displayName: string;
+  id: string;
 }
 
 interface SplitContactDto {
@@ -28,25 +34,38 @@ export class ContactsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  async list(@CurrentUser() claims: JwtPayload) {
+  async list(@CurrentUser() claims: JwtPayload, @Query("limit") limitParam?: string, @Query("cursor") cursorParam?: string) {
     const prisma = getPrismaClient();
+    const limit = parseLimit(limitParam);
+    const cursor = decodeCursor<ContactListCursor>(cursorParam);
+
     const contacts = await prisma.contact.findMany({
-      where: { workspaceId: claims.workspaceId },
-      orderBy: { displayName: "asc" },
+      where: {
+        workspaceId: claims.workspaceId,
+        ...(cursor
+          ? { OR: [{ displayName: { gt: cursor.displayName } }, { displayName: cursor.displayName, id: { gt: cursor.id } }] }
+          : {}),
+      },
+      orderBy: [{ displayName: "asc" }, { id: "asc" }],
+      take: limit + 1,
       include: { identities: { include: { provider: true } } },
     });
 
-    return contacts.map((contact) => ({
-      id: contact.id,
-      displayName: contact.displayName,
-      isVip: contact.isVip,
-      identities: contact.identities.map((identity) => ({
-        id: identity.id,
-        providerKey: identity.provider.key,
-        handle: identity.handle,
-        matchType: identity.matchType,
+    const page = buildPage(contacts, limit, (last) => ({ displayName: last.displayName, id: last.id }));
+    return {
+      ...page,
+      data: page.data.map((contact) => ({
+        id: contact.id,
+        displayName: contact.displayName,
+        isVip: contact.isVip,
+        identities: contact.identities.map((identity) => ({
+          id: identity.id,
+          providerKey: identity.provider.key,
+          handle: identity.handle,
+          matchType: identity.matchType,
+        })),
       })),
-    }));
+    };
   }
 
   @Patch(":id")

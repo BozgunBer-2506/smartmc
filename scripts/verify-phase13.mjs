@@ -91,7 +91,7 @@ async function main() {
   await sendMock(accessToken, { senderDisplayName: "Jordan", senderExternalId: "jordan-ai", bodyText: "Thanks so much for the quick help. Are you available for a call at 3pm tomorrow?" });
   await sleep(600);
   const conversations = await getJson(`${BASE}/v1/conversations`, accessToken);
-  const msgId = conversations.body[0]?.lastMessage?.id;
+  const msgId = conversations.body.data[0]?.lastMessage?.id;
   check("a message exists to summarize", Boolean(msgId));
 
   const summary = await req("POST", `${BASE}/v1/ai/summaries`, accessToken, { messageId: msgId });
@@ -116,7 +116,7 @@ async function main() {
   check("a recognizable prompt returns a matched draft rule", suggestion.body.matched === true && suggestion.body.draft?.isDraft === true);
   check("the draft targets sender.isVip", suggestion.body.draft?.conditions?.field === "sender.isVip");
   const rulesAfterSuggestion = await getJson(`${BASE}/v1/rules`, accessToken);
-  check("suggesting a rule never creates a real rule", rulesAfterSuggestion.body.length === rulesBefore.body.length);
+  check("suggesting a rule never creates a real rule", rulesAfterSuggestion.body.data.length === rulesBefore.body.data.length);
 
   const unmatchedSuggestion = await req("POST", `${BASE}/v1/ai/rule-suggestions`, accessToken, { naturalLanguagePrompt: "make my coffee every morning" });
   check("an unrecognizable prompt returns matched: false with a note", unmatchedSuggestion.body.matched === false && typeof unmatchedSuggestion.body.note === "string");
@@ -134,12 +134,12 @@ async function main() {
   await sendMock(accessToken, { senderDisplayName: "Casey Support", senderExternalId: "casey-support", bodyText: "This is broken and not working, I need help with an error." });
   await sleep(700);
   const supportExecutions = await getJson(`${BASE}/v1/rules/${aiRuleId}/executions`, accessToken);
-  check("the ai.classification rule fires for a support-shaped message", supportExecutions.body.length === 1 && supportExecutions.body[0].status === "success");
+  check("the ai.classification rule fires for a support-shaped message", supportExecutions.body.data.length === 1 && supportExecutions.body.data[0].status === "success");
 
   await sendMock(accessToken, { senderDisplayName: "Dana Casual", senderExternalId: "dana-casual", bodyText: "Hey, just checking in, how are you?" });
   await sleep(700);
   const supportExecutionsAfterCasual = await getJson(`${BASE}/v1/rules/${aiRuleId}/executions`, accessToken);
-  check("the ai.classification rule does not fire for an unrelated message", supportExecutionsAfterCasual.body.length === 1);
+  check("the ai.classification rule does not fire for an unrelated message", supportExecutionsAfterCasual.body.data.length === 1);
 
   // 6. AI_DISABLED - graceful degradation, not an error state.
   await req("PATCH", `${BASE}/v1/ai/settings`, accessToken, { aiEnabled: false });
@@ -149,7 +149,7 @@ async function main() {
   await sendMock(accessToken, { senderDisplayName: "Erin Support", senderExternalId: "erin-support", bodyText: "This is broken, I need help with an error, not working." });
   await sleep(700);
   const supportExecutionsWhileDisabled = await getJson(`${BASE}/v1/rules/${aiRuleId}/executions`, accessToken);
-  check("with AI disabled, a support-shaped message does not populate ai.classification (rule doesn't fire, no error)", supportExecutionsWhileDisabled.body.length === 1);
+  check("with AI disabled, a support-shaped message does not populate ai.classification (rule doesn't fire, no error)", supportExecutionsWhileDisabled.body.data.length === 1);
 
   await req("PATCH", `${BASE}/v1/ai/settings`, accessToken, { aiEnabled: true });
   const reEnabled = await getJson(`${BASE}/v1/ai/settings`, accessToken);

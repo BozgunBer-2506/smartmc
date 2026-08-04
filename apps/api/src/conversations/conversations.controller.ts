@@ -6,6 +6,7 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
+import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { SchedulerService } from "../automation/scheduler.service";
@@ -32,6 +33,19 @@ interface ListConversationsQuery {
   category?: string;
   vip?: string;
   unread?: string;
+  limit?: string;
+  cursor?: string;
+}
+
+interface ConversationListCursor {
+  priorityScore: number;
+  lastMessageAt: string | null;
+  id: string;
+}
+
+interface MessageCursor {
+  receivedAt: string;
+  id: string;
 }
 
 /** True/false unread state: null lastReadAt means every message is unread; otherwise unread iff a message arrived after the last read timestamp. */
@@ -67,15 +81,35 @@ export class ConversationsController {
   @UseGuards(JwtAuthGuard)
   async list(@CurrentUser() claims: JwtPayload, @Query() query: ListConversationsQuery) {
     const prisma = getPrismaClient();
+    const limit = parseLimit(query.limit);
+    const cursor = decodeCursor<ConversationListCursor>(query.cursor);
 
     const conversations = await prisma.conversation.findMany({
       where: {
         workspaceId: claims.workspaceId,
         isArchived: query.archived === "true" ? true : query.archived === "false" ? false : undefined,
         category: query.category ?? undefined,
+        ...(cursor
+          ? {
+              OR: [
+                { priorityScore: { lt: cursor.priorityScore } },
+                {
+                  priorityScore: cursor.priorityScore,
+                  ...(cursor.lastMessageAt
+                    ? {
+                        OR: [
+                          { lastMessageAt: { lt: new Date(cursor.lastMessageAt) } },
+                          { lastMessageAt: new Date(cursor.lastMessageAt), id: { lt: cursor.id } },
+                        ],
+                      }
+                    : { lastMessageAt: null, id: { lt: cursor.id } }),
+                },
+              ],
+            }
+          : {}),
       },
-      orderBy: [{ priorityScore: "desc" }, { lastMessageAt: "desc" }],
-      take: 50,
+      orderBy: [{ priorityScore: "desc" }, { lastMessageAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
       include: {
         provider: true,
         messages: {
@@ -86,7 +120,20 @@ export class ConversationsController {
       },
     });
 
-    return conversations
+    const page = buildPage(conversations, limit, (last) => ({
+      priorityScore: last.priorityScore,
+      lastMessageAt: last.lastMessageAt ? last.lastMessageAt.toISOString() : null,
+      id: last.id,
+    }));
+
+    // VIP/unread filtering still happens after the query, not in Prisma's
+    // `where` (pre-existing, disclosed simplification - docs/reviews/
+    // phase-9-review.md), which means `pagination.hasMore`/`nextCursor`
+    // describe the underlying unfiltered page, not the filtered result
+    // actually returned - a filtered page can legitimately come back
+    // shorter than `limit` even when more matching rows exist further in.
+    // Carried forward as-is, not a regression cursor pagination introduced.
+    const data = page.data
       .map((conversation) => {
         const lastMessage = conversation.messages[0];
         return {
@@ -120,6 +167,8 @@ export class ConversationsController {
         if (query.unread === "true" && !conversation.unread) return false;
         return true;
       });
+
+    return { data, pagination: page.pagination };
   }
 
   /** The trustworthy "Needs You" count (docs/PRODUCT.md UI Principles) - computed from priority rules, never a raw unread badge. */
@@ -178,7 +227,12 @@ export class ConversationsController {
 
   @Get(":id/messages")
   @UseGuards(JwtAuthGuard)
-  async messages(@Param("id") id: string, @CurrentUser() claims: JwtPayload) {
+  async messages(
+    @Param("id") id: string,
+    @CurrentUser() claims: JwtPayload,
+    @Query("limit") limitParam?: string,
+    @Query("cursor") cursorParam?: string,
+  ) {
     const prisma = getPrismaClient();
 
     // Workspace-ownership check before returning any message - a
@@ -193,21 +247,43 @@ export class ConversationsController {
       throw httpError(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Conversation not found.");
     }
 
+    const limit = parseLimit(limitParam);
+    const cursor = decodeCursor<MessageCursor>(cursorParam);
+
+    // Queried newest-first (a real chat's useful default is the most
+    // recent messages, not the oldest) - "next page" via cursor walks
+    // backwards to earlier messages, matching a real "load earlier
+    // messages" chat UI. Reversed back to chronological order below
+    // before returning, so a single unpaginated page still reads top-to-
+    // bottom oldest-to-newest exactly as before this change.
     const messages = await prisma.message.findMany({
-      where: { conversationId: id },
-      orderBy: { receivedAt: "asc" },
+      where: {
+        conversationId: id,
+        ...(cursor
+          ? { OR: [{ receivedAt: { lt: new Date(cursor.receivedAt) } }, { receivedAt: new Date(cursor.receivedAt), id: { lt: cursor.id } }] }
+          : {}),
+      },
+      orderBy: [{ receivedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
       include: { sender: true },
     });
 
-    return messages.map((message) => ({
-      id: message.id,
-      direction: message.direction,
-      bodyText: message.bodyText,
-      receivedAt: message.receivedAt,
-      sender: message.sender
-        ? { id: message.sender.id, displayName: message.sender.displayName, isVip: message.sender.isVip }
-        : null,
-    }));
+    const page = buildPage(messages, limit, (last) => ({ receivedAt: last.receivedAt.toISOString(), id: last.id }));
+    return {
+      ...page,
+      data: page.data
+        .slice()
+        .reverse()
+        .map((message) => ({
+          id: message.id,
+          direction: message.direction,
+          bodyText: message.bodyText,
+          receivedAt: message.receivedAt,
+          sender: message.sender
+            ? { id: message.sender.id, displayName: message.sender.displayName, isVip: message.sender.isVip }
+            : null,
+        })),
+    };
   }
 
   /**

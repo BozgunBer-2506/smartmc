@@ -52,11 +52,17 @@ export class AiCreditsService {
     return balanceAfter;
   }
 
-  async listLedger(organizationId: string, take = 50) {
+  /** `cursor` is the last-seen (createdAt, id) pair - the controller owns encoding/decoding, this just applies the keyset WHERE. */
+  async listLedger(organizationId: string, take: number, cursor?: { createdAt: string; id: string }) {
     const prisma = getPrismaClient();
     return prisma.aiCreditLedger.findMany({
-      where: { organizationId },
-      orderBy: { createdAt: "desc" },
+      where: {
+        organizationId,
+        ...(cursor
+          ? { OR: [{ createdAt: { lt: new Date(cursor.createdAt) } }, { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } }] }
+          : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take,
     });
   }

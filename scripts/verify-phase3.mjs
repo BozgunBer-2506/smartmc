@@ -86,14 +86,14 @@ async function main() {
   socket.close();
 
   // 5. Confirm durability via the real REST read path
-  const conversations = await getJson(`${BASE}/v1/conversations`, accessToken);
+  const conversations = (await getJson(`${BASE}/v1/conversations`, accessToken)).data;
   check("GET /v1/conversations returns the new conversation", conversations.length >= 1);
   const conversation = conversations[0];
 
-  const messages = await getJson(`${BASE}/v1/conversations/${conversation.id}/messages`, accessToken);
+  const messages = (await getJson(`${BASE}/v1/conversations/${conversation.id}/messages`, accessToken)).data;
   check("GET /v1/conversations/:id/messages returns the message", messages.some((m) => m.bodyText.includes("still on for tomorrow")));
 
-  const notifications = await getJson(`${BASE}/v1/notifications`, accessToken);
+  const notifications = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;
   check("GET /v1/notifications returns the notification", notifications.length >= 1);
 
   // 6. A second, unrelated user must never see the first user's conversation (workspace isolation)
@@ -104,7 +104,7 @@ async function main() {
     body: JSON.stringify({ email: otherEmail, password, displayName: "Other User" }),
   });
   const otherBody = await otherRes.json();
-  const otherConversations = await getJson(`${BASE}/v1/conversations`, otherBody.accessToken);
+  const otherConversations = (await getJson(`${BASE}/v1/conversations`, otherBody.accessToken)).data;
   check("a second user's workspace has no visibility into the first user's conversation", otherConversations.length === 0);
 
   console.log(`\n${passCount} passed, ${failCount} failed`);

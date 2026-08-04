@@ -138,7 +138,11 @@ export async function fetchConversations(accessToken: string, filters: Conversat
   if (filters.unread) params.set("unread", "true");
   const query = params.toString();
   const res = await fetch(`${API_URL}/v1/conversations${query ? `?${query}` : ""}`, { headers: authHeaders(accessToken) });
-  return parseOrThrow<ConversationSummary[]>(res);
+  // ROADMAP.md Phase 20.2: real cursor pagination - {data, pagination}
+  // envelope. This returns just the first page's data, matching the
+  // existing UI's behavior exactly (no "load more" UI built yet - a
+  // separate, later piece of frontend work, not part of this API change).
+  return (await parseOrThrow<{ data: ConversationSummary[] }>(res)).data;
 }
 
 export async function fetchNeedsYouCount(accessToken: string): Promise<{ needsYouCount: number }> {
@@ -169,7 +173,7 @@ export async function markConversationRead(accessToken: string, conversationId: 
 
 export async function fetchMergeSuggestions(accessToken: string): Promise<MergeSuggestion[]> {
   const res = await fetch(`${API_URL}/v1/identity/merge-suggestions`, { headers: authHeaders(accessToken) });
-  return parseOrThrow<MergeSuggestion[]>(res);
+  return (await parseOrThrow<{ data: MergeSuggestion[] }>(res)).data;
 }
 
 export async function approveMergeSuggestion(accessToken: string, suggestionId: string): Promise<void> {
@@ -192,12 +196,12 @@ export async function fetchMessages(accessToken: string, conversationId: string)
   const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
     headers: authHeaders(accessToken),
   });
-  return parseOrThrow<ConversationMessage[]>(res);
+  return (await parseOrThrow<{ data: ConversationMessage[] }>(res)).data;
 }
 
 export async function fetchNotifications(accessToken: string): Promise<NotificationItem[]> {
   const res = await fetch(`${API_URL}/v1/notifications`, { headers: authHeaders(accessToken) });
-  return parseOrThrow<NotificationItem[]>(res);
+  return (await parseOrThrow<{ data: NotificationItem[] }>(res)).data;
 }
 
 export async function sendMessage(accessToken: string, conversationId: string, body: string): Promise<ConversationMessage> {
@@ -318,7 +322,7 @@ export interface RuleExecutionLogItem {
 
 export async function fetchRules(accessToken: string): Promise<RuleSummary[]> {
   const res = await fetch(`${API_URL}/v1/rules`, { headers: authHeaders(accessToken) });
-  return parseOrThrow<RuleSummary[]>(res);
+  return (await parseOrThrow<{ data: RuleSummary[] }>(res)).data;
 }
 
 export async function createRule(accessToken: string, input: RuleInput): Promise<RuleSummary> {
@@ -359,7 +363,7 @@ export async function dryRunRule(
 
 export async function fetchRuleExecutions(accessToken: string, ruleId: string): Promise<RuleExecutionLogItem[]> {
   const res = await fetch(`${API_URL}/v1/rules/${ruleId}/executions`, { headers: authHeaders(accessToken) });
-  return parseOrThrow<RuleExecutionLogItem[]>(res);
+  return (await parseOrThrow<{ data: RuleExecutionLogItem[] }>(res)).data;
 }
 
 export interface NotificationPreferences {
@@ -408,7 +412,8 @@ export interface SearchResults {
 
 export async function search(accessToken: string, query: string): Promise<SearchResults> {
   const res = await fetch(`${API_URL}/v1/search?q=${encodeURIComponent(query)}`, { headers: authHeaders(accessToken) });
-  return parseOrThrow<SearchResults>(res);
+  const body = await parseOrThrow<{ messages: { data: MessageSearchResult[] }; contacts: { data: ContactSearchResult[] } }>(res);
+  return { messages: body.messages.data, contacts: body.contacts.data };
 }
 
 export interface AiCreditBalance {

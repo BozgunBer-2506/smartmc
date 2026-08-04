@@ -63,14 +63,14 @@ async function main() {
   const accessToken = registerBody.accessToken;
 
   // 1. Every new workspace starts with the "Notify me on every message" starter rule.
-  const initialRules = await getJson(`${BASE}/v1/rules`, accessToken);
+  const initialRules = (await getJson(`${BASE}/v1/rules`, accessToken)).data;
   check("a new workspace has exactly one starter rule", initialRules.length === 1);
   check("the starter rule is enabled and targets message.received", initialRules[0]?.isEnabled === true && initialRules[0]?.triggerType === "message.received");
 
   // 2. A plain message still produces a notification via the starter rule (Phase 1-9's stub behavior, now a real rule).
   await sendMock(accessToken, { senderDisplayName: "Jordan Plain", senderExternalId: "jordan-plain", bodyText: "Just saying hi." });
   await sleep(600);
-  let notifications = await getJson(`${BASE}/v1/notifications`, accessToken);
+  let notifications = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;
   check("the starter rule creates a notification for a plain message", notifications.some((n) => n.title.includes("Jordan Plain")));
 
   // 3. A VIP-conditioned rule: create it, then confirm it only fires for a VIP sender.
@@ -85,13 +85,13 @@ async function main() {
 
   await sendMock(accessToken, { senderDisplayName: "Sam NonVip", senderExternalId: "sam-nonvip", bodyText: "Regular message." });
   await sleep(600);
-  const executionsAfterNonVip = await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken);
+  const executionsAfterNonVip = (await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken)).data;
   check("a non-VIP sender's message does not execute the VIP-only rule", executionsAfterNonVip.length === 0);
 
   // Mark a new contact VIP before their first message so sender.isVip is true at match time.
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip", bodyText: "First message." });
   await sleep(400);
-  const contactsAfterFirst = await getJson(`${BASE}/v1/contacts`, accessToken);
+  const contactsAfterFirst = (await getJson(`${BASE}/v1/contacts`, accessToken)).data;
   const priya = contactsAfterFirst.find((c) => c.displayName === "Priya VIP");
   check("Priya VIP contact exists", Boolean(priya));
   if (priya) {
@@ -101,7 +101,7 @@ async function main() {
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip", bodyText: "Second message, now VIP." });
   await sleep(600);
 
-  const vipExecutions = await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken);
+  const vipExecutions = (await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken)).data;
   check("the VIP rule has exactly one successful execution (only Priya's VIP message matched)", vipExecutions.length === 1 && vipExecutions[0].status === "success");
   check("the execution recorded the tag.apply action succeeding", vipExecutions[0]?.actionsExecuted?.[0]?.type === "tag.apply" && vipExecutions[0]?.actionsExecuted?.[0]?.status === "success");
 
@@ -110,7 +110,7 @@ async function main() {
   check("dry-run matches a VIP sample", dryRun.body.matched === true);
   const dryRunNonVip = await req("POST", `${BASE}/v1/rules/${vipRuleId}/dry-run`, accessToken, { bodyText: "test", senderDisplayName: "Test", senderIsVip: false });
   check("dry-run does not match a non-VIP sample", dryRunNonVip.body.matched === false);
-  const executionsAfterDryRun = await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken);
+  const executionsAfterDryRun = (await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken)).data;
   check("dry-run never writes a real execution log", executionsAfterDryRun.length === vipExecutions.length);
 
   // 5. Optimistic locking: a stale version PATCH is rejected with 409.
@@ -125,13 +125,13 @@ async function main() {
 
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip", bodyText: "Third message, rule now disabled." });
   await sleep(600);
-  const executionsAfterDisable = await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken);
+  const executionsAfterDisable = (await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken)).data;
   check("a disabled rule does not execute on a new matching message", executionsAfterDisable.length === vipExecutions.length);
 
   // 7. Delete (soft) removes it from the list.
   const deleteRes = await req("DELETE", `${BASE}/v1/rules/${vipRuleId}`, accessToken);
   check("deleting the rule succeeds", deleteRes.status === 200);
-  const rulesAfterDelete = await getJson(`${BASE}/v1/rules`, accessToken);
+  const rulesAfterDelete = (await getJson(`${BASE}/v1/rules`, accessToken)).data;
   check("the deleted rule no longer appears in the list", !rulesAfterDelete.some((r) => r.id === vipRuleId));
 
   // 8. Validation: an unregistered trigger type is rejected.
@@ -160,7 +160,7 @@ async function main() {
 
   await sendMock(accessToken, { senderDisplayName: "Taylor Waiting", senderExternalId: "taylor-waiting", bodyText: "Are you there?" });
   await sleep(3500);
-  const scheduledExecutions = await getJson(`${BASE}/v1/rules/${scheduledRuleId}/executions`, accessToken);
+  const scheduledExecutions = (await getJson(`${BASE}/v1/rules/${scheduledRuleId}/executions`, accessToken)).data;
   check("the no-reply rule fires once its delay elapses with no reply", scheduledExecutions.length === 1 && scheduledExecutions[0].status === "success");
   // Cancellation-on-reply (SchedulerService.cancelNoReplyRules) isn't
   // exercised here: the Mock Connector only ever generates inbound
