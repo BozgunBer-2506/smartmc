@@ -3,9 +3,11 @@ import { getPrismaClient } from "@smc/database";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
-import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
+import { buildPage, decodeCursor, keysetOr, parseLimit, parseOrder, type SortDirection } from "../common/cursor-pagination";
 
+/** docs/ROADMAP.md Phase 20.3 - createdAt is the only sortable field here (no other timestamp/rankable column exists on Notification), so only `?order=` is meaningful; `sortBy` isn't exposed as a query param. */
 interface NotificationCursor {
+  order: SortDirection;
   createdAt: string;
   id: string;
 }
@@ -24,23 +26,27 @@ interface NotificationCursor {
 export class NotificationsController {
   @Get()
   @UseGuards(JwtAuthGuard)
-  async list(@CurrentUser() claims: JwtPayload, @Query("limit") limitParam?: string, @Query("cursor") cursorParam?: string) {
+  async list(
+    @CurrentUser() claims: JwtPayload,
+    @Query("limit") limitParam?: string,
+    @Query("cursor") cursorParam?: string,
+    @Query("order") orderParam?: string,
+  ) {
     const prisma = getPrismaClient();
     const limit = parseLimit(limitParam);
     const cursor = decodeCursor<NotificationCursor>(cursorParam);
+    const order = cursor?.order ?? parseOrder(orderParam, "desc");
 
     const notifications = await prisma.notification.findMany({
       where: {
         workspaceId: claims.workspaceId,
-        ...(cursor
-          ? { OR: [{ createdAt: { lt: new Date(cursor.createdAt) } }, { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } }] }
-          : {}),
+        ...(cursor ? keysetOr("createdAt", order, new Date(cursor.createdAt), cursor.id) : {}),
       },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ createdAt: order }, { id: order }],
       take: limit + 1,
     });
 
-    const page = buildPage(notifications, limit, (last) => ({ createdAt: last.createdAt.toISOString(), id: last.id }));
+    const page = buildPage(notifications, limit, (last) => ({ order, createdAt: last.createdAt.toISOString(), id: last.id }));
     return {
       ...page,
       data: page.data.map((notification) => ({

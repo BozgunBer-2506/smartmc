@@ -277,6 +277,13 @@ model Contact {
   identities ContactIdentity[]
   messages   Message[]
 
+  /// Backs GET /v1/contacts' default (displayName asc, id asc) keyset
+  /// pagination (docs/ROADMAP.md Phase 20.2) and its `?sortBy=displayName`
+  /// option (Phase 20.3) - previously unindexed, so every page of every
+  /// workspace's contact list did a full table scan.
+  @@index([workspaceId, displayName, id], name: "idx_contacts_workspace_id_display_name_id")
+  /// Backs `?sortBy=createdAt` (Phase 20.3).
+  @@index([workspaceId, createdAt, id], name: "idx_contacts_workspace_id_created_at_id")
   @@map("contacts")
 }
 
@@ -407,6 +414,14 @@ model Conversation {
   messages      Message[]
 
   @@unique([providerId, externalId, workspaceId], name: "uq_conversations_provider_external")
+  /// Backs GET /v1/conversations' default (priorityScore desc,
+  /// lastMessageAt desc, id desc) keyset pagination (Phase 20.2) -
+  /// previously unindexed, so every inbox page did a full table scan.
+  @@index([workspaceId, priorityScore, lastMessageAt, id], name: "idx_conversations_workspace_id_priority_last_message_id")
+  /// Backs `?sortBy=lastMessageAt` (Phase 20.3).
+  @@index([workspaceId, lastMessageAt, id], name: "idx_conversations_workspace_id_last_message_at_id")
+  /// Backs `?sortBy=createdAt` (Phase 20.3).
+  @@index([workspaceId, createdAt, id], name: "idx_conversations_workspace_id_created_at_id")
   @@map("conversations")
 }
 
@@ -443,6 +458,9 @@ model Notification {
   workspace Workspace @relation(fields: [workspaceId], references: [id])
   message   Message?  @relation(fields: [messageId], references: [id])
 
+  /// Backs GET /v1/notifications' (createdAt, id) keyset pagination and its
+  /// `?order=asc|desc` option (Phase 20.2/20.3) - previously unindexed.
+  @@index([workspaceId, createdAt, id], name: "idx_notifications_workspace_id_created_at_id")
   @@map("notifications")
 }
 
@@ -510,6 +528,15 @@ model Rule {
   scheduledJobs  ScheduledJob[]
 
   @@index([workspaceId, triggerType, isEnabled], name: "idx_rules_workspace_id_trigger_type_is_enabled")
+  /// Backs GET /v1/rules' default (priority desc, createdAt desc, id desc)
+  /// keyset pagination (Phase 20.2).
+  @@index([workspaceId, priority, createdAt, id], name: "idx_rules_workspace_id_priority_created_at_id")
+  /// Backs `?sortBy=createdAt` (Phase 20.3).
+  @@index([workspaceId, createdAt, id], name: "idx_rules_workspace_id_created_at_id")
+  /// Backs `?sortBy=updatedAt` (Phase 20.3).
+  @@index([workspaceId, updatedAt, id], name: "idx_rules_workspace_id_updated_at_id")
+  /// Backs `?sortBy=name` (Phase 20.3).
+  @@index([workspaceId, name, id], name: "idx_rules_workspace_id_name_id")
   @@map("rules")
 }
 

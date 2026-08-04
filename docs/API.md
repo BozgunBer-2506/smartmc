@@ -88,6 +88,18 @@ Response envelope:
 
 **Sorting**: `?sortBy=lastMessageAt&order=desc`. A fixed, documented allowlist of sortable fields per resource (not "any field") - unrestricted sorting on an arbitrary column is both a performance risk (no guaranteed index) and an internal-schema leak (Section 2's "no implementation detail leakage" principle).
 
+Real, implemented allowlists as of `ROADMAP.md` Phase 20.3 (an unrecognized `sortBy` falls back to the resource's default field rather than erroring, matching the rest of this section's "a stale/bad param shouldn't break a client" stance):
+
+| Resource | `?sortBy=` values | Default (no `sortBy`) |
+| --- | --- | --- |
+| `GET /v1/conversations` | `lastMessageAt`, `createdAt` | Compound: priorityScore desc, then lastMessageAt desc (unchanged - `sortBy` opts out of this ranking, not into a layer on top of it) |
+| `GET /v1/contacts` | `displayName`, `createdAt` | `displayName` asc |
+| `GET /v1/rules` | `createdAt`, `updatedAt`, `name` | Compound: priority desc, then createdAt desc (same "opt out, not layer on top" rule) |
+| `GET /v1/notifications` | n/a - `?order=` only (one sortable timestamp) | `createdAt` desc |
+| `GET /v1/ai/credits/ledger` | n/a - `?order=` only (append-only ledger, one sortable timestamp) | `createdAt` desc |
+
+Every cursor is self-describing - it carries the `sortBy`/`order` it was minted under, so a client that follows `pagination.nextCursor` across several requests gets a consistent walk even if it stops resending `?sortBy=`/`?order=` on later pages. Backing indexes: `packages/database/prisma/migrations/20260805000000_phase20_3_sort_indexes/`.
+
 **Search**: a distinct endpoint per searchable domain, not a filter param - `GET /v1/search/messages?q=invoice`, `GET /v1/search/contacts?q=deniz`. **Why a separate endpoint instead of `?q=` bolted onto the list endpoint**: search (full-text ranking, relevance-ordering, per DATABASE.md Section 14) has fundamentally different pagination/ranking semantics than a plain filtered list, and conflating them means every list endpoint has to carry search's complexity even when unused. A future `GET /v1/search` cross-domain endpoint (searching messages + contacts + files at once, matching PRODUCT.md's cross-channel search vision) is a natural additive endpoint under this same pattern, not a redesign.
 
 ---

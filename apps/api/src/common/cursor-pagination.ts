@@ -59,3 +59,41 @@ export function buildPage<T>(rows: T[], limit: number, cursorFor: (lastRow: T) =
     pagination: { nextCursor: hasMore && last !== undefined ? encodeCursor(cursorFor(last)) : null, hasMore },
   };
 }
+
+export type SortDirection = "asc" | "desc";
+
+/**
+ * `?sortBy=`/`?order=` support (docs/API.md's allowlist-per-resource
+ * convention, ROADMAP.md Phase 20.3). `allowed` is each resource's own
+ * fixed whitelist, never an arbitrary client-supplied column name - a
+ * request can't force a sort on a column that isn't indexed for it, and
+ * can't probe for the existence of columns that were never meant to be
+ * sortable. An unrecognized value falls back to `fallback` rather than
+ * 400ing, matching `decodeCursor`'s "a stale/bad param shouldn't break a
+ * client" stance.
+ */
+export function parseSortBy<T extends string>(raw: string | undefined, allowed: readonly T[], fallback: T): T {
+  return raw && (allowed as readonly string[]).includes(raw) ? (raw as T) : fallback;
+}
+
+export function parseOrder(raw: string | undefined, fallback: SortDirection): SortDirection {
+  return raw === "asc" || raw === "desc" ? raw : fallback;
+}
+
+/**
+ * A single-field keyset WHERE clause: rows strictly past the cursor's own
+ * `(value, id)` position on `sortField`, direction-aware. This is what
+ * keeps an explicit `?sortBy=` in step with its own cursor (a `desc`
+ * cursor page-walk can't silently become `asc` partway through, and a
+ * cursor minted for one `sortField` can't be replayed against another) -
+ * the cursor payload itself carries `sortBy`/`order`, so a page walk stays
+ * self-consistent even if the client's query params drift or are omitted
+ * on later requests. `value` must already be the correctly-typed Prisma
+ * filter value (e.g. a `Date` for a DateTime column, not its ISO string).
+ */
+export function keysetOr(sortField: string, order: SortDirection, value: unknown, id: string): Record<string, unknown> {
+  const cmp = order === "desc" ? "lt" : "gt";
+  return {
+    OR: [{ [sortField]: { [cmp]: value } }, { AND: [{ [sortField]: value }, { id: { [cmp]: id } }] }],
+  };
+}

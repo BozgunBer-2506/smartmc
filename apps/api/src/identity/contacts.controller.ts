@@ -6,14 +6,21 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
-import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
+import { buildPage, decodeCursor, keysetOr, parseLimit, parseOrder, parseSortBy, type SortDirection } from "../common/cursor-pagination";
 
 interface UpdateContactDto {
   isVip?: boolean;
 }
 
+/** docs/ROADMAP.md Phase 20.3 - GET /v1/contacts' `?sortBy=` allowlist. */
+const CONTACT_SORT_FIELDS = ["displayName", "createdAt"] as const;
+type ContactSortField = (typeof CONTACT_SORT_FIELDS)[number];
+const CONTACT_DEFAULT_ORDER: Record<ContactSortField, SortDirection> = { displayName: "asc", createdAt: "desc" };
+
 interface ContactListCursor {
-  displayName: string;
+  sortBy: ContactSortField;
+  order: SortDirection;
+  value: string;
   id: string;
 }
 
@@ -34,24 +41,38 @@ export class ContactsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  async list(@CurrentUser() claims: JwtPayload, @Query("limit") limitParam?: string, @Query("cursor") cursorParam?: string) {
+  async list(
+    @CurrentUser() claims: JwtPayload,
+    @Query("limit") limitParam?: string,
+    @Query("cursor") cursorParam?: string,
+    @Query("sortBy") sortByParam?: string,
+    @Query("order") orderParam?: string,
+  ) {
     const prisma = getPrismaClient();
     const limit = parseLimit(limitParam);
     const cursor = decodeCursor<ContactListCursor>(cursorParam);
+    // The cursor (once present) is the source of truth for sortBy/order, so
+    // a page walk stays self-consistent even if the client's query params
+    // drift partway through - see cursor-pagination.ts's keysetOr doc.
+    const sortBy = cursor?.sortBy ?? parseSortBy(sortByParam, CONTACT_SORT_FIELDS, "displayName");
+    const order = cursor?.order ?? parseOrder(orderParam, CONTACT_DEFAULT_ORDER[sortBy]);
 
     const contacts = await prisma.contact.findMany({
       where: {
         workspaceId: claims.workspaceId,
-        ...(cursor
-          ? { OR: [{ displayName: { gt: cursor.displayName } }, { displayName: cursor.displayName, id: { gt: cursor.id } }] }
-          : {}),
+        ...(cursor ? keysetOr(sortBy, order, sortBy === "createdAt" ? new Date(cursor.value) : cursor.value, cursor.id) : {}),
       },
-      orderBy: [{ displayName: "asc" }, { id: "asc" }],
+      orderBy: [{ [sortBy]: order }, { id: order }],
       take: limit + 1,
       include: { identities: { include: { provider: true } } },
     });
 
-    const page = buildPage(contacts, limit, (last) => ({ displayName: last.displayName, id: last.id }));
+    const page = buildPage(contacts, limit, (last) => ({
+      sortBy,
+      order,
+      value: sortBy === "createdAt" ? last.createdAt.toISOString() : last.displayName,
+      id: last.id,
+    }));
     return {
       ...page,
       data: page.data.map((contact) => ({

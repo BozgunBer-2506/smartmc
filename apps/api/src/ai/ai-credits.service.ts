@@ -52,17 +52,23 @@ export class AiCreditsService {
     return balanceAfter;
   }
 
-  /** `cursor` is the last-seen (createdAt, id) pair - the controller owns encoding/decoding, this just applies the keyset WHERE. */
-  async listLedger(organizationId: string, take: number, cursor?: { createdAt: string; id: string }) {
+  /** `cursor` is the last-seen (createdAt, id) pair plus the active sort order - the controller owns encoding/decoding, this just applies the keyset WHERE. */
+  async listLedger(organizationId: string, take: number, order: "asc" | "desc", cursor?: { createdAt: string; id: string }) {
     const prisma = getPrismaClient();
+    const cmp = order === "desc" ? "lt" : "gt";
     return prisma.aiCreditLedger.findMany({
       where: {
         organizationId,
         ...(cursor
-          ? { OR: [{ createdAt: { lt: new Date(cursor.createdAt) } }, { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } }] }
+          ? {
+              OR: [
+                { createdAt: { [cmp]: new Date(cursor.createdAt) } },
+                { AND: [{ createdAt: new Date(cursor.createdAt) }, { id: { [cmp]: cursor.id } }] },
+              ],
+            }
           : {}),
       },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ createdAt: order }, { id: order }],
       take,
     });
   }

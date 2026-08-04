@@ -5,7 +5,16 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
-import { buildPage, decodeCursor, parseLimit, type CursorPage } from "../common/cursor-pagination";
+import {
+  buildPage,
+  decodeCursor,
+  keysetOr,
+  parseLimit,
+  parseOrder,
+  parseSortBy,
+  type CursorPage,
+  type SortDirection,
+} from "../common/cursor-pagination";
 import { RuleExecutionService } from "./rule-execution.service";
 import { validateRuleInput } from "./rule-validation";
 
@@ -15,9 +24,30 @@ interface DryRunDto {
   senderIsVip?: boolean;
 }
 
+/**
+ * docs/ROADMAP.md Phase 20.3 - GET /v1/rules' `?sortBy=` allowlist.
+ * Deliberately excludes `priority`, which drives the *default* (no
+ * `sortBy`) ordering instead - see `RuleListCursor` below.
+ */
+const RULE_SORT_FIELDS = ["createdAt", "updatedAt", "name"] as const;
+type RuleSortField = (typeof RULE_SORT_FIELDS)[number];
+const RULE_DEFAULT_ORDER: Record<RuleSortField, SortDirection> = { createdAt: "desc", updatedAt: "desc", name: "asc" };
+
+/**
+ * Two shapes in one cursor type: no `sortBy` means "the default compound
+ * order" (priority desc, then createdAt desc, then id desc - unchanged
+ * from Phase 20.2, kept for backward compatibility with any client already
+ * paginating without `?sortBy=`); a `sortBy` present means a single-field
+ * keyset walk on that field instead, dropping the priority tiebreak - an
+ * explicit sort intent overrides the default ranking, it doesn't layer on
+ * top of it.
+ */
 interface RuleListCursor {
-  priority: number;
-  createdAt: string;
+  sortBy?: RuleSortField;
+  order?: SortDirection;
+  priority?: number;
+  createdAt?: string;
+  value?: string;
   id: string;
 }
 
@@ -43,29 +73,43 @@ export class RulesController {
     @CurrentUser() claims: JwtPayload,
     @Query("limit") limitParam?: string,
     @Query("cursor") cursorParam?: string,
+    @Query("sortBy") sortByParam?: string,
+    @Query("order") orderParam?: string,
   ): Promise<CursorPage<Rule>> {
     const prisma = getPrismaClient();
     const limit = parseLimit(limitParam);
     const cursor = decodeCursor<RuleListCursor>(cursorParam);
 
+    // The cursor is the source of truth once present. No cursor yet: an
+    // explicit `?sortBy=` switches into single-field mode; otherwise stay
+    // on the default compound (priority, createdAt) order.
+    const sortBy = cursor ? cursor.sortBy : sortByParam ? parseSortBy(sortByParam, RULE_SORT_FIELDS, "createdAt") : undefined;
+    const order = sortBy ? (cursor?.order ?? parseOrder(orderParam, RULE_DEFAULT_ORDER[sortBy])) : undefined;
+
     const rules = await prisma.rule.findMany({
       where: {
         workspaceId: claims.workspaceId,
         ...(cursor
-          ? {
-              OR: [
-                { priority: { lt: cursor.priority } },
-                { priority: cursor.priority, createdAt: { lt: new Date(cursor.createdAt) } },
-                { priority: cursor.priority, createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
-              ],
-            }
+          ? sortBy && order
+            ? keysetOr(sortBy, order, sortBy === "name" ? cursor.value : new Date(cursor.value!), cursor.id)
+            : {
+                OR: [
+                  { priority: { lt: cursor.priority } },
+                  { priority: cursor.priority, createdAt: { lt: new Date(cursor.createdAt!) } },
+                  { priority: cursor.priority, createdAt: new Date(cursor.createdAt!), id: { lt: cursor.id } },
+                ],
+              }
           : {}),
       },
-      orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      orderBy: sortBy && order ? [{ [sortBy]: order }, { id: order }] : [{ priority: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
     });
 
-    return buildPage(rules, limit, (last) => ({ priority: last.priority, createdAt: last.createdAt.toISOString(), id: last.id }));
+    return buildPage(rules, limit, (last) =>
+      sortBy && order
+        ? { sortBy, order, value: sortBy === "name" ? last.name : last[sortBy].toISOString(), id: last.id }
+        : { priority: last.priority, createdAt: last.createdAt.toISOString(), id: last.id },
+    );
   }
 
   @Get(":id")

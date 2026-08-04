@@ -6,7 +6,7 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
-import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
+import { buildPage, decodeCursor, parseLimit, parseOrder, parseSortBy, type SortDirection } from "../common/cursor-pagination";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { SchedulerService } from "../automation/scheduler.service";
@@ -35,17 +35,63 @@ interface ListConversationsQuery {
   unread?: string;
   limit?: string;
   cursor?: string;
+  sortBy?: string;
+  order?: string;
 }
 
+/**
+ * docs/ROADMAP.md Phase 20.3 - GET /v1/conversations' `?sortBy=` allowlist.
+ * Deliberately excludes `priorityScore`, which drives the *default* (no
+ * `sortBy`) ranking instead - see `ConversationListCursor` below.
+ */
+const CONVERSATION_SORT_FIELDS = ["lastMessageAt", "createdAt"] as const;
+type ConversationSortField = (typeof CONVERSATION_SORT_FIELDS)[number];
+const CONVERSATION_DEFAULT_ORDER: Record<ConversationSortField, SortDirection> = { lastMessageAt: "desc", createdAt: "desc" };
+
+/**
+ * Two shapes in one cursor type, same pattern as RuleListCursor: no
+ * `sortBy` means the default compound (priorityScore desc, lastMessageAt
+ * desc, id desc) order, unchanged from Phase 20.2; a `sortBy` present
+ * means a single-field keyset walk instead. `lastMessageAt` is nullable
+ * (a conversation with no messages yet), so its own sortBy mode needs
+ * null-aware keyset logic - see `lastMessageAtKeyset` below.
+ */
 interface ConversationListCursor {
-  priorityScore: number;
-  lastMessageAt: string | null;
+  sortBy?: ConversationSortField;
+  order?: SortDirection;
+  priorityScore?: number;
+  lastMessageAt?: string | null;
+  value?: string;
   id: string;
 }
 
 interface MessageCursor {
   receivedAt: string;
   id: string;
+}
+
+/**
+ * `lastMessageAt` is nullable, so its keyset WHERE can't reuse the generic
+ * `keysetOr` (which assumes a non-null, single-typed value). Matches
+ * Postgres' own default null ordering (nulls sort last in ASC, first in
+ * DESC - explicitly requested via Prisma's `nulls` orderBy option below,
+ * not left implicit) so the WHERE clause and the ORDER BY agree.
+ */
+function lastMessageAtKeyset(order: SortDirection, value: string | null, id: string) {
+  if (order === "desc") {
+    // nulls first, then non-null rows newest-first.
+    if (value === null) return { OR: [{ lastMessageAt: null, id: { lt: id } }, { lastMessageAt: { not: null } }] };
+    return { OR: [{ lastMessageAt: { lt: new Date(value) } }, { AND: [{ lastMessageAt: new Date(value) }, { id: { lt: id } }] }] };
+  }
+  // asc: non-null rows oldest-first, then nulls.
+  if (value === null) return { lastMessageAt: null, id: { gt: id } };
+  return {
+    OR: [
+      { lastMessageAt: { gt: new Date(value) } },
+      { AND: [{ lastMessageAt: new Date(value) }, { id: { gt: id } }] },
+      { lastMessageAt: null },
+    ],
+  };
 }
 
 /** True/false unread state: null lastReadAt means every message is unread; otherwise unread iff a message arrived after the last read timestamp. */
@@ -84,31 +130,54 @@ export class ConversationsController {
     const limit = parseLimit(query.limit);
     const cursor = decodeCursor<ConversationListCursor>(query.cursor);
 
+    // The cursor is the source of truth once present. No cursor yet: an
+    // explicit `?sortBy=` switches into single-field mode; otherwise stay
+    // on the default compound (priorityScore, lastMessageAt) order.
+    const sortBy = cursor ? cursor.sortBy : query.sortBy ? parseSortBy(query.sortBy, CONVERSATION_SORT_FIELDS, "lastMessageAt") : undefined;
+    const order = sortBy ? (cursor?.order ?? parseOrder(query.order, CONVERSATION_DEFAULT_ORDER[sortBy])) : undefined;
+
+    let cursorWhere: Record<string, unknown> = {};
+    if (cursor) {
+      if (sortBy === "lastMessageAt") {
+        cursorWhere = lastMessageAtKeyset(order!, cursor.value ?? null, cursor.id);
+      } else if (sortBy === "createdAt") {
+        const cmp = order === "desc" ? "lt" : "gt";
+        cursorWhere = { OR: [{ createdAt: { [cmp]: new Date(cursor.value!) } }, { AND: [{ createdAt: new Date(cursor.value!) }, { id: { [cmp]: cursor.id } }] }] };
+      } else {
+        cursorWhere = {
+          OR: [
+            { priorityScore: { lt: cursor.priorityScore } },
+            {
+              priorityScore: cursor.priorityScore,
+              ...(cursor.lastMessageAt
+                ? {
+                    OR: [
+                      { lastMessageAt: { lt: new Date(cursor.lastMessageAt) } },
+                      { lastMessageAt: new Date(cursor.lastMessageAt), id: { lt: cursor.id } },
+                    ],
+                  }
+                : { lastMessageAt: null, id: { lt: cursor.id } }),
+            },
+          ],
+        };
+      }
+    }
+
+    const orderBy =
+      sortBy === "lastMessageAt"
+        ? [{ lastMessageAt: { sort: order!, nulls: order === "desc" ? ("first" as const) : ("last" as const) } }, { id: order! }]
+        : sortBy === "createdAt"
+          ? [{ createdAt: order! }, { id: order! }]
+          : [{ priorityScore: "desc" as const }, { lastMessageAt: "desc" as const }, { id: "desc" as const }];
+
     const conversations = await prisma.conversation.findMany({
       where: {
         workspaceId: claims.workspaceId,
         isArchived: query.archived === "true" ? true : query.archived === "false" ? false : undefined,
         category: query.category ?? undefined,
-        ...(cursor
-          ? {
-              OR: [
-                { priorityScore: { lt: cursor.priorityScore } },
-                {
-                  priorityScore: cursor.priorityScore,
-                  ...(cursor.lastMessageAt
-                    ? {
-                        OR: [
-                          { lastMessageAt: { lt: new Date(cursor.lastMessageAt) } },
-                          { lastMessageAt: new Date(cursor.lastMessageAt), id: { lt: cursor.id } },
-                        ],
-                      }
-                    : { lastMessageAt: null, id: { lt: cursor.id } }),
-                },
-              ],
-            }
-          : {}),
+        ...cursorWhere,
       },
-      orderBy: [{ priorityScore: "desc" }, { lastMessageAt: "desc" }, { id: "desc" }],
+      orderBy,
       take: limit + 1,
       include: {
         provider: true,
@@ -120,11 +189,20 @@ export class ConversationsController {
       },
     });
 
-    const page = buildPage(conversations, limit, (last) => ({
-      priorityScore: last.priorityScore,
-      lastMessageAt: last.lastMessageAt ? last.lastMessageAt.toISOString() : null,
-      id: last.id,
-    }));
+    const page = buildPage(conversations, limit, (last) =>
+      sortBy && order
+        ? {
+            sortBy,
+            order,
+            value: sortBy === "lastMessageAt" ? (last.lastMessageAt ? last.lastMessageAt.toISOString() : null) : last.createdAt.toISOString(),
+            id: last.id,
+          }
+        : {
+            priorityScore: last.priorityScore,
+            lastMessageAt: last.lastMessageAt ? last.lastMessageAt.toISOString() : null,
+            id: last.id,
+          },
+    );
 
     // VIP/unread filtering still happens after the query, not in Prisma's
     // `where` (pre-existing, disclosed simplification - docs/reviews/

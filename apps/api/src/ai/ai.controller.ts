@@ -5,10 +5,12 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
-import { buildPage, decodeCursor, parseLimit } from "../common/cursor-pagination";
+import { buildPage, decodeCursor, parseLimit, parseOrder, type SortDirection } from "../common/cursor-pagination";
 import { AiCreditsService } from "./ai-credits.service";
 
+/** docs/ROADMAP.md Phase 20.3 - createdAt is the only sortable field on an append-only ledger, so only `?order=` is meaningful here. */
 interface LedgerCursor {
+  order: SortDirection;
   createdAt: string;
   id: string;
 }
@@ -71,12 +73,18 @@ export class AiController {
   }
 
   @Get("credits/ledger")
-  async getLedger(@CurrentUser() claims: JwtPayload, @Query("limit") limitParam?: string, @Query("cursor") cursorParam?: string) {
+  async getLedger(
+    @CurrentUser() claims: JwtPayload,
+    @Query("limit") limitParam?: string,
+    @Query("cursor") cursorParam?: string,
+    @Query("order") orderParam?: string,
+  ) {
     const organizationId = await this.organizationIdFor(claims.workspaceId);
     const limit = parseLimit(limitParam);
     const cursor = decodeCursor<LedgerCursor>(cursorParam);
-    const entries = await this.credits.listLedger(organizationId, limit + 1, cursor ?? undefined);
-    return buildPage(entries, limit, (last) => ({ createdAt: last.createdAt.toISOString(), id: last.id }));
+    const order = cursor?.order ?? parseOrder(orderParam, "desc");
+    const entries = await this.credits.listLedger(organizationId, limit + 1, order, cursor ?? undefined);
+    return buildPage(entries, limit, (last) => ({ order, createdAt: last.createdAt.toISOString(), id: last.id }));
   }
 
   @Post("summaries")
