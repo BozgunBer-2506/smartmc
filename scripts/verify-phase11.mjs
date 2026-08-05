@@ -22,13 +22,18 @@ async function getJson(url, accessToken) {
   return res.json();
 }
 
-async function req(method, url, accessToken, body) {
+async function req(method, url, accessToken, body, extraHeaders = {}) {
   const res = await fetch(url, {
     method,
-    headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...extraHeaders },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, body: await res.json().catch(() => ({})) };
+}
+
+/** `?If-Match=` (docs/ROADMAP.md Phase 20.4) - `"new"` before anything's ever been saved, else the row's real `version`. */
+function ifMatchFor(prefs) {
+  return prefs?.version === undefined ? '"new"' : `"${prefs.version}"`;
 }
 
 async function sendMock(accessToken, { senderDisplayName, senderExternalId, bodyText }) {
@@ -82,12 +87,18 @@ async function main() {
   // 3. Configure a silent-hours window covering right now (UTC, the dev workspace's default timezone).
   const silentHoursStart = nowPlusMinutesUTC(-30);
   const silentHoursEnd = nowPlusMinutesUTC(30);
-  const patchRes = await req("PATCH", `${BASE}/v1/notification-preferences`, accessToken, {
-    silentHoursStart,
-    silentHoursEnd,
-    vipOverrideEnabled: true,
-    keywordAlerts: ["urgent"],
-  });
+  const patchRes = await req(
+    "PATCH",
+    `${BASE}/v1/notification-preferences`,
+    accessToken,
+    {
+      silentHoursStart,
+      silentHoursEnd,
+      vipOverrideEnabled: true,
+      keywordAlerts: ["urgent"],
+    },
+    { "If-Match": ifMatchFor(defaults) },
+  );
   check("PATCH /v1/notification-preferences succeeds", patchRes.status === 200);
   check("the saved preference round-trips keywordAlerts", patchRes.body.keywordAlerts.includes("urgent"));
 
@@ -120,7 +131,7 @@ async function main() {
   check("a keyword-matching message notifies during silent hours", notifications.some((n) => n.title.includes("Alex Keyword")));
 
   // 7. Disabling VIP override means even a VIP sender stays silent.
-  await req("PATCH", `${BASE}/v1/notification-preferences`, accessToken, { vipOverrideEnabled: false });
+  await req("PATCH", `${BASE}/v1/notification-preferences`, accessToken, { vipOverrideEnabled: false }, { "If-Match": ifMatchFor(patchRes.body) });
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip-11", bodyText: "Third message, override disabled." });
   await sleep(600);
   const notificationsAfterDisable = (await getJson(`${BASE}/v1/notifications`, accessToken)).data;

@@ -9,6 +9,7 @@ import {
   fetchNotificationPreferences,
   fetchRuleExecutions,
   fetchRules,
+  ifMatchForPreferences,
   suggestRule,
   updateNotificationPreferences,
   updateRule,
@@ -142,12 +143,16 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
         .split(",")
         .map((k) => k.trim())
         .filter((k) => k.length > 0);
-      const updated = await updateNotificationPreferences(accessToken, {
-        silentHoursStart: preferences?.silentHoursStart || null,
-        silentHoursEnd: preferences?.silentHoursEnd || null,
-        vipOverrideEnabled: preferences?.vipOverrideEnabled ?? true,
-        keywordAlerts,
-      });
+      const updated = await updateNotificationPreferences(
+        accessToken,
+        {
+          silentHoursStart: preferences?.silentHoursStart || null,
+          silentHoursEnd: preferences?.silentHoursEnd || null,
+          vipOverrideEnabled: preferences?.vipOverrideEnabled ?? true,
+          keywordAlerts,
+        },
+        ifMatchForPreferences(preferences),
+      );
       setPreferences(updated);
       setKeywordAlertsText(updated.keywordAlerts.join(", "));
       setError(null);
@@ -160,7 +165,7 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
 
   async function handleToggleEnabled(rule: RuleSummary) {
     try {
-      await updateRule(accessToken, rule.id, { isEnabled: !rule.isEnabled });
+      await updateRule(accessToken, rule.id, { isEnabled: !rule.isEnabled }, rule.version);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update rule.");

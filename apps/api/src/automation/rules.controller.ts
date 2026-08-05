@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, HttpStatus, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Headers, HttpStatus, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { getPrismaClient, newId, type Rule, type RuleExecutionLog } from "@smc/database";
 import type { ActionStep, ConditionNode } from "@smc/automation-engine";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
+import { etagFor, parseETagHeader } from "../common/etag";
 import {
   buildPage,
   decodeCursor,
@@ -112,11 +114,27 @@ export class RulesController {
     );
   }
 
+  /**
+   * `?If-None-Match` support (docs/API.md Section 8, ROADMAP.md Phase
+   * 20.4): a matching ETag returns `304` with no body, letting a client
+   * that already has the current version skip re-downloading it.
+   */
   @Get(":id")
-  async get(@Param("id") id: string, @CurrentUser() claims: JwtPayload): Promise<Rule> {
+  async get(
+    @Param("id") id: string,
+    @CurrentUser() claims: JwtPayload,
+    @Headers("if-none-match") ifNoneMatch: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<Rule | undefined> {
     const prisma = getPrismaClient();
     const rule = await prisma.rule.findFirst({ where: { id, workspaceId: claims.workspaceId } });
     if (!rule) throw httpError(HttpStatus.NOT_FOUND, "RULE_NOT_FOUND", "Rule not found.");
+
+    response.setHeader("ETag", etagFor(rule.version));
+    if (parseETagHeader(ifNoneMatch) === String(rule.version)) {
+      response.status(HttpStatus.NOT_MODIFIED);
+      return undefined;
+    }
     return rule;
   }
 
@@ -141,19 +159,36 @@ export class RulesController {
   }
 
   /**
-   * Every save increments `version` via an explicit
-   * `updateMany({ where: { id, version } })` (docs/DATABASE.md Section 9's
-   * documented optimistic-locking pattern) - a 409 means someone else
-   * edited this rule first, not a silent overwrite.
+   * `If-Match` is required (docs/API.md Section 8, ROADMAP.md Phase 20.4)
+   * and is what's actually checked against the row's current version in
+   * the atomic `updateMany` below - not a version this same request just
+   * re-fetched a moment earlier (that older approach only ever guarded the
+   * microseconds between fetch and write, never the real "someone else
+   * edited this since I loaded the form" case `If-Match` exists to catch).
+   * A mismatch is `412 Precondition Failed` with `code:
+   * OPTIMISTIC_LOCK_FAILURE` and a fresh `ETag` header carrying the
+   * current version, so the client can re-fetch and retry without a
+   * second round trip.
    */
   @Patch(":id")
-  async update(@Param("id") id: string, @Body() body: unknown, @CurrentUser() claims: JwtPayload): Promise<Rule> {
+  async update(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @CurrentUser() claims: JwtPayload,
+    @Headers("if-match") ifMatch: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<Rule> {
+    const expectedVersion = parseETagHeader(ifMatch);
+    if (expectedVersion === null) {
+      throw httpError(HttpStatus.PRECONDITION_REQUIRED, "PRECONDITION_REQUIRED", "An If-Match header is required to update this rule.");
+    }
+
     const prisma = getPrismaClient();
     const existing = await prisma.rule.findFirst({ where: { id, workspaceId: claims.workspaceId } });
     if (!existing) throw httpError(HttpStatus.NOT_FOUND, "RULE_NOT_FOUND", "Rule not found.");
 
     const raw = body as Record<string, unknown>;
-    // Enable/disable-only edits keep the existing trigger/conditions/actions rather than requiring a full body.
+    // Enable/disable/priority-only edits keep the existing trigger/conditions/actions rather than requiring a full body.
     const input =
       raw.trigger || raw.conditions || raw.actions || raw.name
         ? validateRuleInput({
@@ -167,14 +202,21 @@ export class RulesController {
         : {
             name: existing.name,
             isEnabled: typeof raw.isEnabled === "boolean" ? raw.isEnabled : existing.isEnabled,
-            priority: existing.priority,
+            // Found via Phase 20.4's own conflict test (verify-phase20.4-etag-concurrency.mjs):
+            // this branch previously only special-cased isEnabled, silently dropping a
+            // priority-only PATCH body back to the pre-existing value.
+            priority: typeof raw.priority === "number" ? raw.priority : existing.priority,
             trigger: existing.trigger as unknown as import("@smc/automation-engine").RuleTrigger,
             conditions: existing.conditions as unknown as ConditionNode,
             actions: existing.actions as unknown as ActionStep[],
           };
 
+    // The atomic check is against `expectedVersion` (what the client's
+    // If-Match declares), never `existing.version` (what this request
+    // itself just fetched) - see the doc comment above.
+    const expectedVersionNumber = Number(expectedVersion);
     const result = await prisma.rule.updateMany({
-      where: { id, workspaceId: claims.workspaceId, version: existing.version },
+      where: { id, workspaceId: claims.workspaceId, version: Number.isInteger(expectedVersionNumber) ? expectedVersionNumber : -1 },
       data: {
         name: input.name,
         isEnabled: input.isEnabled ?? true,
@@ -187,9 +229,17 @@ export class RulesController {
       },
     });
     if (result.count === 0) {
-      throw httpError(HttpStatus.CONFLICT, "RULE_VERSION_CONFLICT", "This rule was edited elsewhere - reload and try again.");
+      const current = await prisma.rule.findUniqueOrThrow({ where: { id } });
+      response.setHeader("ETag", etagFor(current.version));
+      throw httpError(
+        HttpStatus.PRECONDITION_FAILED,
+        "OPTIMISTIC_LOCK_FAILURE",
+        `This rule was edited elsewhere (current version is ${current.version}) - reload and try again.`,
+      );
     }
-    return prisma.rule.findUniqueOrThrow({ where: { id } });
+    const updated = await prisma.rule.findUniqueOrThrow({ where: { id } });
+    response.setHeader("ETag", etagFor(updated.version));
+    return updated;
   }
 
   @Delete(":id")

@@ -22,10 +22,10 @@ async function getJson(url, accessToken) {
   return res.json();
 }
 
-async function req(method, url, accessToken, body) {
+async function req(method, url, accessToken, body, extraHeaders = {}) {
   const res = await fetch(url, {
     method,
-    headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...extraHeaders },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, body: await res.json().catch(() => ({})) };
@@ -113,14 +113,31 @@ async function main() {
   const executionsAfterDryRun = (await getJson(`${BASE}/v1/rules/${vipRuleId}/executions`, accessToken)).data;
   check("dry-run never writes a real execution log", executionsAfterDryRun.length === vipExecutions.length);
 
-  // 5. Optimistic locking: a stale version PATCH is rejected with 409.
-  const staleUpdate = await req("PATCH", `${BASE}/v1/rules/${vipRuleId}`, accessToken, { name: "Renamed once" });
+  // 5. Real HTTP-native optimistic locking (docs/ROADMAP.md Phase 20.4):
+  // each PATCH must send If-Match with the version it actually saw; a
+  // stale one 412s, and the "second" PATCH here uses the version the
+  // first PATCH just returned, so it's genuinely current, not stale.
+  const staleUpdate = await req("PATCH", `${BASE}/v1/rules/${vipRuleId}`, accessToken, { name: "Renamed once" }, { "If-Match": String(createRes.body.version) });
   check("the first PATCH succeeds", staleUpdate.status === 200);
-  const secondStaleUpdate = await req("PATCH", `${BASE}/v1/rules/${vipRuleId}`, accessToken, { name: "Renamed twice" });
+  const secondStaleUpdate = await req(
+    "PATCH",
+    `${BASE}/v1/rules/${vipRuleId}`,
+    accessToken,
+    { name: "Renamed twice" },
+    { "If-Match": String(staleUpdate.body.version) },
+  );
   check("a PATCH with the now-current version also succeeds (version tracked correctly)", secondStaleUpdate.status === 200);
+  const staleIfMatchRetry = await req("PATCH", `${BASE}/v1/rules/${vipRuleId}`, accessToken, { name: "Renamed thrice" }, { "If-Match": String(createRes.body.version) });
+  check("re-using the original (now-stale) version in If-Match is rejected with 412", staleIfMatchRetry.status === 412);
 
   // 6. Disable a rule and confirm it stops matching.
-  const disableRes = await req("PATCH", `${BASE}/v1/rules/${vipRuleId}`, accessToken, { isEnabled: false });
+  const disableRes = await req(
+    "PATCH",
+    `${BASE}/v1/rules/${vipRuleId}`,
+    accessToken,
+    { isEnabled: false },
+    { "If-Match": String(secondStaleUpdate.body.version) },
+  );
   check("disabling the rule succeeds", disableRes.status === 200 && disableRes.body.isEnabled === false);
 
   await sendMock(accessToken, { senderDisplayName: "Priya VIP", senderExternalId: "priya-vip", bodyText: "Third message, rule now disabled." });

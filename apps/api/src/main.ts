@@ -55,9 +55,15 @@ async function bootstrap() {
   );
 
   // ADR-0006: URI versioning. /health and /dev/* are infrastructure/debug
-  // concerns, not part of the versioned product API contract.
+  // concerns, not part of the versioned product API contract. The plain
+  // "health" entry only ever excluded the exact `/health` path, not any
+  // sub-route under it (Nest's exclude match is exact-string-or-regex,
+  // not a prefix) - found live 2026-08-05 debugging a temporary Phase
+  // 20.4 diagnostic route that silently landed at `/v1/health/...`
+  // instead of `/health/...`. Harmless before now (no health sub-routes
+  // existed), fixed here so it doesn't bite the next one.
   app.setGlobalPrefix("v1", {
-    exclude: ["health", "dev/(.*)"],
+    exclude: ["health", "health/(.*)", "dev/(.*)"],
   });
 
   const port = process.env.PORT ? Number(process.env.PORT) : 4000;

@@ -481,6 +481,10 @@ model NotificationPreference {
   silentHoursEnd     String?   @map("silent_hours_end")
   vipOverrideEnabled Boolean   @default(true) @map("vip_override_enabled")
   keywordAlerts      String[]  @default([]) @map("keyword_alerts")
+  /// Optimistic-locking column (docs/DATABASE.md Section 9, ROADMAP.md
+  /// Phase 20.4) - added this phase; this resource previously had no
+  /// conflict detection at all (`PATCH` used a blind `upsert`).
+  version            Int       @default(1)
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 

@@ -334,10 +334,11 @@ export async function createRule(accessToken: string, input: RuleInput): Promise
   return parseOrThrow<RuleSummary>(res);
 }
 
-export async function updateRule(accessToken: string, ruleId: string, input: Partial<RuleInput>): Promise<RuleSummary> {
+/** `expectedVersion` is the `RuleSummary.version` the caller last fetched - sent as `If-Match` (docs/ROADMAP.md Phase 20.4), so a concurrent edit elsewhere is caught with a 412 instead of silently overwritten. */
+export async function updateRule(accessToken: string, ruleId: string, input: Partial<RuleInput>, expectedVersion: number): Promise<RuleSummary> {
   const res = await fetch(`${API_URL}/v1/rules/${ruleId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    headers: { "Content-Type": "application/json", "If-Match": String(expectedVersion), ...authHeaders(accessToken) },
     body: JSON.stringify(input),
   });
   return parseOrThrow<RuleSummary>(res);
@@ -371,6 +372,13 @@ export interface NotificationPreferences {
   silentHoursEnd: string | null;
   vipOverrideEnabled: boolean;
   keywordAlerts: string[];
+  /** Absent on the synthesized "nothing saved yet" default - see cursorForPreferences below (docs/ROADMAP.md Phase 20.4). */
+  version?: number;
+}
+
+/** `"new"` if nothing's been saved yet, else the row's `version` - what the API's `If-Match` (Phase 20.4) expects. */
+export function ifMatchForPreferences(preferences: NotificationPreferences | null): string {
+  return preferences?.version === undefined ? "new" : String(preferences.version);
 }
 
 export async function fetchNotificationPreferences(accessToken: string): Promise<NotificationPreferences> {
@@ -381,10 +389,11 @@ export async function fetchNotificationPreferences(accessToken: string): Promise
 export async function updateNotificationPreferences(
   accessToken: string,
   input: Partial<NotificationPreferences>,
+  ifMatch: string,
 ): Promise<NotificationPreferences> {
   const res = await fetch(`${API_URL}/v1/notification-preferences`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    headers: { "Content-Type": "application/json", "If-Match": ifMatch, ...authHeaders(accessToken) },
     body: JSON.stringify(input),
   });
   return parseOrThrow<NotificationPreferences>(res);
