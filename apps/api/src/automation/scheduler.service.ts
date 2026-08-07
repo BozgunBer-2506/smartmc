@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/commo
 import { Job, Queue, Worker } from "bullmq";
 import { getPrismaClient, newId } from "@smc/database";
 import { redisConnection } from "../events/redis-connection";
+import { MetricsService } from "../observability/metrics.service";
 import { RuleExecutionService } from "./rule-execution.service";
 
 export const SCHEDULED_JOBS_QUEUE_NAME = "scheduled-jobs";
@@ -35,7 +36,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private readonly queue = new Queue(SCHEDULED_JOBS_QUEUE_NAME, { connection: redisConnection });
   private worker?: Worker;
 
-  constructor(private readonly ruleExecution: RuleExecutionService) {}
+  constructor(
+    private readonly ruleExecution: RuleExecutionService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   onModuleInit(): void {
     this.worker = new Worker(
@@ -43,7 +47,9 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       async (job: Job<ScheduledJobData>) => this.fire(job.data),
       { connection: redisConnection },
     );
+    this.worker.on("completed", () => this.metrics.bullmqJobsProcessedTotal.inc({ queue: SCHEDULED_JOBS_QUEUE_NAME }));
     this.worker.on("failed", (job, err) => {
+      this.metrics.bullmqJobsFailedTotal.inc({ queue: SCHEDULED_JOBS_QUEUE_NAME });
       this.logger.error(`Scheduled job ${job?.id ?? "unknown"} failed: ${err.message}`);
     });
   }

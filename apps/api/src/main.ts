@@ -63,7 +63,7 @@ async function bootstrap() {
   // instead of `/health/...`. Harmless before now (no health sub-routes
   // existed), fixed here so it doesn't bite the next one.
   app.setGlobalPrefix("v1", {
-    exclude: ["health", "health/(.*)", "dev/(.*)"],
+    exclude: ["health", "health/(.*)", "dev/(.*)", "metrics"],
   });
 
   const port = process.env.PORT ? Number(process.env.PORT) : 4000;

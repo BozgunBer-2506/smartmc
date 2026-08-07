@@ -28,7 +28,13 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const traceId = uuidv7();
+    // Reuse the same per-request trace ID RequestContextMiddleware already
+    // assigned (docs/ROADMAP.md Phase 20.5) - so an error response's
+    // traceId always matches this same request's structured access log
+    // line, instead of a second, unrelated ID. The middleware runs before
+    // every route, so this is only unset in the (never-normal) case of an
+    // exception thrown outside the HTTP pipeline it covers.
+    const traceId = request.traceId ?? uuidv7();
     const { status, code, title, detail, errors } = this.normalize(exception);
 
     if (status >= 500) {

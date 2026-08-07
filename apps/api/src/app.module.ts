@@ -20,9 +20,11 @@ import { SearchModule } from "./search/search.module";
 import { AiModule } from "./ai/ai.module";
 import { PushModule } from "./push/push.module";
 import { RateLimitModule } from "./rate-limit/rate-limit.module";
+import { ObservabilityModule } from "./observability/observability.module";
 
 @Module({
   imports: [
+    ObservabilityModule,
     HealthModule,
     RealtimeModule,
     AutomationModule,

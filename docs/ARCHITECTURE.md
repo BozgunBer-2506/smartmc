@@ -431,6 +431,8 @@ Corrected 2026-07-18 via [ADR-0014](adr/0014-custom-jwt-session-auth.md): "Auth.
              └───────────────────────────────────────────┘
 ```
 
+**Observability - target vs. actually built (docs/ROADMAP.md Phase 20.5, 2026-08-06/07):** the diagram above is this project's target-state design, on Kubernetes infrastructure that doesn't exist yet (production today is Railway, not EKS - see `docs/STATUS.md`'s Railway Production Deployment section). What's real today: every request gets a correlation ID (`X-Trace-Id` response header, honoring a client-supplied one), a structured JSON access log line per request (`apps/api/src/observability/request-context.middleware.ts`), and a real Prometheus-exposition `GET /metrics` endpoint (`apps/api/src/observability/`) with default Node.js process metrics plus custom `http_requests_total`/`http_request_duration_seconds`/`http_errors_total`, `connector_messages_received_total`, `automation_rule_executions_total`, and `bullmq_jobs_processed_total`/`bullmq_jobs_failed_total` - all verified moving under real traffic, not static. An OTel Collector, Prometheus server actually scraping this endpoint, Grafana, and Loki are not deployed - explicitly deferred, not silently skipped.
+
 Environment separation: `dev` (single-node, docker-compose), `staging` (scaled-down EKS, same manifests as prod), `prod` (Multi-AZ, HPA-scaled connector workers - these scale independently since Discord/Slack event volume differs wildly from Email polling load).
 
 ---

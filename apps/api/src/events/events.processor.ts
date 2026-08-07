@@ -7,6 +7,7 @@ import { computePriorityScore, DEV_ORGANIZATION_ID, DEV_WORKSPACE_ID, type Inbou
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { RuleExecutionService } from "../automation/rule-execution.service";
 import { SchedulerService } from "../automation/scheduler.service";
+import { MetricsService } from "../observability/metrics.service";
 import { EVENTS_QUEUE_NAME } from "./events.service";
 import { redisConnection } from "./redis-connection";
 
@@ -32,6 +33,7 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
     private readonly realtime: RealtimeGateway,
     private readonly ruleExecution: RuleExecutionService,
     private readonly scheduler: SchedulerService,
+    private readonly metrics: MetricsService,
   ) {}
 
   onModuleInit(): void {
@@ -41,7 +43,9 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
       { connection: redisConnection },
     );
 
+    this.worker.on("completed", () => this.metrics.bullmqJobsProcessedTotal.inc({ queue: EVENTS_QUEUE_NAME }));
     this.worker.on("failed", (job, err) => {
+      this.metrics.bullmqJobsFailedTotal.inc({ queue: EVENTS_QUEUE_NAME });
       this.logger.error(`Job ${job?.id ?? "unknown"} failed: ${err.message}`);
     });
   }
@@ -176,6 +180,11 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
     if (priorityScore > conversation.priorityScore) {
       await prisma.conversation.update({ where: { id: conversation.id }, data: { priorityScore } });
     }
+
+    // docs/ROADMAP.md Phase 20.5 - counted here, not on every event bus
+    // publish: this is the point a message is durably ingested, past the
+    // duplicate-detection early return above.
+    this.metrics.connectorMessagesReceivedTotal.inc({ provider: payload.providerKey });
 
     this.realtime.emitToWorkspace(payload.workspaceId, "message.received", {
       id: message.id,

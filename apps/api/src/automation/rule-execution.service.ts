@@ -15,6 +15,7 @@ import { CredentialsStoreService } from "../credentials-store/credentials-store.
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AiEnrichmentService } from "../ai/ai-enrichment.service";
 import { PushService } from "../push/push.service";
+import { MetricsService } from "../observability/metrics.service";
 import { assertPublicWebhookTarget } from "./ssrf-guard";
 
 const WEBHOOK_TIMEOUT_MS = 5000;
@@ -39,6 +40,7 @@ export class RuleExecutionService {
     private readonly realtime: RealtimeGateway,
     private readonly aiEnrichment: AiEnrichmentService,
     private readonly push: PushService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async handleMessageReceived(input: {
@@ -152,6 +154,8 @@ export class RuleExecutionService {
       // execution already recorded this outcome, which is the point.
       this.logger.warn(`Could not record execution log for rule ${rule.id}: ${err instanceof Error ? err.message : err}`);
     }
+
+    this.metrics.ruleExecutionsTotal.inc({ status: result.status });
 
     this.realtime.emitToWorkspace(workspaceId, "rule.executed", {
       ruleId: rule.id,

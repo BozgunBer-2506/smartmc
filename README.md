@@ -68,7 +68,7 @@ The parts most worth a second look in code review:
 | 20.2 Real cursor pagination | ✅ Live in production |
 | 20.3 `?sortBy=`/`?order=` | ✅ Live in production |
 | 20.4 `ETag`/`If-Match` optimistic concurrency | ✅ Live in production |
-| 20.5 Observability (OpenTelemetry/Prometheus/Grafana/Loki) | ⏳ Fully scoped, deliberately paused |
+| 20.5 Observability foundation | ✅ Verified locally - trace IDs, structured logging, Prometheus `/metrics` (OTel tracing and a deployed Grafana/Loki stack are documented as a future step, not built) |
 
 ## Architecture
 
