@@ -15,7 +15,7 @@ Real connectors, a real identity-resolution engine, a real automation engine, an
 | --- | --- |
 | **App** | [smcweb-production-48c3.up.railway.app](https://smcweb-production-48c3.up.railway.app) |
 | **Marketing site** | [smcmarketing-site-production.up.railway.app](https://smcmarketing-site-production.up.railway.app) |
-| **API** | [smcapi-production-bc04.up.railway.app](https://smcapi-production-bc04.up.railway.app) - try `GET /health` |
+| **API** | [smcapi-production-bc04.up.railway.app](https://smcapi-production-bc04.up.railway.app) - try `GET /health` or `GET /metrics` (real Prometheus exposition format) |
 
 Deployed on Railway: NestJS API, Next.js web app, a separately-isolated Next.js marketing site, managed PostgreSQL, and managed Redis, all running as independent services against one production database.
 
@@ -68,7 +68,7 @@ The parts most worth a second look in code review:
 | 20.2 Real cursor pagination | ✅ Live in production |
 | 20.3 `?sortBy=`/`?order=` | ✅ Live in production |
 | 20.4 `ETag`/`If-Match` optimistic concurrency | ✅ Live in production |
-| 20.5 Observability foundation | ✅ Verified locally - trace IDs, structured logging, Prometheus `/metrics` (OTel tracing and a deployed Grafana/Loki stack are documented as a future step, not built) |
+| 20.5 Observability foundation | ✅ Live in production - trace IDs, structured logging, Prometheus `/metrics` (OTel tracing and a deployed Grafana/Loki stack are documented as a future step, not built) |
 
 ## Architecture
 
