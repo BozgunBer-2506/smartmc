@@ -238,7 +238,20 @@ model LinkedAccount {
   provider      Provider       @relation(fields: [providerId], references: [id])
   conversations Conversation[]
 
-  @@unique([workspaceId, providerId, externalAccountId], name: "uq_linked_accounts_workspace_provider_external")
+  // No `@@unique([workspaceId, providerId, externalAccountId])` here
+  // (docs/ROADMAP.md Phase 21.1) - Prisma's schema DSL has no partial/
+  // filtered unique index support, and a full-table unique constraint on
+  // this natural key is actively wrong for a soft-deletable model: it
+  // blocks ever reconnecting the same external account after a disconnect
+  // (a `P2002` on the reconnect's `create()`, found live via this phase's
+  // own regression test - `findFirst`'s `deletedAt: null` filtering,
+  // already enforced globally by `withSoftDeletes()`, was never the real
+  // gap). The real constraint lives purely in
+  // `packages/database/prisma/migrations/20260809000000_phase21_1_linked_account_partial_unique_index/`
+  // as a hand-written `CREATE UNIQUE INDEX ... WHERE deleted_at IS NULL` -
+  // enforced by Postgres, invisible to (and un-managed by) Prisma's schema
+  // diffing, same category of deliberate gap as this project's other
+  // documented "no CHECK constraint via db push" simplifications.
   @@index([workspaceId], name: "idx_linked_accounts_workspace_id")
   @@index([status], name: "idx_linked_accounts_status")
   @@map("linked_accounts")

@@ -481,6 +481,21 @@ None of these block a small number of real users - `docs/reviews/mvp-hardening-r
 
 ---
 
+## Phase 21 - Product Hardening & UX
+
+Added to the roadmap 2026-08-09, per explicit user direction: with Phase 20 (Production Readiness) fully complete, the backend has reached a level of rigor the product's usability hasn't caught up to yet. Phase 21 closes that gap - real, long-standing bugs first, then UX surfaces (connector management, inbox, automation, onboarding) - each sub-phase independently shipped, verified, and documented, matching Phase 20's own discipline.
+
+- [x] **Phase 21.1 - Soft-delete reconnect bug** - complete 2026-08-09, verified locally end to end. Closes a real, long-standing bug first surfaced during Phase 20's Slack live verification and the encryption-key rotation (docs/STATUS.md's "Known follow-up," open since those incidents): once any `LinkedAccount` row existed for a given external account, that same account could never be reconnected - every future connect attempt reported "already connected" forever, even after a genuine disconnect. Two distinct causes, both fixed:
+  1. Every connector's (Telegram, Discord, Slack, Email) "already connected?" check never filtered `deletedAt: null` - fixed via a new shared `findActiveLinkedAccount()` helper (`apps/api/src/common/linked-account.ts`), used by all four. Turned out to be **not the actual blocker** in practice - `packages/database/src/soft-delete.ts`'s `withSoftDeletes()` Prisma Client extension already injects `deletedAt: null` into every `findFirst` on this model by default, so this check was already silently correct. Kept as explicit, self-documenting intent rather than reverted, since relying entirely on an implicit global extension for correctness this load-bearing is fragile.
+  2. **The real bug**, found via this phase's own regression test actually attempting a reconnect: the database's own unique index on `(workspace_id, provider_id, external_account_id)` had no soft-delete awareness at all - a soft-deleted row still occupied that key, so a genuine reconnect's `INSERT` hit a real Postgres unique-violation (`P2002`), regardless of any application-level query filtering. Fixed with a partial unique index (`WHERE deleted_at IS NULL`) replacing the full-table one - Prisma's schema DSL has no partial-index support, so this is a hand-written migration, deliberately unmanaged by `schema.prisma`'s own `@@unique` (documented inline in the model). The real on-disk index name during this fix turned out to differ from what `schema.prisma`'s `name:` claimed (this database predates that annotation being added) - confirmed live against the running dev database rather than assumed, and the migration targets the real name.
+  See `scripts/verify-phase21.1-reconnect.mjs` (7/7): a real soft-delete via Prisma, a real reconnect `create()` proven to succeed (not caught-and-ignored), and confirmation that both the old (soft-deleted) and new (active) rows coexist in the table - a true soft delete, not a disguised hard delete. Live HTTP smoke test (connect → disconnect → reconnect through the real Telegram Bot API) runs when `TELEGRAM_TEST_BOT_TOKEN` is set, matching every other connector verify script's established pattern; SKIPs otherwise.
+- [ ] Phase 21.2 - Connector management (connect/disconnect/reconnect UX, credential status, last-connected time, error state, health indicator)
+- [ ] Phase 21.3 - Inbox UX (conversation state, read/unread, search/filter, provider indicators, empty/loading/error states)
+- [ ] Phase 21.4 - Automation UX (rule create/edit, trigger→condition→action view, execution history, failed-execution detail)
+- [ ] Phase 21.5 - Demo / onboarding (new workspace creation, first connector, demo data, no empty-inbox first impression)
+
+---
+
 ## Notes on Sequencing
 
 - Phases 0-3 produce zero user-visible product. That is intentional: the Connector SDK (Phase 4) is the highest-leverage, hardest-to-retrofit piece of this system, and it must be built on a stable domain model, not against a moving one.

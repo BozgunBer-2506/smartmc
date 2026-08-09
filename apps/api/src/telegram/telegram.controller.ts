@@ -16,6 +16,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { telegramConfig } from "../config/telegram.config";
 import { httpError } from "../common/http-error";
+import { findActiveLinkedAccount } from "../common/linked-account";
 import { EventsService } from "../events/events.service";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { TelegramApiService } from "./telegram-api.service";
@@ -76,8 +77,10 @@ export class TelegramController {
       create: { id: newId(), key: TELEGRAM_PROVIDER_KEY, displayName: "Telegram" },
     });
 
-    const existing = await prisma.linkedAccount.findFirst({
-      where: { workspaceId: claims.workspaceId, providerId: provider.id, externalAccountId: auth.accountExternalId },
+    const existing = await findActiveLinkedAccount(prisma, {
+      workspaceId: claims.workspaceId,
+      providerId: provider.id,
+      externalAccountId: auth.accountExternalId,
     });
     if (existing) {
       throw httpError(

@@ -10,6 +10,7 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
+import { findActiveLinkedAccount } from "../common/linked-account";
 import { slackConfig } from "../config/slack.config";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { EventsService } from "../events/events.service";
@@ -125,9 +126,7 @@ export class SlackController {
       create: { id: newId(), key: SLACK_PROVIDER_KEY, displayName: "Slack" },
     });
 
-    const existing = await prisma.linkedAccount.findFirst({
-      where: { workspaceId, providerId: provider.id, externalAccountId: teamId },
-    });
+    const existing = await findActiveLinkedAccount(prisma, { workspaceId, providerId: provider.id, externalAccountId: teamId });
     if (existing) {
       res.redirect(`${webAppUrl}/?slack=already_connected`);
       return;
