@@ -1,4 +1,4 @@
-import { getPrismaClient } from "@smc/database";
+import { getPrismaClient, type LinkedAccount } from "@smc/database";
 
 /**
  * The soft-delete-aware "already connected?" check every connector's
@@ -15,7 +15,7 @@ import { getPrismaClient } from "@smc/database";
 export function findActiveLinkedAccount(
   prisma: ReturnType<typeof getPrismaClient>,
   params: { workspaceId: string; providerId: string; externalAccountId: string },
-) {
+): Promise<LinkedAccount | null> {
   return prisma.linkedAccount.findFirst({
     where: {
       workspaceId: params.workspaceId,
