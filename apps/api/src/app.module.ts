@@ -21,10 +21,12 @@ import { AiModule } from "./ai/ai.module";
 import { PushModule } from "./push/push.module";
 import { RateLimitModule } from "./rate-limit/rate-limit.module";
 import { ObservabilityModule } from "./observability/observability.module";
+import { ConnectorsModule } from "./connectors/connectors.module";
 
 @Module({
   imports: [
     ObservabilityModule,
+    ConnectorsModule,
     HealthModule,
     RealtimeModule,
     AutomationModule,
