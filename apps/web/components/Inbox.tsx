@@ -4,10 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@smc/ui";
 import {
   approveMergeSuggestion,
-  connectDiscord,
-  connectEmail,
-  connectSlack,
-  connectTelegram,
   fetchConversations,
   fetchMergeSuggestions,
   fetchMessages,
@@ -33,7 +29,6 @@ import {
 } from "../lib/api";
 import { enqueueRequest } from "../lib/offline-queue";
 import { enablePushNotifications, isPushSupported } from "../lib/push";
-import { PasswordInput } from "./PasswordInput";
 import { connectSocket, disconnectSocket } from "../lib/socket";
 import { playPriorityChime } from "../lib/sound";
 
@@ -48,6 +43,7 @@ interface InboxProps {
   user: PublicUser;
   onLoggedOut: () => void;
   onOpenRules: () => void;
+  onOpenConnectors: () => void;
 }
 
 /**
@@ -58,7 +54,7 @@ interface InboxProps {
  * Phase 1's dev-only page that rendered whatever arrived on an
  * unauthenticated, unscoped WebSocket room.
  */
-export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProps) {
+export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConnectors }: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -68,6 +64,7 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
   const [aiBalance, setAiBalance] = useState<number | null>(null);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [pushStatus, setPushStatus] = useState<string | null>(null);
+  const [oauthCallbackStatus, setOauthCallbackStatus] = useState<string | null>(null);
   const [conversationSummary, setConversationSummary] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
@@ -81,19 +78,6 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
   const [sending, setSending] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
-  const [botToken, setBotToken] = useState("");
-  const [connectingTelegram, setConnectingTelegram] = useState(false);
-  const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
-  const [connectingDiscord, setConnectingDiscord] = useState(false);
-  const [discordStatus, setDiscordStatus] = useState<string | null>(null);
-  const [connectingSlack, setConnectingSlack] = useState(false);
-  const [slackStatus, setSlackStatus] = useState<string | null>(null);
-  const [imapHost, setImapHost] = useState("");
-  const [smtpHost, setSmtpHost] = useState("");
-  const [emailUsername, setEmailUsername] = useState("");
-  const [emailPassword, setEmailPassword] = useState("");
-  const [connectingEmail, setConnectingEmail] = useState(false);
-  const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [needsYouCount, setNeedsYouCount] = useState(0);
   const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([]);
   const [showArchived, setShowArchived] = useState(false);
@@ -149,21 +133,21 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
   }
 
   useEffect(() => {
-    // Discord's OAuth2 install flow ends with a full-page redirect back
-    // here from apps/api/src/discord/discord.controller.ts's callback -
-    // surface the outcome once, then clean the URL.
+    // Discord's and Slack's OAuth install flows both end with a full-page
+    // redirect back to the app's root URL (apps/api/src/discord|slack's
+    // callback handlers) - this always lands on the default "inbox" view,
+    // never wherever the user actually clicked "Connect" from (the
+    // Connectors screen, docs/ROADMAP.md Phase 21.2), so the outcome is
+    // surfaced here once, then the URL is cleaned.
     const params = new URLSearchParams(window.location.search);
     const discordResult = params.get("discord");
     if (discordResult) {
-      setDiscordStatus(discordResult === "connected" ? "Discord connected." : `Discord connect failed (${discordResult}).`);
+      setOauthCallbackStatus(discordResult === "connected" ? "Discord connected." : `Discord connect failed (${discordResult}).`);
       window.history.replaceState({}, "", window.location.pathname);
     }
-    // Slack's OAuth v2 install flow ends with the same kind of full-page
-    // redirect back here, from apps/api/src/slack/slack.controller.ts's
-    // callback - identical pattern to Discord's, one query param apart.
     const slackResult = params.get("slack");
     if (slackResult) {
-      setSlackStatus(slackResult === "connected" ? "Slack connected." : `Slack connect failed (${slackResult}).`);
+      setOauthCallbackStatus(slackResult === "connected" ? "Slack connected." : `Slack connect failed (${slackResult}).`);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -363,67 +347,6 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
     }
   }
 
-  async function handleConnectTelegram() {
-    if (!botToken.trim()) return;
-    setConnectingTelegram(true);
-    setTelegramStatus(null);
-    try {
-      const result = await connectTelegram(accessToken, botToken.trim());
-      setTelegramStatus(`Connected (status: ${result.status}, webhook: ${result.webhookRegistered ? "registered" : "reconciliation-only"})`);
-      setBotToken("");
-    } catch (err) {
-      setTelegramStatus(err instanceof Error ? err.message : "Failed to connect Telegram bot.");
-    } finally {
-      setConnectingTelegram(false);
-    }
-  }
-
-  async function handleConnectDiscord() {
-    setConnectingDiscord(true);
-    try {
-      const { authorizationUrl } = await connectDiscord(accessToken);
-      window.location.href = authorizationUrl; // full-page redirect - Discord's OAuth2 install flow, not an API call
-    } catch (err) {
-      setDiscordStatus(err instanceof Error ? err.message : "Failed to start the Discord connect flow.");
-      setConnectingDiscord(false);
-    }
-  }
-
-  async function handleConnectSlack() {
-    setConnectingSlack(true);
-    try {
-      const { authorizationUrl } = await connectSlack(accessToken);
-      window.location.href = authorizationUrl; // full-page redirect - Slack's OAuth v2 install flow, not an API call
-    } catch (err) {
-      setSlackStatus(err instanceof Error ? err.message : "Failed to start the Slack connect flow.");
-      setConnectingSlack(false);
-    }
-  }
-
-  async function handleConnectEmail() {
-    if (!imapHost.trim() || !smtpHost.trim() || !emailUsername.trim() || !emailPassword.trim()) return;
-    setConnectingEmail(true);
-    setEmailStatus(null);
-    try {
-      const result = await connectEmail(accessToken, {
-        imapHost: imapHost.trim(),
-        imapPort: 993,
-        imapSecure: true,
-        smtpHost: smtpHost.trim(),
-        smtpPort: 465,
-        smtpSecure: true,
-        username: emailUsername.trim(),
-        password: emailPassword,
-      });
-      setEmailStatus(`Connected (status: ${result.status}, polling for new mail)`);
-      setEmailPassword("");
-    } catch (err) {
-      setEmailStatus(err instanceof Error ? err.message : "Failed to connect the mailbox.");
-    } finally {
-      setConnectingEmail(false);
-    }
-  }
-
   async function handleLogout() {
     await logout();
     onLoggedOut();
@@ -434,7 +357,6 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
       <style>{`
         @media (max-width: 720px) {
           .inbox-grid { grid-template-columns: 1fr !important; }
-          .connector-row { flex-direction: column; align-items: stretch !important; }
           /* Single-pane, stack-based navigation below the md breakpoint
              (docs/UI_GUIDE.md Section 15, docs/DESIGN_SYSTEM.md's
              responsive spec) - the list and thread are two full-screen
@@ -476,6 +398,7 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
         <div style={{ display: "flex", gap: 8 }}>
           {installPromptEvent && <Button onClick={handleInstall}>Install app</Button>}
           {isPushSupported() && <Button onClick={handleEnablePush}>Enable push</Button>}
+          <Button onClick={onOpenConnectors}>Connectors</Button>
           <Button onClick={onOpenRules}>Automations</Button>
           <Button onClick={handleLogout}>Log out</Button>
         </div>
@@ -551,51 +474,11 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules }: InboxProp
         </Button>
       </section>
 
-      <section style={{ margin: "0 0 20px", border: "1px solid #2A3441", borderRadius: 8, padding: 16 }}>
-        <h2 style={sectionHeading}>Connect a channel</h2>
-
-        <div className="connector-row" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            value={botToken}
-            onChange={(e) => setBotToken(e.target.value)}
-            placeholder="Telegram bot token (from @BotFather)"
-            style={inputStyle({ flex: "1 1 240px" })}
-          />
-          <Button onClick={handleConnectTelegram} disabled={connectingTelegram}>
-            {connectingTelegram ? "Connecting..." : "Connect Telegram"}
-          </Button>
-          {telegramStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{telegramStatus}</span>}
-        </div>
-
-        <div className="connector-row" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
-          <Button onClick={handleConnectDiscord} disabled={connectingDiscord}>
-            {connectingDiscord ? "Redirecting..." : "Connect Discord"}
-          </Button>
-          <Button onClick={handleConnectSlack} disabled={connectingSlack}>
-            {connectingSlack ? "Redirecting..." : "Connect Slack"}
-          </Button>
-          {discordStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{discordStatus}</span>}
-          {slackStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{slackStatus}</span>}
-          {pushStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{pushStatus}</span>}
-        </div>
-
-        <div className="connector-row" style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="IMAP host (imap.gmail.com)" style={inputStyle({ flex: "1 1 190px" })} />
-          <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="SMTP host (smtp.gmail.com)" style={inputStyle({ flex: "1 1 190px" })} />
-          <input value={emailUsername} onChange={(e) => setEmailUsername(e.target.value)} placeholder="Email address" style={inputStyle({ flex: "1 1 190px" })} />
-          <PasswordInput
-            value={emailPassword}
-            onChange={setEmailPassword}
-            placeholder="App password"
-            containerStyle={{ flex: "1 1 160px" }}
-            hint="Gmail/Outlook require an app-specific password, not your account password."
-          />
-          <Button onClick={handleConnectEmail} disabled={connectingEmail}>
-            {connectingEmail ? "Connecting..." : "Connect Email"}
-          </Button>
-          {emailStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{emailStatus}</span>}
-        </div>
-      </section>
+      {(pushStatus || oauthCallbackStatus) && (
+        <section style={{ margin: "0 0 12px", fontSize: 12, color: "#9AA5B1" }}>
+          {[pushStatus, oauthCallbackStatus].filter(Boolean).join(" · ")}
+        </section>
+      )}
 
       <div className="inbox-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         <section className="conversations-pane" data-hidden-mobile={selectedId ? "true" : "false"}>

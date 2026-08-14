@@ -273,6 +273,31 @@ export async function connectEmail(accessToken: string, input: ConnectEmailInput
   return parseOrThrow<ConnectEmailResult>(res);
 }
 
+export interface ConnectorSummary {
+  id: string;
+  provider: string;
+  displayLabel: string | null;
+  externalAccountId: string;
+  status: string;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+}
+
+/** docs/ROADMAP.md Phase 21.2 - the connector management visibility list. */
+export async function fetchConnectors(accessToken: string): Promise<ConnectorSummary[]> {
+  const res = await fetch(`${API_URL}/v1/connectors`, { headers: authHeaders(accessToken) });
+  return (await parseOrThrow<{ data: ConnectorSummary[] }>(res)).data;
+}
+
+export async function disconnectConnector(accessToken: string, provider: string, id: string): Promise<{ id: string; status: string }> {
+  const res = await fetch(`${API_URL}/v1/connectors/${provider}/${id}/disconnect`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  return parseOrThrow<{ id: string; status: string }>(res);
+}
+
 export interface ConditionLeaf {
   field: string;
   operator: string;

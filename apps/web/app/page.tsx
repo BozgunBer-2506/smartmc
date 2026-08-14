@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AuthForm } from "../components/AuthForm";
+import { ConnectorManagement } from "../components/ConnectorManagement";
 import { Inbox } from "../components/Inbox";
 import { Rules } from "../components/Rules";
 import { fetchMe, tryRefresh, type AuthResponse, type PublicUser } from "../lib/api";
@@ -17,7 +18,7 @@ export default function HomePage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<PublicUser | null>(null);
   const [booting, setBooting] = useState(true);
-  const [view, setView] = useState<"inbox" | "rules">("inbox");
+  const [view, setView] = useState<"inbox" | "rules" | "connectors">("inbox");
 
   useEffect(() => {
     tryRefresh().then(async (result) => {
@@ -61,5 +62,17 @@ export default function HomePage() {
     return <Rules accessToken={accessToken} user={user} onBack={() => setView("inbox")} />;
   }
 
-  return <Inbox accessToken={accessToken} user={user} onLoggedOut={handleLoggedOut} onOpenRules={() => setView("rules")} />;
+  if (view === "connectors") {
+    return <ConnectorManagement accessToken={accessToken} user={user} onBack={() => setView("inbox")} />;
+  }
+
+  return (
+    <Inbox
+      accessToken={accessToken}
+      user={user}
+      onLoggedOut={handleLoggedOut}
+      onOpenRules={() => setView("rules")}
+      onOpenConnectors={() => setView("connectors")}
+    />
+  );
 }
