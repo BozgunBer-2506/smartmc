@@ -36,7 +36,7 @@ A connector instance (a `LinkedAccount`, `DATABASE.md` Section 6.5) moves throug
 | `authenticating` | Auth flow in progress (Section 3) | `registered`, `reauth_required` | `syncing_initial`, `error` |
 | `syncing_initial` | Initial backfill sync running (Section 8.1) | `authenticating` | `active`, `error` |
 | `active` | Healthy, ingesting/sending normally | `syncing_initial`, `degraded`, `reauth_required` | `degraded`, `reauth_required`, `disconnecting` |
-| `degraded` | Reachable but impaired (elevated error rate, rate-limited, partial capability loss) - not the same as down | `active` | `active` (recovered), `error`, `reauth_required` |
+| `degraded` | Reachable but impaired (elevated error rate, rate-limited, partial capability loss) - not the same as down | `active` | `active` (recovered), `error`, `reauth_required`, `disconnecting` |
 | `reauth_required` | Credential expired/revoked; connector paused, not destroyed | `active`, `degraded`, `authenticating` | `authenticating` (user reconnects), `disconnecting` |
 | `error` | Unrecoverable-without-intervention failure distinct from a credential problem (e.g. provider account itself suspended) | `syncing_initial`, `active`, `degraded` | `disconnecting`, `authenticating` (retry) |
 | `disconnecting` | User-initiated removal in progress (credential revocation, secret deletion per `SECURITY.md` Section 5.2) | `active`, `degraded`, `reauth_required`, `error` | `disconnected` |

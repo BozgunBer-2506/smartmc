@@ -30,13 +30,22 @@ export const LIFECYCLE_STATES: readonly LifecycleState[] = [
   "disconnected",
 ];
 
-/** The "Exits to" column of docs/CONNECTOR_SDK.md Section 2's state table, verbatim. */
+/**
+ * The "Exits to" column of docs/CONNECTOR_SDK.md Section 2's state table -
+ * `degraded`'s `disconnecting` exit added 2026-08-15 (docs/ROADMAP.md
+ * Phase 21.2), closing a real inconsistency the doc's own table had:
+ * `disconnecting`'s "Entered from" column already listed `degraded`, but
+ * `degraded`'s own "Exits to" column omitted it, so disconnecting a
+ * connector that was currently `degraded` (exactly when a user most needs
+ * to) threw `IllegalLifecycleTransitionError` - found live via a real
+ * disconnect attempt against a production Telegram connection.
+ */
 export const LIFECYCLE_TRANSITIONS: Readonly<Record<LifecycleState, readonly LifecycleState[]>> = {
   registered: ["authenticating"],
   authenticating: ["syncing_initial", "error"],
   syncing_initial: ["active", "error"],
   active: ["degraded", "reauth_required", "disconnecting"],
-  degraded: ["active", "error", "reauth_required"],
+  degraded: ["active", "error", "reauth_required", "disconnecting"],
   reauth_required: ["authenticating", "disconnecting"],
   error: ["disconnecting", "authenticating"],
   disconnecting: ["disconnected"],
