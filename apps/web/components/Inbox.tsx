@@ -4,16 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@smc/ui";
 import {
   approveMergeSuggestion,
+  cancelScheduledMessage,
   fetchConversations,
   fetchMergeSuggestions,
   fetchMessages,
   fetchNeedsYouCount,
   fetchNotifications,
+  fetchScheduledMessages,
   logout,
   markConversationRead,
   API_URL,
   fetchAiCreditBalance,
   rejectMergeSuggestion,
+  scheduleMessage,
   search,
   sendMessage,
   suggestReplies,
@@ -25,6 +28,7 @@ import {
   type MergeSuggestion,
   type NotificationItem,
   type PublicUser,
+  type ScheduledMessage,
   type SearchResults,
 } from "../lib/api";
 import { enqueueRequest } from "../lib/offline-queue";
@@ -78,6 +82,10 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
   const [sending, setSending] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduledMessages, setScheduledMessages] = useState<ScheduledMessage[]>([]);
   const [needsYouCount, setNeedsYouCount] = useState(0);
   const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([]);
   const [showArchived, setShowArchived] = useState(false);
@@ -211,6 +219,11 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived, vipOnly, unreadOnly, categoryFilter]);
 
+  useEffect(() => {
+    refreshScheduledMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!searchQuery.trim()) {
@@ -236,11 +249,18 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
     setSelectedId(id);
     setConversationSummary(null);
     setReplySuggestions([]);
+    setShowScheduler(false);
+    setScheduleAt("");
     const msgs = await fetchMessages(accessToken, id).catch(() => []);
     setMessages(msgs);
     await markConversationRead(accessToken, id).catch(() => undefined);
     refreshConversations();
     fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
+    refreshScheduledMessages();
+  }
+
+  function refreshScheduledMessages() {
+    fetchScheduledMessages(accessToken).then(setScheduledMessages).catch(() => undefined);
   }
 
   async function handleSummarize() {
@@ -344,6 +364,40 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
       }
     } finally {
       setReplying(false);
+    }
+  }
+
+  /** Schedules the current reply text for a future send instead of sending it now (docs/ROADMAP.md Phase 21.6) - e.g. writing a reply at night and having it go out at 8am. */
+  async function handleSchedule() {
+    if (!selectedId || !replyText.trim() || !scheduleAt) return;
+    const sendAtDate = new Date(scheduleAt);
+    if (Number.isNaN(sendAtDate.getTime()) || sendAtDate.getTime() <= Date.now()) {
+      // eslint-disable-next-line no-alert
+      alert("Pick a time in the future.");
+      return;
+    }
+    setScheduling(true);
+    try {
+      await scheduleMessage(accessToken, selectedId, replyText, sendAtDate.toISOString());
+      setReplyText("");
+      setScheduleAt("");
+      setShowScheduler(false);
+      refreshScheduledMessages();
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      alert(err instanceof Error ? err.message : "Failed to schedule message.");
+    } finally {
+      setScheduling(false);
+    }
+  }
+
+  async function handleCancelScheduled(id: string) {
+    try {
+      await cancelScheduledMessage(accessToken, id);
+      refreshScheduledMessages();
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      alert(err instanceof Error ? err.message : "Failed to cancel scheduled message.");
     }
   }
 
@@ -589,17 +643,59 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
             </article>
           ))}
           {selectedId && (
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <input
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleReply()}
-                placeholder="Reply..."
-                style={inputStyle({ flex: 1 })}
-              />
-              <Button onClick={handleReply} disabled={replying || !replyText.trim()}>
-                {replying ? "Sending..." : "Reply"}
-              </Button>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !showScheduler && handleReply()}
+                  placeholder="Reply..."
+                  style={inputStyle({ flex: 1 })}
+                />
+                <Button onClick={handleReply} disabled={replying || scheduling || !replyText.trim()}>
+                  {replying ? "Sending..." : "Reply"}
+                </Button>
+                <button
+                  onClick={() => setShowScheduler((v) => !v)}
+                  style={smallButtonStyle}
+                  title="Schedule for later"
+                >
+                  {showScheduler ? "Cancel schedule" : "Schedule"}
+                </button>
+              </div>
+              {showScheduler && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  <input
+                    type="datetime-local"
+                    value={scheduleAt}
+                    onChange={(e) => setScheduleAt(e.target.value)}
+                    style={inputStyle({})}
+                  />
+                  <Button onClick={handleSchedule} disabled={scheduling || !replyText.trim() || !scheduleAt}>
+                    {scheduling ? "Scheduling..." : "Confirm schedule"}
+                  </Button>
+                </div>
+              )}
+              {scheduledMessages.filter((s) => s.conversationId === selectedId && s.status === "pending").length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 12, color: "#9AA5B1", marginBottom: 4 }}>Scheduled:</div>
+                  {scheduledMessages
+                    .filter((s) => s.conversationId === selectedId && s.status === "pending")
+                    .map((s) => (
+                      <div
+                        key={s.id}
+                        style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}
+                      >
+                        <span>
+                          <strong>{new Date(s.sendAt).toLocaleString()}</strong> - {s.bodyText}
+                        </span>
+                        <button onClick={() => handleCancelScheduled(s.id)} style={smallButtonStyle}>
+                          Cancel
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           )}
         </section>

@@ -213,6 +213,45 @@ export async function sendMessage(accessToken: string, conversationId: string, b
   return parseOrThrow<ConversationMessage>(res);
 }
 
+export interface ScheduledMessage {
+  id: string;
+  conversationId: string;
+  bodyText: string;
+  sendAt: string;
+  status: string;
+  sentMessageId: string | null;
+  lastError: string | null;
+  createdAt: string;
+}
+
+/** Schedules a reply for a future `sendAt` (docs/ROADMAP.md Phase 21.6) - same endpoint as `sendMessage`, distinguished only by the extra field. */
+export async function scheduleMessage(
+  accessToken: string,
+  conversationId: string,
+  body: string,
+  sendAt: string,
+): Promise<ScheduledMessage> {
+  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ body, sendAt }),
+  });
+  return parseOrThrow<ScheduledMessage>(res);
+}
+
+export async function fetchScheduledMessages(accessToken: string): Promise<ScheduledMessage[]> {
+  const res = await fetch(`${API_URL}/v1/scheduled-messages`, { headers: authHeaders(accessToken) });
+  return (await parseOrThrow<{ data: ScheduledMessage[] }>(res)).data;
+}
+
+export async function cancelScheduledMessage(accessToken: string, id: string): Promise<{ id: string; status: string }> {
+  const res = await fetch(`${API_URL}/v1/scheduled-messages/${id}/cancel`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  return parseOrThrow<{ id: string; status: string }>(res);
+}
+
 export async function connectDiscord(accessToken: string): Promise<{ authorizationUrl: string }> {
   const res = await fetch(`${API_URL}/v1/connectors/discord/connect`, {
     method: "POST",

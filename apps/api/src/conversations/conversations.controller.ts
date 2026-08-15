@@ -1,15 +1,13 @@
-import { Body, Controller, Get, HttpStatus, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
-import { defaultConnectorRegistry, type Connector } from "@smc/connector-sdk";
-import { getPrismaClient, newId } from "@smc/database";
-import { AuditLogService } from "../audit/audit-log.service";
+import { Body, Controller, Get, HttpStatus, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
+import { getPrismaClient } from "@smc/database";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { httpError } from "../common/http-error";
 import { buildPage, decodeCursor, parseLimit, parseOrder, parseSortBy, type SortDirection } from "../common/cursor-pagination";
-import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
-import { RealtimeGateway } from "../realtime/realtime.gateway";
-import { SchedulerService } from "../automation/scheduler.service";
+import { MessageSendService } from "./message-send.service";
+import { ScheduledMessageService } from "../automation/scheduled-message.service";
 
 /**
  * The inbox read path (docs/ROADMAP.md Phase 3, docs/API.md Section 10.3).
@@ -21,6 +19,7 @@ import { SchedulerService } from "../automation/scheduler.service";
  */
 interface SendMessageDto {
   body?: string;
+  sendAt?: string;
 }
 
 interface UpdateConversationDto {
@@ -107,10 +106,8 @@ const NEEDS_YOU_PRIORITY_THRESHOLD = 30;
 @Controller("conversations")
 export class ConversationsController {
   constructor(
-    private readonly realtime: RealtimeGateway,
-    private readonly credentialsStore: CredentialsStoreService,
-    private readonly auditLogService: AuditLogService,
-    private readonly scheduler: SchedulerService,
+    private readonly messageSend: MessageSendService,
+    private readonly scheduledMessage: ScheduledMessageService,
   ) {}
 
   /**
@@ -368,97 +365,65 @@ export class ConversationsController {
    * The reply path (docs/ROADMAP.md Phase 4 Sprint 2, docs/API.md Section
    * 10.3's `POST /v1/conversations/{id}/messages`). Disclosed simplification
    * vs. API.md's documented `202 Accepted` + async-delivery-over-WebSocket
-   * shape: this sends synchronously and returns `201` once Telegram has
-   * actually accepted the message, since Sprint 2 has no outbound event
-   * processor yet - see docs/reviews/phase-4-sprint-2-review.md.
+   * shape: an immediate (no `sendAt`, or a past/present `sendAt`) send is
+   * synchronous and returns `201` once the provider has actually accepted
+   * the message, since there is still no outbound event processor - see
+   * docs/reviews/phase-4-sprint-2-review.md. A future `sendAt` (docs/
+   * ROADMAP.md Phase 21.6) is the one case that genuinely is async: it
+   * creates a durable ScheduledMessage row instead and returns `202`,
+   * finally using API.md's async shape for real.
    */
   @Post(":id/messages")
   @UseGuards(JwtAuthGuard)
-  async sendMessage(@Param("id") id: string, @Body() dto: SendMessageDto, @CurrentUser() claims: JwtPayload) {
+  async sendMessage(
+    @Param("id") id: string,
+    @Body() dto: SendMessageDto,
+    @CurrentUser() claims: JwtPayload,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     if (!dto.body || typeof dto.body !== "string" || dto.body.trim().length === 0) {
       throw httpError(HttpStatus.BAD_REQUEST, "BODY_REQUIRED", "A message body is required.");
     }
 
-    const prisma = getPrismaClient();
-    const conversation = await prisma.conversation.findFirst({
-      where: { id, workspaceId: claims.workspaceId },
-      include: { linkedAccount: true, provider: true },
-    });
-    if (!conversation) {
-      throw httpError(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Conversation not found.");
-    }
-    if (!conversation.linkedAccount) {
-      throw httpError(
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        "LINKED_ACCOUNT_NOT_AVAILABLE",
-        "This conversation has no connected account to send through.",
-      );
-    }
-    if (conversation.linkedAccount.deletedAt || conversation.linkedAccount.status === "reauth_required") {
-      throw httpError(
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        "LINKED_ACCOUNT_REAUTH_REQUIRED",
-        "The connected account needs to be reauthorized before sending.",
-      );
+    let sendAt: Date | undefined;
+    if (dto.sendAt !== undefined) {
+      sendAt = new Date(dto.sendAt);
+      if (Number.isNaN(sendAt.getTime())) {
+        throw httpError(HttpStatus.BAD_REQUEST, "INVALID_SEND_AT", "sendAt must be a valid ISO-8601 timestamp.");
+      }
     }
 
-    const connector = defaultConnectorRegistry.get(conversation.provider.key) as Connector;
-    if (!connector.send) {
-      throw httpError(
-        HttpStatus.NOT_IMPLEMENTED,
-        "SEND_NOT_SUPPORTED",
-        `Sending is not yet supported for provider "${conversation.provider.key}".`,
-      );
-    }
+    if (sendAt && sendAt.getTime() > Date.now()) {
+      const prisma = getPrismaClient();
+      const conversation = await prisma.conversation.findFirst({ where: { id, workspaceId: claims.workspaceId } });
+      if (!conversation) {
+        throw httpError(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Conversation not found.");
+      }
 
-    const token = await this.credentialsStore.getSecret(conversation.linkedAccount.credentialsRef);
-    let sendResult;
-    try {
-      sendResult = await connector.send(
-        { conversationExternalId: conversation.externalId, bodyText: dto.body },
-        { credential: token, linkedAccountId: conversation.linkedAccount.id },
-      );
-    } catch (err) {
-      throw httpError(HttpStatus.BAD_GATEWAY, "SEND_FAILED", err instanceof Error ? err.message : "Failed to send message.");
-    }
-
-    const message = await prisma.message.create({
-      data: {
-        id: newId(),
+      const scheduledMessage = await this.scheduledMessage.schedule({
         workspaceId: claims.workspaceId,
         conversationId: conversation.id,
-        externalId: sendResult.externalId,
-        senderContactId: null,
-        direction: "outbound",
+        createdByUserId: claims.sub,
         bodyText: dto.body,
-        receivedAt: new Date(),
-      },
-    });
+        sendAt,
+      });
 
-    await prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: message.receivedAt } });
+      res.status(HttpStatus.ACCEPTED);
+      return {
+        id: scheduledMessage.id,
+        status: scheduledMessage.status,
+        sendAt: scheduledMessage.sendAt,
+        bodyText: scheduledMessage.bodyText,
+      };
+    }
 
-    this.realtime.emitToWorkspace(claims.workspaceId, "message.sent", {
-      id: message.id,
-      conversationId: conversation.id,
-      conversationTitle: conversation.title,
-      bodyText: message.bodyText,
-      receivedAt: message.receivedAt,
-    });
-
-    await this.auditLogService.log({
+    const message = await this.messageSend.send({
       workspaceId: claims.workspaceId,
+      conversationId: id,
+      bodyText: dto.body,
       actorUserId: claims.sub,
       actorType: "user",
-      action: "message.sent",
-      resourceType: "message",
-      resourceId: message.id,
-      metadata: { conversationId: conversation.id, providerKey: conversation.provider.key },
     });
-
-    // A manual reply is exactly the event a `time.no_reply_after` rule was
-    // waiting to not happen - cancel any pending job for this conversation
-    // (docs/AUTOMATION_ENGINE.md Section 3.3).
-    await this.scheduler.cancelNoReplyRules(claims.workspaceId, conversation.id);
 
     return {
       id: message.id,

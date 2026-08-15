@@ -611,6 +611,31 @@ model ScheduledJob {
   @@map("scheduled_jobs")
 }
 
+/// A user-initiated scheduled send (docs/ROADMAP.md Phase 21.6) - distinct
+/// from ScheduledJob above, which is only ever created by a
+/// `time.no_reply_after` rule and requires a `ruleId`. This is the durable
+/// row half of the same BullMQ-delayed-job pattern (ScheduledMessageService
+/// mirrors SchedulerService), but for a reply the user picks a future send
+/// time for directly, with no rule involved. Plain `workspaceId` /
+/// `conversationId` / `createdByUserId` columns, no formal relations - same
+/// minimal-FK convention ScheduledJob and Rule.createdByUserId already use.
+model ScheduledMessage {
+  id              String    @id @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  conversationId  String    @map("conversation_id") @db.Uuid
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  bodyText        String    @map("body_text")
+  sendAt          DateTime  @map("send_at")
+  status          String    @default("pending") // "pending" | "sent" | "cancelled" | "failed"
+  sentMessageId   String?   @map("sent_message_id") @db.Uuid
+  lastError       String?   @map("last_error")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([workspaceId, status, sendAt], name: "idx_scheduled_messages_workspace_status_send_at")
+  @@map("scheduled_messages")
+}
+
 /// Append-only AI credit ledger (docs/DATABASE.md Section 6.15, ADR-0021) -
 /// billing-adjacent balances must be reconstructable/auditable, never a
 /// single mutable counter. `balanceAfter` is a denormalized running total
