@@ -124,7 +124,19 @@ export class EventsProcessor implements OnModuleInit, OnModuleDestroy {
           workspaceId: payload.workspaceId,
         },
       },
-      update: { lastMessageAt: new Date(payload.receivedAt) },
+      // Re-links the conversation to whichever LinkedAccount just delivered
+      // this message. Without this, a conversation that outlives a
+      // disconnect/reconnect cycle keeps pointing at the old, soft-deleted
+      // LinkedAccount forever (its `linkedAccountId` was previously only
+      // ever set at `create` time) - outbound send (MessageSendService)
+      // then permanently 422s with LINKED_ACCOUNT_REAUTH_REQUIRED even
+      // after a successful reconnect, since a new connect always creates a
+      // new LinkedAccount row (Phase 21.1) rather than reviving the old
+      // one. Found via a real production scheduled-send failure (Phase
+      // 21.6) that traced back to exactly this. `?? undefined` so a
+      // payload that genuinely doesn't carry one (Mock Connector) never
+      // nulls out an existing link.
+      update: { lastMessageAt: new Date(payload.receivedAt), linkedAccountId: payload.linkedAccountId ?? undefined },
       create: {
         id: newId(),
         workspaceId: payload.workspaceId,
