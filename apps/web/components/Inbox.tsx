@@ -637,9 +637,11 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
           )}
           {messages.map((m) => (
             <article key={m.id} style={cardStyle}>
-              <strong>{m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}</strong>{" "}
+              <strong style={{ color: m.direction === "outbound" ? "#5B8DEF" : "#E0A458" }}>
+                {m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}
+              </strong>{" "}
               <span style={{ color: "#9AA5B1", fontSize: 12 }}>{new Date(m.receivedAt).toLocaleTimeString()}</span>
-              <p style={{ margin: "4px 0 0" }}>{m.bodyText}</p>
+              <p style={{ margin: "4px 0 0", color: "#C9D1DB" }}>{m.bodyText}</p>
             </article>
           ))}
           {selectedId && (
