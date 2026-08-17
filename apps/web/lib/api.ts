@@ -171,6 +171,14 @@ export async function markConversationRead(accessToken: string, conversationId: 
   await parseOrThrow(res);
 }
 
+export async function markConversationUnread(accessToken: string, conversationId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/unread`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+  });
+  await parseOrThrow(res);
+}
+
 export async function fetchMergeSuggestions(accessToken: string): Promise<MergeSuggestion[]> {
   const res = await fetch(`${API_URL}/v1/identity/merge-suggestions`, { headers: authHeaders(accessToken) });
   return (await parseOrThrow<{ data: MergeSuggestion[] }>(res)).data;

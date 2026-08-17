@@ -300,6 +300,20 @@ export class ConversationsController {
     return { id: updated.id, lastReadAt: updated.lastReadAt };
   }
 
+  /** The inverse of markRead - lets a user manually re-flag a conversation as unread (docs/ROADMAP.md Phase 21.3). isUnread() only ever compares lastMessageAt to lastReadAt, so clearing it back to null reuses that exact logic, no new state needed. */
+  @Post(":id/unread")
+  @UseGuards(JwtAuthGuard)
+  async markUnread(@Param("id") id: string, @CurrentUser() claims: JwtPayload) {
+    const prisma = getPrismaClient();
+    const conversation = await prisma.conversation.findFirst({ where: { id, workspaceId: claims.workspaceId } });
+    if (!conversation) {
+      throw httpError(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Conversation not found.");
+    }
+
+    const updated = await prisma.conversation.update({ where: { id }, data: { lastReadAt: null } });
+    return { id: updated.id, lastReadAt: updated.lastReadAt };
+  }
+
   @Get(":id/messages")
   @UseGuards(JwtAuthGuard)
   async messages(

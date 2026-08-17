@@ -100,6 +100,17 @@ async function main() {
   const bobAfterRead = conversationsAfterRead.find((c) => c.id === bobConvoAfterVip.id);
   check("marking a conversation read flips its unread flag", bobAfterRead?.unread === false);
 
+  // 4b. POST /v1/conversations/:id/unread (docs/ROADMAP.md Phase 21.3) - the symmetric manual-unread action.
+  const unreadRes = await fetch(`${BASE}/v1/conversations/${bobConvoAfterVip.id}/unread`, { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } });
+  check("POST .../unread succeeds", [200, 201].includes(unreadRes.status));
+  const conversationsAfterUnread = (await getJson(`${BASE}/v1/conversations`, accessToken)).data;
+  const bobAfterUnread = conversationsAfterUnread.find((c) => c.id === bobConvoAfterVip.id);
+  check("marking a conversation unread flips its unread flag back", bobAfterUnread?.unread === true);
+  const unreadMissingRes = await fetch(`${BASE}/v1/conversations/00000000-0000-0000-0000-000000000000/unread`, { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } });
+  check("POST .../unread on a nonexistent conversation returns 404", unreadMissingRes.status === 404);
+  // Restore read state so the "Needs You" behavior checked next isn't affected by this test's own action.
+  await fetch(`${BASE}/v1/conversations/${bobConvoAfterVip.id}/read`, { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } });
+
   // 5. Archive + category filters.
   const archiveRes = await fetch(`${BASE}/v1/conversations/${aliceConvo.id}`, {
     method: "PATCH",

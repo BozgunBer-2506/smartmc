@@ -13,6 +13,7 @@ import {
   fetchScheduledMessages,
   logout,
   markConversationRead,
+  markConversationUnread,
   API_URL,
   fetchAiCreditBalance,
   rejectMergeSuggestion,
@@ -61,6 +62,8 @@ interface InboxProps {
 export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConnectors }: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
+  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
@@ -111,6 +114,8 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
       // the request just failed - distinguishing them is what makes the
       // "None yet" empty state trustworthy instead of misleading.
       setConversationsError(err instanceof Error ? err.message : "Could not load conversations.");
+    } finally {
+      setConversationsLoading(false);
     }
   }
 
@@ -251,12 +256,20 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
     setReplySuggestions([]);
     setShowScheduler(false);
     setScheduleAt("");
+    setMessagesLoading(true);
     const msgs = await fetchMessages(accessToken, id).catch(() => []);
     setMessages(msgs);
+    setMessagesLoading(false);
     await markConversationRead(accessToken, id).catch(() => undefined);
     refreshConversations();
     fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
     refreshScheduledMessages();
+  }
+
+  async function handleMarkUnread(conversation: ConversationSummary) {
+    await markConversationUnread(accessToken, conversation.id).catch(() => undefined);
+    refreshConversations();
+    fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
   }
 
   function refreshScheduledMessages() {
@@ -290,6 +303,13 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
       setSuggestingReplies(false);
       fetchAiCreditBalance(accessToken).then((r) => setAiBalance(r.balance)).catch(() => undefined);
     }
+  }
+
+  function clearConversationFilters() {
+    setShowArchived(false);
+    setVipOnly(false);
+    setUnreadOnly(false);
+    setCategoryFilter("");
   }
 
   async function handleToggleArchive(conversation: ConversationSummary) {
@@ -405,6 +425,8 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
     await logout();
     onLoggedOut();
   }
+
+  const filtersActive = showArchived || vipOnly || unreadOnly || categoryFilter.trim().length > 0;
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 32 }}>
@@ -562,23 +584,52 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
               </button>
             </div>
           )}
-          {!conversationsError && conversations.length === 0 && (
+          {conversationsLoading && (
+            <div>
+              {[0, 1, 2].map((i) => (
+                <div key={i} style={{ ...cardStyle, height: 58, background: "#161E2C" }} />
+              ))}
+            </div>
+          )}
+          {!conversationsLoading && !conversationsError && conversations.length === 0 && filtersActive && (
+            <div style={{ ...cardStyle, fontSize: 13, color: "#9AA5B1" }}>
+              No conversations match your filters.
+              <div style={{ marginTop: 6 }}>
+                <button onClick={clearConversationFilters} style={smallButtonStyle}>
+                  Clear filters
+                </button>
+              </div>
+            </div>
+          )}
+          {!conversationsLoading && !conversationsError && conversations.length === 0 && !filtersActive && (
             <p style={{ color: "#9AA5B1", fontSize: 13 }}>None yet - send a mock message above.</p>
           )}
-          {conversations.map((c) => (
+          {!conversationsLoading && conversations.map((c) => (
             <article
               key={c.id}
               style={{
                 ...cardStyle,
                 borderColor: selectedId === c.id ? "#E0A458" : "#2A3441",
+                borderLeft: c.unread ? "3px solid #5B8DEF" : cardStyle.border,
+                background: c.unread ? "#141C2B" : cardStyle.background,
               }}
             >
               <div onClick={() => selectConversation(c.id)} style={{ cursor: "pointer" }}>
-                <strong>
-                  {c.unread && "● "}
-                  {c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown"}
-                  {c.lastMessage?.sender?.isVip && " ⭐"}
-                </strong>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {c.unread && <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "#5B8DEF", flexShrink: 0 }} />}
+                  <span style={{ fontWeight: c.unread ? 700 : 400, color: c.unread ? "#F5F7FA" : "#C9D1DB" }}>
+                    {c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown"}
+                    {c.lastMessage?.sender?.isVip && " ⭐"}
+                  </span>
+                  {(() => {
+                    const badge = PROVIDER_BADGES[c.providerKey] ?? PROVIDER_BADGES.default;
+                    return (
+                      <span style={{ ...providerBadgeStyle, background: badge.background, color: badge.color }}>
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9AA5B1" }}>{c.lastMessage?.bodyText ?? ""}</p>
                 <p style={{ margin: "4px 0 0", fontSize: 11, color: "#6B7686" }}>
                   priority {c.priorityScore}
@@ -589,6 +640,11 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
                 <button onClick={() => handleToggleArchive(c)} style={smallButtonStyle}>
                   {c.isArchived ? "Unarchive" : "Archive"}
                 </button>
+                {!c.unread && (
+                  <button onClick={() => handleMarkUnread(c)} style={smallButtonStyle}>
+                    Mark unread
+                  </button>
+                )}
                 <input
                   defaultValue={c.category ?? ""}
                   onBlur={(e) => handleSetCategory(c, e.target.value)}
@@ -635,7 +691,14 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
               ))}
             </div>
           )}
-          {messages.map((m) => (
+          {messagesLoading && (
+            <div>
+              {[0, 1, 2].map((i) => (
+                <div key={i} style={{ ...cardStyle, height: 48, background: "#161E2C" }} />
+              ))}
+            </div>
+          )}
+          {!messagesLoading && messages.map((m) => (
             <article key={m.id} style={cardStyle}>
               <strong style={{ color: m.direction === "outbound" ? "#5B8DEF" : "#E0A458" }}>
                 {m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}
@@ -739,6 +802,25 @@ const filterLabelStyle: React.CSSProperties = {
   padding: "5px 8px",
   borderRadius: 6,
   cursor: "pointer",
+};
+
+/** Small per-provider badges for the conversation list (docs/ROADMAP.md Phase 21.3) - plain colored text, no icon set exists yet (that's Design System scope). */
+const PROVIDER_BADGES: Record<string, { label: string; background: string; color: string }> = {
+  telegram: { label: "Telegram", background: "#1B3A52", color: "#5FB9E8" },
+  discord: { label: "Discord", background: "#2B2A4A", color: "#8B8FF7" },
+  slack: { label: "Slack", background: "#3A2440", color: "#D186DA" },
+  email: { label: "Email", background: "#2A2E1F", color: "#B8C46B" },
+  mock: { label: "Mock", background: "#2A3441", color: "#9AA5B1" },
+  default: { label: "Unknown", background: "#2A3441", color: "#9AA5B1" },
+};
+
+const providerBadgeStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  padding: "2px 6px",
+  borderRadius: 4,
+  textTransform: "uppercase",
+  letterSpacing: 0.3,
 };
 
 const needsYouBadgeStyle: React.CSSProperties = {
