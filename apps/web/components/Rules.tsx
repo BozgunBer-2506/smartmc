@@ -88,6 +88,11 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [executions, setExecutions] = useState<Record<string, RuleExecutionLogItem[]>>({});
+  const [executionsLoading, setExecutionsLoading] = useState<Record<string, boolean>>({});
+  const [executionsError, setExecutionsError] = useState<Record<string, string | null>>({});
+
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingVersion, setEditingVersion] = useState<number | null>(null);
 
   const [name, setName] = useState("");
   const [triggerType, setTriggerType] = useState("message.received");
@@ -181,6 +186,19 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
     }
   }
 
+  async function loadExecutions(ruleId: string) {
+    setExecutionsLoading((prev) => ({ ...prev, [ruleId]: true }));
+    setExecutionsError((prev) => ({ ...prev, [ruleId]: null }));
+    try {
+      const logs = await fetchRuleExecutions(accessToken, ruleId);
+      setExecutions((prev) => ({ ...prev, [ruleId]: logs }));
+    } catch (err) {
+      setExecutionsError((prev) => ({ ...prev, [ruleId]: err instanceof Error ? err.message : "Failed to load execution history." }));
+    } finally {
+      setExecutionsLoading((prev) => ({ ...prev, [ruleId]: false }));
+    }
+  }
+
   async function handleExpand(rule: RuleSummary) {
     if (expandedId === rule.id) {
       setExpandedId(null);
@@ -188,13 +206,41 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
     }
     setExpandedId(rule.id);
     if (!executions[rule.id]) {
-      try {
-        const logs = await fetchRuleExecutions(accessToken, rule.id);
-        setExecutions((prev) => ({ ...prev, [rule.id]: logs }));
-      } catch {
-        // Non-fatal - the expanded panel just shows no history.
-      }
+      await loadExecutions(rule.id);
     }
+  }
+
+  /** Loads an existing rule into the New Rule form for editing (docs/ROADMAP.md Phase 21.4) - reuses the exact same form/state the create flow already has, no separate edit UI. */
+  function handleStartEdit(rule: RuleSummary) {
+    setEditingRuleId(rule.id);
+    setEditingVersion(rule.version);
+    setName(rule.name);
+    setTriggerType(rule.trigger.type);
+    setHours(rule.trigger.params?.hours ?? 48);
+    setProviderScope(rule.trigger.scope?.providerKey ?? "");
+    const conditions = rule.conditions;
+    if ("field" in conditions) {
+      setLeaves([conditions]);
+      setConditionOp("AND");
+    } else {
+      setLeaves(conditions.children.length > 0 ? (conditions.children as ConditionLeaf[]) : [emptyLeaf()]);
+      setConditionOp(conditions.op === "OR" ? "OR" : "AND");
+    }
+    setActions(rule.actions.length > 0 ? rule.actions : [emptyAction()]);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleCancelEdit() {
+    setEditingRuleId(null);
+    setEditingVersion(null);
+    setName("");
+    setTriggerType("message.received");
+    setHours(48);
+    setProviderScope("");
+    setConditionOp("AND");
+    setLeaves([emptyLeaf()]);
+    setActions([emptyAction()]);
   }
 
   function updateLeaf(index: number, patch: Partial<ConditionLeaf>) {
@@ -263,13 +309,18 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
         conditions: leaves.length === 1 ? leaves[0] : { op: conditionOp, children: leaves },
         actions,
       };
-      await createRule(accessToken, input);
-      setName("");
-      setLeaves([emptyLeaf()]);
-      setActions([emptyAction()]);
+      if (editingRuleId && editingVersion !== null) {
+        await updateRule(accessToken, editingRuleId, input, editingVersion);
+        handleCancelEdit();
+      } else {
+        await createRule(accessToken, input);
+        setName("");
+        setLeaves([emptyLeaf()]);
+        setActions([emptyAction()]);
+      }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create rule.");
+      setError(err instanceof Error ? err.message : editingRuleId ? "Failed to save rule." : "Failed to create rule.");
     } finally {
       setSaving(false);
     }
@@ -382,8 +433,8 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
         {aiNote && <p style={{ fontSize: 12, color: "#9AA5B1", marginTop: 6 }}>{aiNote}</p>}
       </section>
 
-      <section style={{ ...cardStyle, marginBottom: 24 }}>
-        <h2 style={sectionHeading}>New rule</h2>
+      <section style={{ ...cardStyle, marginBottom: 24, borderColor: editingRuleId ? "#E0A458" : "#2A3441" }}>
+        <h2 style={sectionHeading}>{editingRuleId ? "Edit rule" : "New rule"}</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <input style={inputStyle} placeholder="Rule name (e.g. Notify me on VIP messages)" value={name} onChange={(e) => setName(e.target.value)} />
 
@@ -497,10 +548,15 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
             </button>
           </div>
 
-          <div>
+          <div style={{ display: "flex", gap: 8 }}>
             <Button onClick={handleCreate} disabled={saving}>
-              {saving ? "Saving..." : "Create rule"}
+              {saving ? "Saving..." : editingRuleId ? "Save changes" : "Create rule"}
             </Button>
+            {editingRuleId && (
+              <button type="button" style={smallButtonStyle} onClick={handleCancelEdit}>
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -521,6 +577,9 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button type="button" style={smallButtonStyle} onClick={() => handleToggleEnabled(rule)}>
                   {rule.isEnabled ? "Disable" : "Enable"}
+                </button>
+                <button type="button" style={smallButtonStyle} onClick={() => handleStartEdit(rule)}>
+                  Edit
                 </button>
                 <button
                   type="button"
@@ -543,13 +602,48 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
 
             {expandedId === rule.id && (
               <div style={{ marginTop: 10, borderTop: "1px solid #2A3441", paddingTop: 10 }}>
-                {(executions[rule.id] ?? []).length === 0 && <p style={{ fontSize: 12, color: "#9AA5B1" }}>No executions yet.</p>}
-                {(executions[rule.id] ?? []).map((log) => (
-                  <div key={log.id} style={{ fontSize: 12, color: "#9AA5B1", marginBottom: 4 }}>
-                    {new Date(log.matchedAt).toLocaleString()} - <strong style={{ color: log.status === "success" ? "#3FB27F" : log.status === "partial_failure" ? "#E0A458" : "#E05252" }}>{log.status}</strong>{" "}
-                    ({log.actionsExecuted.map((a) => a.type).join(", ")})
+                {executionsLoading[rule.id] && (
+                  <div>
+                    {[0, 1].map((i) => (
+                      <div key={i} style={{ height: 32, borderRadius: 6, background: "#161E2C", marginBottom: 6 }} />
+                    ))}
                   </div>
-                ))}
+                )}
+                {!executionsLoading[rule.id] && executionsError[rule.id] && (
+                  <div style={{ fontSize: 12, color: "#E05252" }}>
+                    Could not load execution history: {executionsError[rule.id]}{" "}
+                    <button onClick={() => loadExecutions(rule.id)} style={{ ...smallButtonStyle, marginLeft: 6 }}>
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {!executionsLoading[rule.id] && !executionsError[rule.id] && (executions[rule.id] ?? []).length === 0 && (
+                  <p style={{ fontSize: 12, color: "#9AA5B1" }}>No executions yet.</p>
+                )}
+                {!executionsLoading[rule.id] &&
+                  !executionsError[rule.id] &&
+                  (executions[rule.id] ?? []).map((log) => (
+                    <div key={log.id} style={{ fontSize: 12, color: "#9AA5B1", marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #1B2333" }}>
+                      <div>
+                        {new Date(log.matchedAt).toLocaleString()} -{" "}
+                        <strong style={{ color: log.status === "success" ? "#3FB27F" : log.status === "partial_failure" ? "#E0A458" : "#E05252" }}>
+                          {log.status}
+                        </strong>
+                      </div>
+                      {log.status !== "success" && log.errorDetail && (
+                        <div style={{ color: "#E05252", marginTop: 2 }}>{log.errorDetail}</div>
+                      )}
+                      {log.actionsExecuted.map((a, i) => (
+                        <div key={i} style={{ marginTop: 2, paddingLeft: 8 }}>
+                          <span style={{ color: a.status === "success" ? "#3FB27F" : "#E05252" }}>{a.type}: {a.status}</span>
+                          {a.error && <span style={{ color: "#E05252" }}> - {a.error}</span>}
+                          {a.output !== undefined && a.status === "success" && (
+                            <span style={{ color: "#6B7686" }}> - {JSON.stringify(a.output)}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
               </div>
             )}
           </div>
