@@ -542,13 +542,20 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
         </section>
       )}
 
-      <section style={{ display: "flex", gap: 8, margin: "20px 0" }}>
-        <input value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Sender name" style={inputStyle({ flex: "0 0 160px" })} />
-        <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message body" style={inputStyle({ flex: 1 })} />
-        <Button onClick={handleSendMock} disabled={sending}>
-          {sending ? "Sending..." : "Send mock message"}
-        </Button>
-      </section>
+      {process.env.NODE_ENV !== "production" && (
+        // Dev-only test tool (POST /dev/mock-connector/send, docs/ROADMAP.md
+        // Phase 21.5) - the backend itself 404s this route outside
+        // development (mock-connector.controller.ts), so this UI must match
+        // that guard rather than render a control that silently fails for a
+        // real production user.
+        <section style={{ display: "flex", gap: 8, margin: "20px 0" }}>
+          <input value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Sender name" style={inputStyle({ flex: "0 0 160px" })} />
+          <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message body" style={inputStyle({ flex: 1 })} />
+          <Button onClick={handleSendMock} disabled={sending}>
+            {sending ? "Sending..." : "Send mock message"}
+          </Button>
+        </section>
+      )}
 
       {(pushStatus || oauthCallbackStatus) && (
         <section style={{ margin: "0 0 12px", fontSize: 12, color: "#9AA5B1" }}>
@@ -602,7 +609,13 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
             </div>
           )}
           {!conversationsLoading && !conversationsError && conversations.length === 0 && !filtersActive && (
-            <p style={{ color: "#9AA5B1", fontSize: 13 }}>None yet - send a mock message above.</p>
+            <div style={{ ...cardStyle, fontSize: 13, color: "#9AA5B1" }}>
+              <strong style={{ color: "#F5F7FA" }}>No conversations yet</strong>
+              <p style={{ margin: "6px 0 0" }}>Connect your first account to start receiving messages.</p>
+              <div style={{ marginTop: 10 }}>
+                <Button onClick={onOpenConnectors}>Connect account</Button>
+              </div>
+            </div>
           )}
           {!conversationsLoading && conversations.map((c) => (
             <article
