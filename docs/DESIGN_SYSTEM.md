@@ -2,10 +2,10 @@
 
 ```yaml
 Title: DESIGN_SYSTEM.md
-Version: 1.0
-Status: Approved
+Version: 1.1
+Status: Approved (Sections 4-9 implemented, Phase 22)
 Owner: Design Systems
-Last Updated: 2026-07-18
+Last Updated: 2026-08-21
 Depends On:
   - PRODUCT.md
   - UI_GUIDE.md
@@ -15,6 +15,12 @@ Related ADRs:
 ```
 
 Author role: Senior Design Systems Engineer. Scope: the complete, implementation-ready design system for Smart Message Center, built on shadcn/ui + Tailwind CSS, and structured to serve three targets from one source of truth: the Next.js web app (installable as a PWA, `ROADMAP.md` Phase 14), the Tauri desktop app (conditional, Phase 15), and a future React Native mobile app (v2, per `PRODUCT.md`'s MVP-exclusion section - not a numbered phase).
+
+**Implementation status (docs/ROADMAP.md Phase 22, 2026-08-21)**: written 2026-07-18, first implemented over a month later - this document sat as an approved-but-unbuilt spec the entire time, every product screen instead using ad hoc inline styles (see `docs/STATUS.md`'s Phase 22 entry for the audit that found this). Sections 4-9 (color, typography, spacing, layout grid, responsive rules, primitive components) are now real: `packages/design-tokens` (colors/typography/spacing/radius/shadow/motion), `apps/web`'s Tailwind config consuming those tokens as CSS custom properties, and `packages/ui`'s primitives (Button, Input, Card, Badge, Alert, Select, Checkbox, Switch, Dialog, Tooltip, Skeleton, plus theme infrastructure). Two deliberate implementation choices worth recording:
+- **Hand-built Radix + CVA components, not the shadcn CLI** - `apps/marketing-site` already established this exact pattern (Radix primitives, `class-variance-authority` variants, a `cn()` helper) independently; reusing it avoids introducing a second, CLI-driven component-generation workflow into the monorepo for no functional difference.
+- **Concrete hex values, chosen during implementation, not present in this document's original "reference value" language** - see `packages/design-tokens/src/colors.ts` for the actual light/dark palette. Two real inconsistencies found in the pre-Phase-22 inline styles were resolved rather than carried forward: `success` had two different greens across `Inbox.tsx`/`ConnectorManagement.tsx`, and `warning` previously reused the same hex as the priority accent, in direct violation of this document's own Section 4.1 rule that the two must be visually distinct hues.
+
+Only `Inbox.tsx` is migrated onto this system so far (Phase 22's own scope decision, to prove the primitives against one real, already-tested screen before committing further screens to it) - `Rules.tsx`, `ConnectorManagement.tsx`, and `AuthForm.tsx` remain on the pre-existing inline-style pattern, planned for Phase 22.2. Sections 10 (product composites - Identity Avatar, Merge Suggestion Card, etc.), 11-16 (deeper accessibility/keyboard/dark-mode/animation rules beyond what's implemented), and the React Native mapping in Section 16 remain spec-only, unbuilt.
 
 ---
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@smc/ui";
+import { Badge, Button, Card, Input, ProviderBadge, Skeleton, ThemeToggle } from "@smc/ui";
 import {
   approveMergeSuggestion,
   cancelScheduledMessage,
@@ -51,6 +51,9 @@ interface InboxProps {
   onOpenConnectors: () => void;
 }
 
+const smallButtonClass =
+  "rounded-sm border border-border-subtle bg-surface-2 px-2 py-1 text-[11px] text-text-primary hover:border-border-strong";
+
 /**
  * The real Inbox (docs/ROADMAP.md Phase 3) - conversations and messages
  * come from Postgres via GET /v1/conversations / GET /v1/conversations/{id}/messages
@@ -58,6 +61,12 @@ interface InboxProps {
  * user's own real workspace, not a shared dev fixture (Phase 1). Replaces
  * Phase 1's dev-only page that rendered whatever arrived on an
  * unauthenticated, unscoped WebSocket room.
+ *
+ * Migrated onto the real design system (docs/ROADMAP.md Phase 22) - the
+ * first screen to prove `packages/ui`'s primitives and `packages/design-tokens`'
+ * tokens against a real, already-tested screen (every Phase 21.3 behavior
+ * below - provider badges, unread state, loading skeletons, filtered/empty
+ * states - is preserved exactly, not rebuilt).
  */
 export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConnectors }: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -429,49 +438,25 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
   const filtersActive = showArchived || vipOnly || unreadOnly || categoryFilter.trim().length > 0;
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: 32 }}>
-      <style>{`
-        @media (max-width: 720px) {
-          .inbox-grid { grid-template-columns: 1fr !important; }
-          /* Single-pane, stack-based navigation below the md breakpoint
-             (docs/UI_GUIDE.md Section 15, docs/DESIGN_SYSTEM.md's
-             responsive spec) - the list and thread are two full-screen
-             views a user pushes/pops between, never both crammed onto
-             one small screen at once. */
-          .conversations-pane[data-hidden-mobile="true"] { display: none; }
-          .messages-pane[data-hidden-mobile="true"] { display: none; }
-          .mobile-back-button { display: inline-block !important; }
-        }
-      `}</style>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+    <main className="mx-auto max-w-[900px] p-8">
+      <header className="mb-2 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Smart Message Center</h1>
-            <p style={{ color: "#9AA5B1", fontSize: 13, margin: "4px 0 0" }}>
+            <h1 className="m-0 text-xl font-semibold text-text-primary">Smart Message Center</h1>
+            <p className="mt-1 text-[13px] text-text-secondary">
               {user.displayName ?? user.email} · Realtime:{" "}
-              <strong style={{ color: connected ? "#3FB27F" : "#E05252" }}>
+              <strong className={connected ? "text-status-success" : "text-status-danger"}>
                 {connected ? "connected" : "disconnected"}
               </strong>
             </p>
           </div>
-          <span
-            title="Unread conversations that are VIP or high-priority"
-            style={{
-              ...needsYouBadgeStyle,
-              background: needsYouCount > 0 ? "#E0A458" : "#1B2333",
-              color: needsYouCount > 0 ? "#1B2333" : "#9AA5B1",
-              borderColor: needsYouCount > 0 ? "#E0A458" : "#2A3441",
-            }}
-          >
+          <Badge variant={needsYouCount > 0 ? "priority" : "neutral"} title="Unread conversations that are VIP or high-priority">
             Needs You: {needsYouCount}
-          </span>
-          {aiBalance !== null && (
-            <span title="AI credits remaining" style={{ ...needsYouBadgeStyle, background: "#1B2333", color: "#9AA5B1", borderColor: "#2A3441" }}>
-              AI credits: {aiBalance}
-            </span>
-          )}
+          </Badge>
+          {aiBalance !== null && <Badge title="AI credits remaining">AI credits: {aiBalance}</Badge>}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           {installPromptEvent && <Button onClick={handleInstall}>Install app</Button>}
           {isPushSupported() && <Button onClick={handleEnablePush}>Enable push</Button>}
           <Button onClick={onOpenConnectors}>Connectors</Button>
@@ -480,10 +465,10 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
         </div>
       </header>
 
-      <section style={{ margin: "0 0 20px" }}>
-        <form onSubmit={handleSearch} style={{ display: "flex", gap: 8 }}>
-          <input
-            style={inputStyle({ flex: 1 })}
+      <section className="my-5">
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <Input
+            className="flex-1"
             placeholder="Search messages and contacts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -495,12 +480,12 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
         </form>
 
         {searchResults && (
-          <div style={{ ...cardStyle, marginTop: 8 }}>
-            <h2 style={sectionHeading}>
+          <Card className="mt-2">
+            <h2 className="mb-2 text-sm font-semibold text-text-secondary">
               Messages ({searchResults.messages.length}) - Contacts ({searchResults.contacts.length})
             </h2>
             {searchResults.messages.length === 0 && searchResults.contacts.length === 0 && (
-              <p style={{ fontSize: 13, color: "#9AA5B1" }}>No results.</p>
+              <p className="text-[13px] text-text-secondary">No results.</p>
             )}
             {searchResults.messages.map((m) => (
               <div
@@ -509,35 +494,35 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
                   selectConversation(m.conversationId);
                   clearSearch();
                 }}
-                style={{ padding: "6px 0", borderBottom: "1px solid #2A3441", cursor: "pointer", fontSize: 13 }}
+                className="cursor-pointer border-b border-border-subtle py-1.5 text-[13px]"
               >
                 <strong>{m.senderDisplayName ?? m.conversationTitle ?? "Unknown"}</strong>
-                <span style={{ color: "#9AA5B1" }}> - {m.bodyText}</span>
+                <span className="text-text-secondary"> - {m.bodyText}</span>
               </div>
             ))}
             {searchResults.contacts.map((c) => (
-              <div key={c.id} style={{ padding: "6px 0", fontSize: 13 }}>
-                {c.displayName} {c.isVip && <span style={{ color: "#E0A458" }}>(VIP)</span>}
+              <div key={c.id} className="py-1.5 text-[13px]">
+                {c.displayName} {c.isVip && <span className="text-accent-priority">(VIP)</span>}
               </div>
             ))}
-          </div>
+          </Card>
         )}
       </section>
 
       {mergeSuggestions.length > 0 && (
-        <section style={{ margin: "0 0 20px" }}>
-          <h2 style={sectionHeading}>Possible duplicate contacts</h2>
+        <section className="my-5">
+          <h2 className="mb-2 text-sm font-semibold text-text-secondary">Possible duplicate contacts</h2>
           {mergeSuggestions.map((s) => (
-            <article key={s.id} style={{ ...cardStyle, borderColor: "#E0A458", borderLeftWidth: 3 }}>
-              <p style={{ margin: 0, fontSize: 13 }}>
+            <Card key={s.id} className="border-l-[3px] border-l-accent-priority">
+              <p className="m-0 text-[13px]">
                 <strong>{s.contactA?.displayName ?? "Unknown"}</strong> and <strong>{s.contactB?.displayName ?? "Unknown"}</strong> might be the same person
                 {" "}({Math.round(s.confidenceScore * 100)}% confidence - {s.matchingSignals.reason})
               </p>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <div className="mt-2 flex gap-2">
                 <Button onClick={() => handleApproveSuggestion(s.id)}>Merge</Button>
                 <Button onClick={() => handleRejectSuggestion(s.id)}>Not the same person</Button>
               </div>
-            </article>
+            </Card>
           ))}
         </section>
       )}
@@ -548,9 +533,9 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
         // development (mock-connector.controller.ts), so this UI must match
         // that guard rather than render a control that silently fails for a
         // real production user.
-        <section style={{ display: "flex", gap: 8, margin: "20px 0" }}>
-          <input value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Sender name" style={inputStyle({ flex: "0 0 160px" })} />
-          <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message body" style={inputStyle({ flex: 1 })} />
+        <section className="my-5 flex gap-2">
+          <Input className="w-40 flex-none" value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Sender name" />
+          <Input className="flex-1" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message body" />
           <Button onClick={handleSendMock} disabled={sending}>
             {sending ? "Sending..." : "Send mock message"}
           </Button>
@@ -558,219 +543,193 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
       )}
 
       {(pushStatus || oauthCallbackStatus) && (
-        <section style={{ margin: "0 0 12px", fontSize: 12, color: "#9AA5B1" }}>
-          {[pushStatus, oauthCallbackStatus].filter(Boolean).join(" · ")}
-        </section>
+        <section className="mb-3 text-xs text-text-secondary">{[pushStatus, oauthCallbackStatus].filter(Boolean).join(" · ")}</section>
       )}
 
-      <div className="inbox-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
-        <section className="conversations-pane" data-hidden-mobile={selectedId ? "true" : "false"}>
-          <h2 style={sectionHeading}>Conversations</h2>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10, fontSize: 12, color: "#9AA5B1" }}>
-            <label style={filterLabelStyle}>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[280px_1fr]">
+        <section className={selectedId ? "hidden md:block" : "block"}>
+          <h2 className="mb-2 text-sm font-semibold text-text-secondary">Conversations</h2>
+          <div className="mb-2.5 flex flex-wrap gap-1 text-xs text-text-secondary">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Archived
             </label>
-            <label style={filterLabelStyle}>
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
               <input type="checkbox" checked={vipOnly} onChange={(e) => setVipOnly(e.target.checked)} /> VIP only
             </label>
-            <label style={filterLabelStyle}>
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
               <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} /> Unread only
             </label>
-            <input
+            <Input
+              className="w-[100px] text-xs"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               placeholder="Category filter"
-              style={inputStyle({ width: 100, fontSize: 12 })}
             />
           </div>
           {conversationsError && (
-            <div style={{ ...cardStyle, borderColor: "#E05252", color: "#E05252", fontSize: 13, marginBottom: 8 }}>
+            <Card className="mb-2 border-status-danger text-[13px] text-status-danger">
               Could not load conversations: {conversationsError}{" "}
-              <button onClick={refreshConversations} style={{ ...smallButtonStyle, marginLeft: 6 }}>
+              <button onClick={refreshConversations} className={`${smallButtonClass} ml-1.5`}>
                 Retry
               </button>
-            </div>
+            </Card>
           )}
           {conversationsLoading && (
-            <div>
-              {[0, 1, 2].map((i) => (
-                <div key={i} style={{ ...cardStyle, height: 58, background: "#161E2C" }} />
-              ))}
+            <div className="space-y-2">
+              <Skeleton className="h-[58px]" />
+              <Skeleton className="h-[58px]" />
+              <Skeleton className="h-[58px]" />
             </div>
           )}
           {!conversationsLoading && !conversationsError && conversations.length === 0 && filtersActive && (
-            <div style={{ ...cardStyle, fontSize: 13, color: "#9AA5B1" }}>
+            <Card className="text-[13px] text-text-secondary">
               No conversations match your filters.
-              <div style={{ marginTop: 6 }}>
-                <button onClick={clearConversationFilters} style={smallButtonStyle}>
+              <div className="mt-1.5">
+                <button onClick={clearConversationFilters} className={smallButtonClass}>
                   Clear filters
                 </button>
               </div>
-            </div>
+            </Card>
           )}
           {!conversationsLoading && !conversationsError && conversations.length === 0 && !filtersActive && (
-            <div style={{ ...cardStyle, fontSize: 13, color: "#9AA5B1" }}>
-              <strong style={{ color: "#F5F7FA" }}>No conversations yet</strong>
-              <p style={{ margin: "6px 0 0" }}>Connect your first account to start receiving messages.</p>
-              <div style={{ marginTop: 10 }}>
+            <Card className="text-[13px] text-text-secondary">
+              <strong className="text-text-primary">No conversations yet</strong>
+              <p className="mt-1.5">Connect your first account to start receiving messages.</p>
+              <div className="mt-2.5">
                 <Button onClick={onOpenConnectors}>Connect account</Button>
               </div>
-            </div>
+            </Card>
           )}
-          {!conversationsLoading && conversations.map((c) => (
-            <article
-              key={c.id}
-              style={{
-                ...cardStyle,
-                borderColor: selectedId === c.id ? "#E0A458" : "#2A3441",
-                borderLeft: c.unread ? "3px solid #5B8DEF" : cardStyle.border,
-                background: c.unread ? "#141C2B" : cardStyle.background,
-              }}
-            >
-              <div onClick={() => selectConversation(c.id)} style={{ cursor: "pointer" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {c.unread && <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "#5B8DEF", flexShrink: 0 }} />}
-                  <span style={{ fontWeight: c.unread ? 700 : 400, color: c.unread ? "#F5F7FA" : "#C9D1DB" }}>
-                    {c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown"}
-                    {c.lastMessage?.sender?.isVip && " ⭐"}
-                  </span>
-                  {(() => {
-                    const badge = PROVIDER_BADGES[c.providerKey] ?? PROVIDER_BADGES.default;
-                    return (
-                      <span style={{ ...providerBadgeStyle, background: badge.background, color: badge.color }}>
-                        {badge.label}
-                      </span>
-                    );
-                  })()}
+          {!conversationsLoading &&
+            conversations.map((c) => (
+              <Card
+                key={c.id}
+                className={[
+                  selectedId === c.id ? "border-accent-priority" : "",
+                  c.unread ? "border-l-[3px] border-l-status-info bg-surface-2" : "",
+                ].join(" ")}
+              >
+                <div onClick={() => selectConversation(c.id)} className="cursor-pointer">
+                  <div className="flex items-center gap-1.5">
+                    {c.unread && <span className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-status-info" />}
+                    <span className={c.unread ? "font-bold text-text-primary" : "font-normal text-text-secondary"}>
+                      {c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown"}
+                      {c.lastMessage?.sender?.isVip && " ⭐"}
+                    </span>
+                    <ProviderBadge providerKey={c.providerKey} />
+                  </div>
+                  <p className="mt-1 text-[13px] text-text-secondary">{c.lastMessage?.bodyText ?? ""}</p>
+                  <p className="mt-1 text-[11px] text-text-disabled">
+                    priority {c.priorityScore}
+                    {c.category ? ` · ${c.category}` : ""}
+                  </p>
                 </div>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9AA5B1" }}>{c.lastMessage?.bodyText ?? ""}</p>
-                <p style={{ margin: "4px 0 0", fontSize: 11, color: "#6B7686" }}>
-                  priority {c.priorityScore}
-                  {c.category ? ` · ${c.category}` : ""}
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                <button onClick={() => handleToggleArchive(c)} style={smallButtonStyle}>
-                  {c.isArchived ? "Unarchive" : "Archive"}
-                </button>
-                {!c.unread && (
-                  <button onClick={() => handleMarkUnread(c)} style={smallButtonStyle}>
-                    Mark unread
+                <div className="mt-1.5 flex gap-1.5">
+                  <button onClick={() => handleToggleArchive(c)} className={smallButtonClass}>
+                    {c.isArchived ? "Unarchive" : "Archive"}
                   </button>
-                )}
-                <input
-                  defaultValue={c.category ?? ""}
-                  onBlur={(e) => handleSetCategory(c, e.target.value)}
-                  placeholder="Set category"
-                  style={inputStyle({ flex: 1, fontSize: 11, padding: 4 })}
-                />
-              </div>
-            </article>
-          ))}
+                  {!c.unread && (
+                    <button onClick={() => handleMarkUnread(c)} className={smallButtonClass}>
+                      Mark unread
+                    </button>
+                  )}
+                  <input
+                    defaultValue={c.category ?? ""}
+                    onBlur={(e) => handleSetCategory(c, e.target.value)}
+                    placeholder="Set category"
+                    className="h-6 flex-1 rounded-sm border border-border-subtle bg-surface-1 px-1 text-[11px] text-text-primary"
+                  />
+                </div>
+              </Card>
+            ))}
         </section>
 
-        <section className="messages-pane" data-hidden-mobile={selectedId ? "false" : "true"}>
-          <button
-            type="button"
-            className="mobile-back-button"
-            onClick={() => setSelectedId(null)}
-            style={{ ...smallButtonStyle, display: "none", marginBottom: 10 }}
-          >
+        <section className={selectedId ? "block" : "hidden md:block"}>
+          <button type="button" onClick={() => setSelectedId(null)} className={`${smallButtonClass} mb-2.5 inline-block md:hidden`}>
             ← Back to conversations
           </button>
-          <h2 style={sectionHeading}>Messages</h2>
-          {!selectedId && <p style={{ color: "#9AA5B1", fontSize: 13 }}>Select a conversation to see its history.</p>}
+          <h2 className="mb-2 text-sm font-semibold text-text-secondary">Messages</h2>
+          {!selectedId && <p className="text-[13px] text-text-secondary">Select a conversation to see its history.</p>}
           {selectedId && messages.length > 0 && (
-            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-              <button onClick={handleSummarize} disabled={summarizing} style={smallButtonStyle}>
+            <div className="mb-2 flex gap-1.5">
+              <button onClick={handleSummarize} disabled={summarizing} className={smallButtonClass}>
                 {summarizing ? "Summarizing..." : "Summarize"}
               </button>
-              <button onClick={handleSuggestReplies} disabled={suggestingReplies} style={smallButtonStyle}>
+              <button onClick={handleSuggestReplies} disabled={suggestingReplies} className={smallButtonClass}>
                 {suggestingReplies ? "Thinking..." : "Suggest replies"}
               </button>
             </div>
           )}
           {conversationSummary && (
-            <div style={{ ...cardStyle, borderColor: "#5B8DEF", fontSize: 13 }}>
+            <Card className="border-status-info text-[13px]">
               <strong>AI summary:</strong> {conversationSummary}
-            </div>
+            </Card>
           )}
           {replySuggestions.length > 0 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+            <div className="mb-2 flex flex-wrap gap-1.5">
               {replySuggestions.map((r, i) => (
-                <button key={i} onClick={() => setReplyText(r)} style={smallButtonStyle}>
+                <button key={i} onClick={() => setReplyText(r)} className={smallButtonClass}>
                   {r}
                 </button>
               ))}
             </div>
           )}
           {messagesLoading && (
-            <div>
-              {[0, 1, 2].map((i) => (
-                <div key={i} style={{ ...cardStyle, height: 48, background: "#161E2C" }} />
-              ))}
+            <div className="space-y-2">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
             </div>
           )}
-          {!messagesLoading && messages.map((m) => (
-            <article key={m.id} style={cardStyle}>
-              <strong style={{ color: m.direction === "outbound" ? "#5B8DEF" : "#E0A458" }}>
-                {m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}
-              </strong>{" "}
-              <span style={{ color: "#9AA5B1", fontSize: 12 }}>{new Date(m.receivedAt).toLocaleTimeString()}</span>
-              <p style={{ margin: "4px 0 0", color: "#C9D1DB" }}>{m.bodyText}</p>
-            </article>
-          ))}
+          {!messagesLoading &&
+            messages.map((m) => (
+              <Card key={m.id}>
+                <strong className={m.direction === "outbound" ? "text-status-info" : "text-accent-priority"}>
+                  {m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}
+                </strong>{" "}
+                <span className="text-xs text-text-secondary">{new Date(m.receivedAt).toLocaleTimeString()}</span>
+                <p className="mt-1 text-text-secondary">{m.bodyText}</p>
+              </Card>
+            ))}
           {selectedId && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
+            <div className="mt-2">
+              <div className="flex gap-2">
+                <Input
+                  className="flex-1"
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !showScheduler && handleReply()}
                   placeholder="Reply..."
-                  style={inputStyle({ flex: 1 })}
                 />
                 <Button onClick={handleReply} disabled={replying || scheduling || !replyText.trim()}>
                   {replying ? "Sending..." : "Reply"}
                 </Button>
-                <button
-                  onClick={() => setShowScheduler((v) => !v)}
-                  style={smallButtonStyle}
-                  title="Schedule for later"
-                >
+                <button onClick={() => setShowScheduler((v) => !v)} className={smallButtonClass} title="Schedule for later">
                   {showScheduler ? "Cancel schedule" : "Schedule"}
                 </button>
               </div>
               {showScheduler && (
-                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-                  <input
-                    type="datetime-local"
-                    value={scheduleAt}
-                    onChange={(e) => setScheduleAt(e.target.value)}
-                    style={inputStyle({})}
-                  />
+                <div className="mt-2 flex items-center gap-2">
+                  <Input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
                   <Button onClick={handleSchedule} disabled={scheduling || !replyText.trim() || !scheduleAt}>
                     {scheduling ? "Scheduling..." : "Confirm schedule"}
                   </Button>
                 </div>
               )}
               {scheduledMessages.filter((s) => s.conversationId === selectedId && s.status === "pending").length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 12, color: "#9AA5B1", marginBottom: 4 }}>Scheduled:</div>
+                <div className="mt-2">
+                  <div className="mb-1 text-xs text-text-secondary">Scheduled:</div>
                   {scheduledMessages
                     .filter((s) => s.conversationId === selectedId && s.status === "pending")
                     .map((s) => (
-                      <div
-                        key={s.id}
-                        style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}
-                      >
+                      <Card key={s.id} className="flex items-center justify-between text-[13px]">
                         <span>
                           <strong>{new Date(s.sendAt).toLocaleString()}</strong> - {s.bodyText}
                         </span>
-                        <button onClick={() => handleCancelScheduled(s.id)} style={smallButtonStyle}>
+                        <button onClick={() => handleCancelScheduled(s.id)} className={smallButtonClass}>
                           Cancel
                         </button>
-                      </div>
+                      </Card>
                     ))}
                 </div>
               )}
@@ -779,104 +738,25 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
         </section>
       </div>
 
-      <section style={{ marginTop: 24 }}>
-        <h2 style={sectionHeading}>Notifications</h2>
-        {notifications.length === 0 && <p style={{ color: "#9AA5B1", fontSize: 13 }}>None yet.</p>}
+      <section className="mt-6">
+        <h2 className="mb-2 text-sm font-semibold text-text-secondary">Notifications</h2>
+        {notifications.length === 0 && <p className="text-[13px] text-text-secondary">None yet.</p>}
         {notifications.map((n) => (
-          <article key={n.id} style={cardStyle}>
+          <Card key={n.id}>
             <strong>{n.title}</strong>
-            <p style={{ margin: "4px 0 0", fontSize: 13 }}>{n.body}</p>
-          </article>
+            <p className="mt-1 text-[13px]">{n.body}</p>
+          </Card>
         ))}
       </section>
 
-      <div style={toastContainerStyle}>
+      <div className="fixed right-4 top-4 flex flex-col gap-2">
         {toasts.map((t) => (
-          <div key={t.id} style={toastStyle}>
+          <div key={t.id} className="min-w-[220px] rounded-lg bg-accent-priority p-3 text-[#1B2333] shadow-md">
             <strong>{t.title}</strong>
-            <p style={{ margin: "2px 0 0", fontSize: 13 }}>{t.body}</p>
+            <p className="mt-0.5 text-[13px]">{t.body}</p>
           </div>
         ))}
       </div>
     </main>
   );
 }
-
-function inputStyle(extra: Record<string, string | number>): Record<string, string | number> {
-  return { padding: 8, borderRadius: 6, border: "1px solid #2A3441", background: "#111726", color: "#F5F7FA", ...extra };
-}
-
-const sectionHeading: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: "#9AA5B1", margin: "0 0 8px" };
-
-const filterLabelStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 5,
-  padding: "5px 8px",
-  borderRadius: 6,
-  cursor: "pointer",
-};
-
-/** Small per-provider badges for the conversation list (docs/ROADMAP.md Phase 21.3) - plain colored text, no icon set exists yet (that's Design System scope). */
-const PROVIDER_BADGES: Record<string, { label: string; background: string; color: string }> = {
-  telegram: { label: "Telegram", background: "#1B3A52", color: "#5FB9E8" },
-  discord: { label: "Discord", background: "#2B2A4A", color: "#8B8FF7" },
-  slack: { label: "Slack", background: "#3A2440", color: "#D186DA" },
-  email: { label: "Email", background: "#2A2E1F", color: "#B8C46B" },
-  mock: { label: "Mock", background: "#2A3441", color: "#9AA5B1" },
-  default: { label: "Unknown", background: "#2A3441", color: "#9AA5B1" },
-};
-
-const providerBadgeStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  padding: "2px 6px",
-  borderRadius: 4,
-  textTransform: "uppercase",
-  letterSpacing: 0.3,
-};
-
-const needsYouBadgeStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  padding: "4px 10px",
-  borderRadius: 100,
-  border: "1px solid",
-  whiteSpace: "nowrap",
-};
-
-const cardStyle: React.CSSProperties = {
-  border: "1px solid #2A3441",
-  borderRadius: 8,
-  padding: 12,
-  marginBottom: 8,
-  background: "#111726",
-};
-
-const smallButtonStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: "4px 8px",
-  borderRadius: 4,
-  border: "1px solid #2A3441",
-  background: "#1B2333",
-  color: "#F5F7FA",
-  cursor: "pointer",
-};
-
-const toastContainerStyle: React.CSSProperties = {
-  position: "fixed",
-  top: 16,
-  right: 16,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
-
-const toastStyle: React.CSSProperties = {
-  background: "#E0A458",
-  color: "#1B2333",
-  borderRadius: 8,
-  padding: "10px 14px",
-  minWidth: 220,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-};
