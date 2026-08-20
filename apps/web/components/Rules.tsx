@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@smc/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+} from "@smc/ui";
 import {
   createRule,
   deleteRule,
@@ -72,6 +85,9 @@ function emptyAction(): ActionStep {
   return { type: "notification.send", params: { title: "", body: "" } };
 }
 
+const smallButtonClass =
+  "rounded-sm border border-border-subtle bg-surface-2 px-2 py-1 text-[11px] text-text-primary hover:border-border-strong";
+
 /**
  * The Automation Engine's UI (docs/AUTOMATION_ENGINE.md Section 7, Phase 10)
  * - a functional form-based rule builder, not the full drag/drop visual
@@ -80,6 +96,13 @@ function emptyAction(): ActionStep {
  * still supports nesting (Section 4.1), so a future richer UI can build on
  * the same rules without a data migration. Disclosed simplification -
  * see docs/reviews/phase-10-review.md.
+ *
+ * Migrated onto the design system (docs/ROADMAP.md Phase 22.2) - the first
+ * real use of the `Select`/`Checkbox` primitives built in Phase 22, and the
+ * last of the three screens whose color literals (input/button backgrounds
+ * outside the shared token set) are now consolidated onto `surface-1`/
+ * `surface-2`. No functional change to create/edit/enable/disable/test/
+ * history/AI-suggest/notification-preferences behavior.
  */
 export function Rules({ accessToken, user, onBack }: RulesProps) {
   void user;
@@ -344,84 +367,74 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
   }
 
   return (
-    <main className="automations-main" style={{ maxWidth: 900, margin: "0 auto", padding: 32 }}>
-      <style>{`
-        @media (max-width: 720px) {
-          .automations-main { padding: 16px !important; }
-          .automations-header { flex-wrap: wrap; gap: 10px; }
-          .automations-toolbar { flex-wrap: wrap; }
-        }
-      `}</style>
-      <header className="automations-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+    <main className="mx-auto max-w-[900px] p-8">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Automations</h1>
-          <p style={{ color: "#9AA5B1", fontSize: 13, margin: "4px 0 0" }}>
+          <h1 className="m-0 text-xl font-semibold text-text-primary">Automations</h1>
+          <p className="mt-1 text-[13px] text-text-secondary">
             Rules that react to incoming messages and elapsed time - docs/AUTOMATION_ENGINE.md
           </p>
         </div>
         <Button onClick={onBack}>Back to Inbox</Button>
       </header>
 
-      {error && (
-        <div style={{ ...cardStyle, borderColor: "#E05252", color: "#E05252", marginBottom: 16 }}>{error}</div>
-      )}
+      {error && <Alert variant="danger" className="mb-4">{error}</Alert>}
 
-      <section style={{ ...cardStyle, marginBottom: 24 }}>
-        <h2 style={sectionHeading}>Notification preferences</h2>
-        <p style={{ fontSize: 12, color: "#9AA5B1", margin: "0 0 10px" }}>
+      <Card className="mb-6">
+        <h2 className="mb-2 text-sm font-semibold text-text-secondary">Notification preferences</h2>
+        <p className="mb-2.5 text-xs text-text-secondary">
           Silent hours suppress the default &quot;notify me&quot; rule unless the sender is VIP (and VIP override is on) or the message matches a keyword alert below.
         </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <label style={filterLabelStyle}>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-text-secondary">
             Silent from
-            <input
-              style={{ ...inputStyle, marginLeft: 6 }}
+            <Input
+              className="ml-1.5 w-auto"
               type="time"
               value={preferences?.silentHoursStart ?? ""}
               onChange={(e) => setPreferences((p) => ({ ...(p ?? defaultPreferences()), silentHoursStart: e.target.value || null }))}
             />
           </label>
-          <label style={filterLabelStyle}>
+          <label className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-text-secondary">
             until
-            <input
-              style={{ ...inputStyle, marginLeft: 6 }}
+            <Input
+              className="ml-1.5 w-auto"
               type="time"
               value={preferences?.silentHoursEnd ?? ""}
               onChange={(e) => setPreferences((p) => ({ ...(p ?? defaultPreferences()), silentHoursEnd: e.target.value || null }))}
             />
           </label>
-          <label style={filterLabelStyle}>
-            <input
-              type="checkbox"
+          <label className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-[13px] text-text-secondary">
+            <Checkbox
               checked={preferences?.vipOverrideEnabled ?? true}
-              onChange={(e) => setPreferences((p) => ({ ...(p ?? defaultPreferences()), vipOverrideEnabled: e.target.checked }))}
-            />{" "}
+              onCheckedChange={(checked) => setPreferences((p) => ({ ...(p ?? defaultPreferences()), vipOverrideEnabled: checked === true }))}
+            />
             VIP senders break through silent hours
           </label>
         </div>
-        <div style={{ marginTop: 8 }}>
-          <input
-            style={{ ...inputStyle, width: "100%" }}
+        <div className="mt-2">
+          <Input
+            className="w-full"
             placeholder="Keyword alerts, comma-separated (e.g. urgent, outage, invoice)"
             value={keywordAlertsText}
             onChange={(e) => setKeywordAlertsText(e.target.value)}
           />
         </div>
-        <div style={{ marginTop: 10 }}>
+        <div className="mt-2.5">
           <Button onClick={handleSavePreferences} disabled={savingPreferences}>
             {savingPreferences ? "Saving..." : "Save preferences"}
           </Button>
         </div>
-      </section>
+      </Card>
 
-      <section style={{ ...cardStyle, marginBottom: 24, borderColor: "#5B8DEF" }}>
-        <h2 style={sectionHeading}>Suggest a rule with AI</h2>
-        <p style={{ fontSize: 12, color: "#9AA5B1", margin: "0 0 8px" }}>
+      <Card className="mb-6 border-status-info">
+        <h2 className="mb-2 text-sm font-semibold text-text-secondary">Suggest a rule with AI</h2>
+        <p className="mb-2 text-xs text-text-secondary">
           Describe the rule in plain language - it only fills the form below as a draft; nothing is created until you review it and click &quot;Create rule&quot;.
         </p>
-        <div className="automations-toolbar" style={{ display: "flex", gap: 6 }}>
-          <input
-            style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+        <div className="flex flex-wrap gap-1.5">
+          <Input
+            className="min-w-[200px] flex-1"
             placeholder={'e.g. "notify me if a VIP messages" or "remind me if no reply in 2 days"'}
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
@@ -430,22 +443,27 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
             {suggestingRule ? "Thinking..." : "Suggest"}
           </Button>
         </div>
-        {aiNote && <p style={{ fontSize: 12, color: "#9AA5B1", marginTop: 6 }}>{aiNote}</p>}
-      </section>
+        {aiNote && <p className="mt-1.5 text-xs text-text-secondary">{aiNote}</p>}
+      </Card>
 
-      <section style={{ ...cardStyle, marginBottom: 24, borderColor: editingRuleId ? "#E0A458" : "#2A3441" }}>
-        <h2 style={sectionHeading}>{editingRuleId ? "Edit rule" : "New rule"}</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input style={inputStyle} placeholder="Rule name (e.g. Notify me on VIP messages)" value={name} onChange={(e) => setName(e.target.value)} />
+      <Card className={`mb-6 ${editingRuleId ? "border-accent-priority" : ""}`}>
+        <h2 className="mb-2 text-sm font-semibold text-text-secondary">{editingRuleId ? "Edit rule" : "New rule"}</h2>
+        <div className="flex flex-col gap-3">
+          <Input placeholder="Rule name (e.g. Notify me on VIP messages)" value={name} onChange={(e) => setName(e.target.value)} />
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select style={inputStyle} value={triggerType} onChange={(e) => setTriggerType(e.target.value)}>
-              <option value="message.received">Trigger: message received</option>
-              <option value="time.no_reply_after">Trigger: no reply after N hours</option>
-            </select>
+          <div className="flex flex-wrap gap-2">
+            <Select value={triggerType} onValueChange={setTriggerType}>
+              <SelectTrigger className="w-auto min-w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="message.received">Trigger: message received</SelectItem>
+                <SelectItem value="time.no_reply_after">Trigger: no reply after N hours</SelectItem>
+              </SelectContent>
+            </Select>
             {triggerType === "time.no_reply_after" && (
-              <input
-                style={{ ...inputStyle, width: 100 }}
+              <Input
+                className="w-[100px]"
                 type="number"
                 min={1}
                 value={hours}
@@ -453,8 +471,8 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
                 placeholder="Hours"
               />
             )}
-            <input
-              style={{ ...inputStyle, flex: "1 1 160px" }}
+            <Input
+              className="flex-[1_1_160px]"
               placeholder="Only for provider (optional, e.g. telegram)"
               value={providerScope}
               onChange={(e) => setProviderScope(e.target.value)}
@@ -462,79 +480,97 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
           </div>
 
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={sectionHeading}>Conditions</span>
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-sm font-semibold text-text-secondary">Conditions</span>
               {leaves.length > 1 && (
-                <select style={{ ...inputStyle, padding: "2px 6px" }} value={conditionOp} onChange={(e) => setConditionOp(e.target.value as "AND" | "OR")}>
-                  <option value="AND">match ALL</option>
-                  <option value="OR">match ANY</option>
-                </select>
+                <Select value={conditionOp} onValueChange={(value) => setConditionOp(value as "AND" | "OR")}>
+                  <SelectTrigger className="h-7 w-auto">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AND">match ALL</SelectItem>
+                    <SelectItem value="OR">match ANY</SelectItem>
+                  </SelectContent>
+                </Select>
               )}
             </div>
             {leaves.map((leaf, i) => (
-              <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
-                <select style={inputStyle} value={leaf.field} onChange={(e) => updateLeaf(i, { field: e.target.value })}>
-                  {FIELD_OPTIONS.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-                <select style={inputStyle} value={leaf.operator} onChange={(e) => updateLeaf(i, { operator: e.target.value })}>
-                  {OPERATOR_OPTIONS.map((op) => (
-                    <option key={op} value={op}>
-                      {op}
-                    </option>
-                  ))}
-                </select>
+              <div key={i} className="mb-1.5 flex flex-wrap gap-1.5">
+                <Select value={leaf.field} onValueChange={(value) => updateLeaf(i, { field: value })}>
+                  <SelectTrigger className="w-auto min-w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FIELD_OPTIONS.map((f) => (
+                      <SelectItem key={f} value={f}>
+                        {f}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={leaf.operator} onValueChange={(value) => updateLeaf(i, { operator: value })}>
+                  <SelectTrigger className="w-auto min-w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OPERATOR_OPTIONS.map((op) => (
+                      <SelectItem key={op} value={op}>
+                        {op}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {leaf.operator !== "is_true" && leaf.operator !== "is_false" && (
-                  <input
-                    style={{ ...inputStyle, flex: "1 1 140px" }}
+                  <Input
+                    className="flex-[1_1_140px]"
                     placeholder="value"
                     value={String(leaf.value ?? "")}
                     onChange={(e) => updateLeaf(i, { value: e.target.value })}
                   />
                 )}
-                <button type="button" style={smallButtonStyle} onClick={() => setLeaves((prev) => prev.filter((_, idx) => idx !== i))}>
+                <button type="button" className={smallButtonClass} onClick={() => setLeaves((prev) => prev.filter((_, idx) => idx !== i))}>
                   Remove
                 </button>
               </div>
             ))}
-            <button type="button" style={smallButtonStyle} onClick={() => setLeaves((prev) => [...prev, emptyLeaf()])}>
+            <button type="button" className={smallButtonClass} onClick={() => setLeaves((prev) => [...prev, emptyLeaf()])}>
               + Add condition
             </button>
           </div>
 
           <div>
-            <span style={sectionHeading}>Actions</span>
+            <span className="text-sm font-semibold text-text-secondary">Actions</span>
             {actions.map((action, i) => (
-              <div key={i} style={{ border: "1px solid #2A3441", borderRadius: 6, padding: 8, marginBottom: 6 }}>
-                <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                  <select
-                    style={inputStyle}
+              <div key={i} className="mb-1.5 rounded-md border border-border-subtle p-2">
+                <div className="mb-1.5 flex gap-1.5">
+                  <Select
                     value={action.type}
-                    onChange={(e) => {
-                      const type = e.target.value;
+                    onValueChange={(type) => {
                       const params: Record<string, string> = {};
                       for (const f of actionParamFields(type)) params[f.key] = "";
                       updateAction(i, { type, params });
                     }}
                   >
-                    {ACTION_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" style={smallButtonStyle} onClick={() => setActions((prev) => prev.filter((_, idx) => idx !== i))}>
+                    <SelectTrigger className="w-auto min-w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACTION_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button type="button" className={smallButtonClass} onClick={() => setActions((prev) => prev.filter((_, idx) => idx !== i))}>
                     Remove
                   </button>
                 </div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <div className="flex flex-wrap gap-1.5">
                   {actionParamFields(action.type).map((f) => (
-                    <input
+                    <Input
                       key={f.key}
-                      style={{ ...inputStyle, flex: "1 1 160px" }}
+                      className="flex-[1_1_160px]"
                       placeholder={`${f.label}: ${f.placeholder}`}
                       value={action.params[f.key] ?? ""}
                       onChange={(e) => updateActionParam(i, f.key, e.target.value)}
@@ -543,146 +579,154 @@ export function Rules({ accessToken, user, onBack }: RulesProps) {
                 </div>
               </div>
             ))}
-            <button type="button" style={smallButtonStyle} onClick={() => setActions((prev) => [...prev, emptyAction()])}>
+            <button type="button" className={smallButtonClass} onClick={() => setActions((prev) => [...prev, emptyAction()])}>
               + Add action
             </button>
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="flex gap-2">
             <Button onClick={handleCreate} disabled={saving}>
               {saving ? "Saving..." : editingRuleId ? "Save changes" : "Create rule"}
             </Button>
             {editingRuleId && (
-              <button type="button" style={smallButtonStyle} onClick={handleCancelEdit}>
+              <button type="button" className={smallButtonClass} onClick={handleCancelEdit}>
                 Cancel
               </button>
             )}
           </div>
         </div>
-      </section>
+      </Card>
 
       <section>
-        <h2 style={sectionHeading}>Your rules {loading && "(loading...)"}</h2>
-        {rules.length === 0 && !loading && <p style={{ color: "#9AA5B1", fontSize: 13 }}>No rules yet - create one above.</p>}
-        {rules.map((rule) => (
-          <div key={rule.id} style={cardStyle}>
-            <div className="automations-toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div>
-                <strong>{rule.name}</strong>
-                <div style={{ fontSize: 12, color: "#9AA5B1", marginTop: 2 }}>
-                  {rule.triggerType}
-                  {rule.trigger.params?.hours ? ` (${rule.trigger.params.hours}h)` : ""} · v{rule.version}
+        <h2 className="mb-2 text-sm font-semibold text-text-secondary">Your rules</h2>
+        {loading && (
+          <div className="space-y-2">
+            <Skeleton className="h-14" />
+            <Skeleton className="h-14" />
+          </div>
+        )}
+        {!loading && rules.length === 0 && <p className="text-[13px] text-text-secondary">No rules yet - create one above.</p>}
+        {!loading &&
+          rules.map((rule) => (
+            <Card key={rule.id}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <strong>{rule.name}</strong>
+                  <div className="mt-0.5 text-xs text-text-secondary">
+                    {rule.triggerType}
+                    {rule.trigger.params?.hours ? ` (${rule.trigger.params.hours}h)` : ""} · v{rule.version}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button type="button" className={smallButtonClass} onClick={() => handleToggleEnabled(rule)}>
+                    {rule.isEnabled ? "Disable" : "Enable"}
+                  </button>
+                  <button type="button" className={smallButtonClass} onClick={() => handleStartEdit(rule)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={smallButtonClass}
+                    onClick={() => {
+                      setTestRuleId(rule.id);
+                      setTestResult(null);
+                    }}
+                  >
+                    Test
+                  </button>
+                  <button type="button" className={smallButtonClass} onClick={() => handleExpand(rule)}>
+                    {expandedId === rule.id ? "Hide history" : "History"}
+                  </button>
+                  <button type="button" className={`${smallButtonClass} text-status-danger`} onClick={() => handleDelete(rule.id)}>
+                    Delete
+                  </button>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <button type="button" style={smallButtonStyle} onClick={() => handleToggleEnabled(rule)}>
-                  {rule.isEnabled ? "Disable" : "Enable"}
-                </button>
-                <button type="button" style={smallButtonStyle} onClick={() => handleStartEdit(rule)}>
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  style={smallButtonStyle}
-                  onClick={() => {
-                    setTestRuleId(rule.id);
-                    setTestResult(null);
-                  }}
-                >
-                  Test
-                </button>
-                <button type="button" style={smallButtonStyle} onClick={() => handleExpand(rule)}>
-                  {expandedId === rule.id ? "Hide history" : "History"}
-                </button>
-                <button type="button" style={{ ...smallButtonStyle, color: "#E05252" }} onClick={() => handleDelete(rule.id)}>
-                  Delete
-                </button>
-              </div>
-            </div>
 
-            {expandedId === rule.id && (
-              <div style={{ marginTop: 10, borderTop: "1px solid #2A3441", paddingTop: 10 }}>
-                {executionsLoading[rule.id] && (
-                  <div>
-                    {[0, 1].map((i) => (
-                      <div key={i} style={{ height: 32, borderRadius: 6, background: "#161E2C", marginBottom: 6 }} />
-                    ))}
-                  </div>
-                )}
-                {!executionsLoading[rule.id] && executionsError[rule.id] && (
-                  <div style={{ fontSize: 12, color: "#E05252" }}>
-                    Could not load execution history: {executionsError[rule.id]}{" "}
-                    <button onClick={() => loadExecutions(rule.id)} style={{ ...smallButtonStyle, marginLeft: 6 }}>
-                      Retry
-                    </button>
-                  </div>
-                )}
-                {!executionsLoading[rule.id] && !executionsError[rule.id] && (executions[rule.id] ?? []).length === 0 && (
-                  <p style={{ fontSize: 12, color: "#9AA5B1" }}>No executions yet.</p>
-                )}
-                {!executionsLoading[rule.id] &&
-                  !executionsError[rule.id] &&
-                  (executions[rule.id] ?? []).map((log) => (
-                    <div key={log.id} style={{ fontSize: 12, color: "#9AA5B1", marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #1B2333" }}>
-                      <div>
-                        {new Date(log.matchedAt).toLocaleString()} -{" "}
-                        <strong style={{ color: log.status === "success" ? "#3FB27F" : log.status === "partial_failure" ? "#E0A458" : "#E05252" }}>
-                          {log.status}
-                        </strong>
-                      </div>
-                      {log.status !== "success" && log.errorDetail && (
-                        <div style={{ color: "#E05252", marginTop: 2 }}>{log.errorDetail}</div>
-                      )}
-                      {log.actionsExecuted.map((a, i) => (
-                        <div key={i} style={{ marginTop: 2, paddingLeft: 8 }}>
-                          <span style={{ color: a.status === "success" ? "#3FB27F" : "#E05252" }}>{a.type}: {a.status}</span>
-                          {a.error && <span style={{ color: "#E05252" }}> - {a.error}</span>}
-                          {a.output !== undefined && a.status === "success" && (
-                            <span style={{ color: "#6B7686" }}> - {JSON.stringify(a.output)}</span>
-                          )}
-                        </div>
-                      ))}
+              {expandedId === rule.id && (
+                <div className="mt-2.5 border-t border-border-subtle pt-2.5">
+                  {executionsLoading[rule.id] && (
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-8" />
+                      <Skeleton className="h-8" />
                     </div>
-                  ))}
-              </div>
-            )}
-          </div>
-        ))}
+                  )}
+                  {!executionsLoading[rule.id] && executionsError[rule.id] && (
+                    <div className="text-xs text-status-danger">
+                      Could not load execution history: {executionsError[rule.id]}{" "}
+                      <button onClick={() => loadExecutions(rule.id)} className={`${smallButtonClass} ml-1.5`}>
+                        Retry
+                      </button>
+                    </div>
+                  )}
+                  {!executionsLoading[rule.id] && !executionsError[rule.id] && (executions[rule.id] ?? []).length === 0 && (
+                    <p className="text-xs text-text-secondary">No executions yet.</p>
+                  )}
+                  {!executionsLoading[rule.id] &&
+                    !executionsError[rule.id] &&
+                    (executions[rule.id] ?? []).map((log) => (
+                      <div key={log.id} className="mb-2 border-b border-surface-2 pb-2 text-xs text-text-secondary">
+                        <div>
+                          {new Date(log.matchedAt).toLocaleString()} -{" "}
+                          <strong
+                            className={
+                              log.status === "success"
+                                ? "text-status-success"
+                                : log.status === "partial_failure"
+                                  ? "text-status-warning"
+                                  : "text-status-danger"
+                            }
+                          >
+                            {log.status}
+                          </strong>
+                        </div>
+                        {log.status !== "success" && log.errorDetail && <div className="mt-0.5 text-status-danger">{log.errorDetail}</div>}
+                        {log.actionsExecuted.map((a, i) => (
+                          <div key={i} className="mt-0.5 pl-2">
+                            <span className={a.status === "success" ? "text-status-success" : "text-status-danger"}>
+                              {a.type}: {a.status}
+                            </span>
+                            {a.error && <span className="text-status-danger"> - {a.error}</span>}
+                            {a.output !== undefined && a.status === "success" && (
+                              <span className="text-text-disabled"> - {JSON.stringify(a.output)}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </Card>
+          ))}
       </section>
 
       {testRuleId && (
-        <section style={{ ...cardStyle, marginTop: 16, borderColor: "#E0A458" }}>
-          <h2 style={sectionHeading}>Test rule (no real side effects)</h2>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-            <input style={{ ...inputStyle, flex: "2 1 220px" }} placeholder="Sample message body" value={testBody} onChange={(e) => setTestBody(e.target.value)} />
-            <input style={{ ...inputStyle, flex: "1 1 140px" }} placeholder="Sample sender name" value={testSender} onChange={(e) => setTestSender(e.target.value)} />
-            <label style={filterLabelStyle}>
-              <input type="checkbox" checked={testIsVip} onChange={(e) => setTestIsVip(e.target.checked)} /> VIP
+        <Card className="mt-4 border-accent-priority">
+          <h2 className="mb-2 text-sm font-semibold text-text-secondary">Test rule (no real side effects)</h2>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            <Input className="flex-[2_1_220px]" placeholder="Sample message body" value={testBody} onChange={(e) => setTestBody(e.target.value)} />
+            <Input className="flex-[1_1_140px]" placeholder="Sample sender name" value={testSender} onChange={(e) => setTestSender(e.target.value)} />
+            <label className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-[13px] text-text-secondary">
+              <Checkbox checked={testIsVip} onCheckedChange={(checked) => setTestIsVip(checked === true)} /> VIP
             </label>
             <Button onClick={handleTest} disabled={testing}>
               {testing ? "Running..." : "Run test"}
             </Button>
           </div>
           {testResult && (
-            <div style={{ fontSize: 13 }}>
+            <div className="text-[13px]">
               <div>
-                Matched: <strong style={{ color: testResult.matched ? "#3FB27F" : "#E05252" }}>{testResult.matched ? "yes" : "no"}</strong>
+                Matched: <strong className={testResult.matched ? "text-status-success" : "text-status-danger"}>{testResult.matched ? "yes" : "no"}</strong>
               </div>
               {testResult.actionsExecuted.map((a, i) => (
-                <div key={i} style={{ color: "#9AA5B1" }}>
+                <div key={i} className="text-text-secondary">
                   {a.type}: {a.status} {a.output ? `- ${JSON.stringify(a.output)}` : a.error ?? ""}
                 </div>
               ))}
             </div>
           )}
-        </section>
+        </Card>
       )}
     </main>
   );
 }
-
-const cardStyle: React.CSSProperties = { border: "1px solid #2A3441", borderRadius: 8, padding: 12, marginBottom: 8, background: "#111726" };
-const sectionHeading: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: "#9AA5B1", margin: "0 0 8px" };
-const smallButtonStyle: React.CSSProperties = { fontSize: 11, padding: "4px 8px", borderRadius: 4, border: "1px solid #2A3441", background: "#1B2333", color: "#F5F7FA", cursor: "pointer" };
-const inputStyle: React.CSSProperties = { padding: 8, borderRadius: 6, border: "1px solid #2A3441", background: "#0B0F17", color: "#F5F7FA" };
-const filterLabelStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 6, color: "#9AA5B1", fontSize: 13 };

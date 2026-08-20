@@ -3,7 +3,7 @@
 ```yaml
 Title: DESIGN_SYSTEM.md
 Version: 1.1
-Status: Approved (Sections 4-9 implemented, Phase 22)
+Status: Approved (Sections 4-9 implemented, Phase 22 + Phase 22.2)
 Owner: Design Systems
 Last Updated: 2026-08-21
 Depends On:
@@ -20,7 +20,7 @@ Author role: Senior Design Systems Engineer. Scope: the complete, implementation
 - **Hand-built Radix + CVA components, not the shadcn CLI** - `apps/marketing-site` already established this exact pattern (Radix primitives, `class-variance-authority` variants, a `cn()` helper) independently; reusing it avoids introducing a second, CLI-driven component-generation workflow into the monorepo for no functional difference.
 - **Concrete hex values, chosen during implementation, not present in this document's original "reference value" language** - see `packages/design-tokens/src/colors.ts` for the actual light/dark palette. Two real inconsistencies found in the pre-Phase-22 inline styles were resolved rather than carried forward: `success` had two different greens across `Inbox.tsx`/`ConnectorManagement.tsx`, and `warning` previously reused the same hex as the priority accent, in direct violation of this document's own Section 4.1 rule that the two must be visually distinct hues.
 
-Only `Inbox.tsx` is migrated onto this system so far (Phase 22's own scope decision, to prove the primitives against one real, already-tested screen before committing further screens to it) - `Rules.tsx`, `ConnectorManagement.tsx`, and `AuthForm.tsx` remain on the pre-existing inline-style pattern, planned for Phase 22.2. Sections 10 (product composites - Identity Avatar, Merge Suggestion Card, etc.), 11-16 (deeper accessibility/keyboard/dark-mode/animation rules beyond what's implemented), and the React Native mapping in Section 16 remain spec-only, unbuilt.
+`Inbox.tsx`, `AuthForm.tsx`, `PasswordInput.tsx`, `ConnectorManagement.tsx`, and `Rules.tsx` are now migrated onto this system (Phase 22 + Phase 22.2) - every product screen is off the pre-existing inline-style pattern. Phase 22.2 also fixed `ConnectorManagement.tsx`'s three-way inconsistent connection-health colors (now the shared `status-success`/`status-warning`/`status-danger` tokens) and replaced its window.confirm-style disconnect flow with a real `Dialog`, and gave `Rules.tsx` its first real use of the `Select`/`Checkbox` primitives (trigger/condition/action pickers, VIP test/override checkboxes) in place of raw `<select>`/`<input type="checkbox">` elements. Sections 10 (product composites - Identity Avatar, Merge Suggestion Card, etc.), 11-16 (deeper accessibility/keyboard/dark-mode/animation rules beyond what's implemented), and the React Native mapping in Section 16 remain spec-only, unbuilt.
 
 ---
 

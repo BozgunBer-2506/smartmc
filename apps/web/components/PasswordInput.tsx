@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Input } from "@smc/ui";
 
 interface PasswordInputProps {
   value: string;
@@ -18,54 +19,36 @@ interface PasswordInputProps {
  * so the Email connector's own password field (Inbox.tsx) gets the same
  * affordance, not a second, inconsistent copy (docs UI audit, 2026-07-27:
  * a masked credential with no way to confirm what was typed).
+ *
+ * Migrated onto the design system (docs/ROADMAP.md Phase 22.2) - the
+ * underlying field is now the shared `Input` primitive, not a local style
+ * object.
  */
 export function PasswordInput({ value, onChange, placeholder, required, minLength, containerStyle, hint }: PasswordInputProps) {
   const [visible, setVisible] = useState(false);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, ...containerStyle }}>
-      <div style={{ position: "relative" }}>
-        <input
+    <div className="flex flex-col gap-1" style={containerStyle}>
+      <div className="relative">
+        <Input
           type={visible ? "text" : "password"}
           required={required}
           minLength={minLength}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          style={{ ...inputStyle, width: "100%", paddingRight: 52 }}
+          className="w-full pr-[52px]"
         />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? "Hide password" : "Show password"}
-          style={toggleStyle}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-text-secondary hover:text-text-primary focus-visible:outline-none"
         >
           {visible ? "Hide" : "Show"}
         </button>
       </div>
-      {hint && <span style={{ fontSize: 11, color: "#6B7686" }}>{hint}</span>}
+      {hint && <span className="text-[11px] text-text-disabled">{hint}</span>}
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  padding: 10,
-  borderRadius: 6,
-  border: "1px solid #2A3441",
-  background: "#111726",
-  color: "#F5F7FA",
-  fontSize: 14,
-};
-
-const toggleStyle: React.CSSProperties = {
-  position: "absolute",
-  right: 8,
-  top: "50%",
-  transform: "translateY(-50%)",
-  background: "none",
-  border: "none",
-  color: "#9AA5B1",
-  fontSize: 12,
-  cursor: "pointer",
-  padding: 4,
-};

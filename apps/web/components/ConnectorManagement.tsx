@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@smc/ui";
+import { Alert, Badge, Button, Card, Dialog, DialogContent, DialogDescription, DialogTitle, Input } from "@smc/ui";
 import {
   connectDiscord,
   connectEmail,
@@ -33,26 +33,35 @@ const PROVIDER_LABELS: Record<string, string> = {
  * column already carries this signal. `disconnected` never actually
  * appears here (a disconnected row is soft-deleted and excluded by
  * `GET /v1/connectors`), listed only for completeness.
+ *
+ * Migrated onto the design system's semantic status tokens (docs/ROADMAP.md
+ * Phase 22.2) - previously hardcoded three hex values not shared with
+ * anything else in the product (`#4CAF87`/`#E05858`/`#E0A458`), the last of
+ * which was the exact same hex as the priority accent, a real violation of
+ * docs/DESIGN_SYSTEM.md Section 4.1's "warning and priority must be
+ * visually distinct hues" rule. `degraded` now uses `status-warning`
+ * (never `accent-priority`), and `success`/`danger` use the same single
+ * canonical token every other screen does.
  */
-function healthFor(status: string): { label: string; color: string } {
+function healthFor(status: string): { label: string; className: string } {
   switch (status) {
     case "active":
-      return { label: "Healthy", color: "#4CAF87" };
+      return { label: "Healthy", className: "text-status-success" };
     case "degraded":
-      return { label: "Degraded", color: "#E0A458" };
+      return { label: "Degraded", className: "text-status-warning" };
     case "reauth_required":
-      return { label: "Needs reauthorization", color: "#E05858" };
+      return { label: "Needs reauthorization", className: "text-status-danger" };
     case "error":
-      return { label: "Error", color: "#E05858" };
+      return { label: "Error", className: "text-status-danger" };
     case "registered":
     case "authenticating":
     case "syncing_initial":
-      return { label: "Connecting…", color: "#9AA5B1" };
+      return { label: "Connecting…", className: "text-text-secondary" };
     case "disconnecting":
     case "disconnected":
-      return { label: "Disconnected", color: "#9AA5B1" };
+      return { label: "Disconnected", className: "text-text-secondary" };
     default:
-      return { label: status, color: "#9AA5B1" };
+      return { label: status, className: "text-text-secondary" };
   }
 }
 
@@ -67,6 +76,13 @@ function healthFor(status: string): { label: string; color: string } {
  * naming what's retained, per `UI_GUIDE.md` Section 20) and connect a new
  * one - the connect forms themselves were already real (Phase 4-8), only
  * ever missing a home outside the main Inbox view and a way back off it.
+ *
+ * Migrated onto the design system (docs/ROADMAP.md Phase 22.2) - the
+ * disconnect confirmation is now a real `Dialog` (previously an inline
+ * conditional panel) since disconnecting is a genuinely destructive action;
+ * Radix supplies focus trap/Escape/overlay-click-to-close for free. Same
+ * confirmation copy and Cancel/Confirm behavior as before, only the
+ * presentation changed.
  */
 export function ConnectorManagement({ accessToken, onBack }: ConnectorManagementProps) {
   const [connectors, setConnectors] = useState<ConnectorSummary[]>([]);
@@ -183,103 +199,99 @@ export function ConnectorManagement({ accessToken, onBack }: ConnectorManagement
     }
   }
 
+  const confirmingConnector = connectors.find((c) => c.id === confirmDisconnectId) ?? null;
+
   return (
-    <main style={{ maxWidth: 780, margin: "0 auto", padding: 24 }}>
-      <style>{`
-        @media (max-width: 720px) {
-          .connector-row { flex-direction: column; align-items: stretch !important; }
-        }
-      `}</style>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, margin: 0 }}>Connectors</h1>
+    <main className="mx-auto max-w-[780px] p-6">
+      <header className="mb-5 flex items-center justify-between">
+        <h1 className="m-0 text-xl text-text-primary">Connectors</h1>
         <Button onClick={onBack}>Back to Inbox</Button>
       </header>
 
-      <section style={{ margin: "0 0 24px" }}>
-        <h2 style={sectionHeading}>Connected accounts</h2>
+      <section className="mb-6">
+        <h2 className="mb-2 text-sm font-semibold text-text-secondary">Connected accounts</h2>
         {loadError && (
-          <div style={{ ...cardStyle, borderColor: "#E05858", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13 }}>{loadError}</span>
+          <Alert variant="danger" className="mb-2 flex items-center justify-between">
+            <span>{loadError}</span>
             <Button onClick={loadConnectors}>Retry</Button>
-          </div>
+          </Alert>
         )}
-        {loading && <p style={{ fontSize: 13, color: "#9AA5B1" }}>Loading…</p>}
+        {loading && <p className="text-[13px] text-text-secondary">Loading…</p>}
         {!loading && !loadError && connectors.length === 0 && (
-          <p style={{ fontSize: 13, color: "#9AA5B1" }}>No connectors yet - connect one below.</p>
+          <p className="text-[13px] text-text-secondary">No connectors yet - connect one below.</p>
         )}
         {connectors.map((c) => {
           const health = healthFor(c.status);
           return (
-            <article key={c.id} style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+            <Card key={c.id}>
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                  <div className="text-sm font-semibold">
                     {PROVIDER_LABELS[c.provider] ?? c.provider}
-                    {c.displayLabel && <span style={{ color: "#9AA5B1", fontWeight: 400 }}> - {c.displayLabel}</span>}
+                    {c.displayLabel && <span className="font-normal text-text-secondary"> - {c.displayLabel}</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: "#9AA5B1", marginTop: 2 }}>{c.externalAccountId}</div>
-                  <div style={{ fontSize: 12, marginTop: 6, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{ color: health.color, fontWeight: 600 }}>{health.label}</span>
-                    <span style={{ color: "#9AA5B1" }}>
-                      Last synced: {c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : "never"}
-                    </span>
+                  <div className="mt-0.5 text-xs text-text-secondary">{c.externalAccountId}</div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs">
+                    <span className={`font-semibold ${health.className}`}>{health.label}</span>
+                    <span className="text-text-secondary">Last synced: {c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : "never"}</span>
                   </div>
-                  {c.lastError && (
-                    <div style={{ fontSize: 12, color: "#E05858", marginTop: 6 }}>{c.lastError}</div>
-                  )}
+                  {c.lastError && <div className="mt-1.5 text-xs text-status-danger">{c.lastError}</div>}
                 </div>
-                {confirmDisconnectId === c.id ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flex: "0 0 220px" }}>
-                    <p style={{ fontSize: 12, color: "#9AA5B1", margin: 0, textAlign: "right" }}>
-                      Message history from this connection is kept - only new messages stop arriving.
-                    </p>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Button onClick={() => setConfirmDisconnectId(null)}>Cancel</Button>
-                      <Button onClick={() => handleDisconnect(c)} disabled={disconnectingId === c.id}>
-                        {disconnectingId === c.id ? "Disconnecting…" : "Confirm disconnect"}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button onClick={() => setConfirmDisconnectId(c.id)}>Disconnect</Button>
-                )}
+                <Button onClick={() => setConfirmDisconnectId(c.id)}>Disconnect</Button>
               </div>
-            </article>
+            </Card>
           );
         })}
       </section>
 
-      <section style={{ margin: "0 0 20px", border: "1px solid #2A3441", borderRadius: 8, padding: 16 }}>
-        <h2 style={sectionHeading}>Connect a channel</h2>
+      <Dialog open={confirmDisconnectId !== null} onOpenChange={(open) => !open && setConfirmDisconnectId(null)}>
+        <DialogContent>
+          <DialogTitle>Disconnect {confirmingConnector ? (PROVIDER_LABELS[confirmingConnector.provider] ?? confirmingConnector.provider) : ""}?</DialogTitle>
+          <DialogDescription>Message history from this connection is kept - only new messages stop arriving.</DialogDescription>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button onClick={() => setConfirmDisconnectId(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => confirmingConnector && handleDisconnect(confirmingConnector)}
+              disabled={disconnectingId === confirmDisconnectId}
+            >
+              {disconnectingId === confirmDisconnectId ? "Disconnecting…" : "Confirm disconnect"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-        <div className="connector-row" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
-          <input
+      <section className="mb-5 rounded-lg border border-border-subtle p-4">
+        <h2 className="mb-2 text-sm font-semibold text-text-secondary">Connect a channel</h2>
+
+        <div className="mb-3.5 flex flex-wrap items-center gap-2">
+          <Input
+            className="flex-[1_1_240px]"
             value={botToken}
             onChange={(e) => setBotToken(e.target.value)}
             placeholder="Telegram bot token (from @BotFather)"
-            style={inputStyle({ flex: "1 1 240px" })}
           />
           <Button onClick={handleConnectTelegram} disabled={connectingTelegram}>
             {connectingTelegram ? "Connecting..." : "Connect Telegram"}
           </Button>
-          {telegramStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{telegramStatus}</span>}
+          {telegramStatus && <span className="text-xs text-text-secondary">{telegramStatus}</span>}
         </div>
 
-        <div className="connector-row" style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="mb-3.5 flex flex-wrap items-center gap-2">
           <Button onClick={handleConnectDiscord} disabled={connectingDiscord}>
             {connectingDiscord ? "Redirecting..." : "Connect Discord"}
           </Button>
           <Button onClick={handleConnectSlack} disabled={connectingSlack}>
             {connectingSlack ? "Redirecting..." : "Connect Slack"}
           </Button>
-          {discordStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{discordStatus}</span>}
-          {slackStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{slackStatus}</span>}
+          {discordStatus && <span className="text-xs text-text-secondary">{discordStatus}</span>}
+          {slackStatus && <span className="text-xs text-text-secondary">{slackStatus}</span>}
         </div>
 
-        <div className="connector-row" style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="IMAP host (imap.gmail.com)" style={inputStyle({ flex: "1 1 190px" })} />
-          <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="SMTP host (smtp.gmail.com)" style={inputStyle({ flex: "1 1 190px" })} />
-          <input value={emailUsername} onChange={(e) => setEmailUsername(e.target.value)} placeholder="Email address" style={inputStyle({ flex: "1 1 190px" })} />
+        <div className="flex flex-wrap items-start gap-2">
+          <Input className="flex-[1_1_190px]" value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="IMAP host (imap.gmail.com)" />
+          <Input className="flex-[1_1_190px]" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="SMTP host (smtp.gmail.com)" />
+          <Input className="flex-[1_1_190px]" value={emailUsername} onChange={(e) => setEmailUsername(e.target.value)} placeholder="Email address" />
           <PasswordInput
             value={emailPassword}
             onChange={setEmailPassword}
@@ -290,23 +302,9 @@ export function ConnectorManagement({ accessToken, onBack }: ConnectorManagement
           <Button onClick={handleConnectEmail} disabled={connectingEmail}>
             {connectingEmail ? "Connecting..." : "Connect Email"}
           </Button>
-          {emailStatus && <span style={{ fontSize: 12, color: "#9AA5B1" }}>{emailStatus}</span>}
+          {emailStatus && <span className="text-xs text-text-secondary">{emailStatus}</span>}
         </div>
       </section>
     </main>
   );
 }
-
-function inputStyle(extra: Record<string, string | number>): Record<string, string | number> {
-  return { padding: 8, borderRadius: 6, border: "1px solid #2A3441", background: "#111726", color: "#F5F7FA", ...extra };
-}
-
-const sectionHeading: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: "#9AA5B1", margin: "0 0 8px" };
-
-const cardStyle: React.CSSProperties = {
-  border: "1px solid #2A3441",
-  borderRadius: 8,
-  padding: 12,
-  marginBottom: 8,
-  background: "#111726",
-};
