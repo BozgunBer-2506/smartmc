@@ -25,7 +25,7 @@ export function ThemeToggle() {
       onClick={() => setTheme(next)}
       aria-label={`${LABELS[current]} - switch to ${LABELS[next].toLowerCase()}`}
       title={LABELS[current]}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-subtle bg-surface-1 text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-subtle bg-surface-1 text-text-secondary transition-colors hover:text-text-primary"
     >
       <Icon size={16} aria-hidden />
     </button>
