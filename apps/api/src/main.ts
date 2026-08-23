@@ -19,8 +19,15 @@ import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import { ProblemDetailsFilter } from "./common/problem-details.filter";
 import { formatValidationErrors } from "./common/format-validation-errors";
+import { credentialsStoreConfig } from "./config/credentials-store.config";
 
 async function bootstrap() {
+  // Fails fast, before the server binds, if production has no real
+  // CREDENTIALS_ENCRYPTION_KEY - the alternative (letting the first
+  // putSecret/getSecret call discover this) would mean the app appears to
+  // start successfully and only fails on someone's first connector action.
+  credentialsStoreConfig.assertValid();
+
   // rawBody: true - required by Slack's Events API webhook (SlackController),
   // which must verify an HMAC-SHA256 signature over the exact raw request
   // bytes (docs/SECURITY.md's authenticity requirement); Express's default

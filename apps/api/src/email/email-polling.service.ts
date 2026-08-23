@@ -46,7 +46,13 @@ export class EmailPollingService implements OnModuleInit, OnModuleDestroy {
 
     for (const account of accounts) {
       try {
-        const raw = await this.credentialsStore.getSecret(account.credentialsRef);
+        // audit: false - routine polling; a decrypt failure already
+        // surfaces via the lastError/status update below.
+        const raw = await this.credentialsStore.getSecret(account.credentialsRef, {
+          workspaceId: account.workspaceId,
+          actorType: "system",
+          audit: false,
+        });
         const credential = JSON.parse(raw) as EmailCredential;
         const result = await connector.reconcile(
           { cursor: account.syncCursor, processedCount: 0 },

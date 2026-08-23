@@ -267,6 +267,12 @@ model SecretRecord {
   ciphertext Bytes
   iv         Bytes
   authTag    Bytes    @map("auth_tag")
+  /// Which entry in credentials-store.config.ts's key ring encrypted this
+  /// row - defaults to 1 (the sole key that existed before this column was
+  /// added), so pre-rotation records need no backfill. Lets getSecret()
+  /// pick the right key without guessing, and lets a rotation tool migrate
+  /// old rows to a new key without breaking any currently-decryptable one.
+  keyVersion Int      @default(1) @map("key_version")
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("secret_records")

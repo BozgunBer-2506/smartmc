@@ -44,7 +44,11 @@ export class DiscordGatewayManagerService implements OnModuleInit, OnModuleDestr
   async start(linkedAccount: LinkedAccount): Promise<void> {
     if (this.handles.has(linkedAccount.id)) return;
 
-    const botToken = await this.credentialsStore.getSecret(linkedAccount.credentialsRef);
+    const botToken = await this.credentialsStore.getSecret(linkedAccount.credentialsRef, {
+      workspaceId: linkedAccount.workspaceId,
+      actorType: "system",
+      audit: true, // Establishing the persistent Gateway connection (on boot/connect), not a repeated poll - low frequency, worth auditing.
+    });
     const connector = defaultConnectorRegistry.get(DISCORD_PROVIDER_KEY) as DiscordConnector;
 
     if (!connector.startListening) {

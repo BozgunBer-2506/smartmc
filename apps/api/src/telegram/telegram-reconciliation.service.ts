@@ -43,7 +43,14 @@ export class TelegramReconciliationService implements OnModuleInit, OnModuleDest
 
     for (const account of accounts) {
       try {
-        const token = await this.credentialsStore.getSecret(account.credentialsRef);
+        // audit: false - routine reconciliation polling (every reconciliationIntervalMs
+        // per active account); a decrypt failure here already surfaces via the
+        // lastError/status update in the catch block below, not silently lost.
+        const token = await this.credentialsStore.getSecret(account.credentialsRef, {
+          workspaceId: account.workspaceId,
+          actorType: "system",
+          audit: false,
+        });
         const result = await connector.reconcile(
           { cursor: account.syncCursor, processedCount: 0 },
           { credential: token, linkedAccountId: account.id, metadata: { webhookSecret: account.webhookSecret ?? "" } },

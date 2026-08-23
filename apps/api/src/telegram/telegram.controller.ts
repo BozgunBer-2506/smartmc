@@ -225,7 +225,14 @@ export class TelegramController {
     const lifecycle = this.connector.createLifecycle(undefined, linkedAccount.status as LifecycleState);
     lifecycle.transition("disconnecting");
 
-    const botToken = await this.credentialsStore.getSecret(linkedAccount.credentialsRef).catch(() => undefined);
+    const botToken = await this.credentialsStore
+      .getSecret(linkedAccount.credentialsRef, {
+        workspaceId: claims.workspaceId,
+        actorType: "user",
+        actorUserId: claims.sub,
+        audit: true,
+      })
+      .catch(() => undefined);
     if (botToken) {
       await this.telegramApi.deleteWebhook(botToken).catch(() => undefined);
     }

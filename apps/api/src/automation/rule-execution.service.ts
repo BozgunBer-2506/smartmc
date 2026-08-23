@@ -299,7 +299,11 @@ export class RuleExecutionService {
         if (!connector.send) {
           throw new Error(`Sending is not supported for provider "${conversation.provider.key}".`);
         }
-        const token = await this.credentialsStore.getSecret(conversation.linkedAccount.credentialsRef);
+        const token = await this.credentialsStore.getSecret(conversation.linkedAccount.credentialsRef, {
+          workspaceId,
+          actorType: "rule",
+          audit: true,
+        });
         const sendResult = await connector.send(
           { conversationExternalId: conversation.externalId, bodyText },
           { credential: token, linkedAccountId: conversation.linkedAccount.id },

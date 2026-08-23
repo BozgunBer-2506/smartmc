@@ -44,7 +44,13 @@ export class DiscordReconciliationService implements OnModuleInit, OnModuleDestr
 
     for (const account of accounts) {
       try {
-        const botToken = await this.credentialsStore.getSecret(account.credentialsRef);
+        // audit: false - routine reconciliation polling; a decrypt failure
+        // already surfaces via the lastError/status update below.
+        const botToken = await this.credentialsStore.getSecret(account.credentialsRef, {
+          workspaceId: account.workspaceId,
+          actorType: "system",
+          audit: false,
+        });
         const result = await connector.reconcile(
           { cursor: account.syncCursor, processedCount: 0 },
           { credential: { botToken, guildId: account.externalAccountId }, linkedAccountId: account.id },

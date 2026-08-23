@@ -21,7 +21,9 @@
     "certify:slack-connector": "node certify-slack-connector.mjs",
     "verify:slack": "node verify-slack.cjs",
     "certify:email-connector": "node certify-email-connector.mjs",
-    "verify:email": "node verify-email.cjs"
+    "verify:email": "node verify-email.cjs",
+    "verify:credentials-key-rotation": "node verify-credentials-key-rotation.mjs",
+    "rotate:credentials-key": "node rotate-credentials-key.mjs"
   },
   "dependencies": {
     "@smc/connector-sdk": "workspace:*",

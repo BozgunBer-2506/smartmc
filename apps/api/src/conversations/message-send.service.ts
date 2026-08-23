@@ -64,7 +64,12 @@ export class MessageSendService {
       );
     }
 
-    const token = await this.credentialsStore.getSecret(conversation.linkedAccount.credentialsRef);
+    const token = await this.credentialsStore.getSecret(conversation.linkedAccount.credentialsRef, {
+      workspaceId: params.workspaceId,
+      actorType: params.actorType,
+      actorUserId: params.actorUserId,
+      audit: true,
+    });
     let sendResult;
     try {
       sendResult = await connector.send(
