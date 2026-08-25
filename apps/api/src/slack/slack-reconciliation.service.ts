@@ -4,6 +4,7 @@ import { getPrismaClient } from "@smc/database";
 import { createEvent, EventType } from "@smc/event-model";
 import type { InboundMessagePayload } from "@smc/shared";
 import { slackConfig } from "../config/slack.config";
+import { statusForReconciliationFailure } from "../common/reconciliation-error";
 import { CredentialsStoreService } from "../credentials-store/credentials-store.service";
 import { EventsService } from "../events/events.service";
 
@@ -99,10 +100,11 @@ export class SlackReconciliationService implements OnModuleInit, OnModuleDestroy
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        const status = statusForReconciliationFailure(err);
         this.logger.warn(`Reconciliation failed for LinkedAccount ${account.id}: ${message}`);
         await prisma.linkedAccount.update({
           where: { id: account.id },
-          data: { lastError: message, status: "degraded" },
+          data: { lastError: message, status },
         });
       }
     }

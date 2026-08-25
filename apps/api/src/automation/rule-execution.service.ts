@@ -295,6 +295,9 @@ export class RuleExecutionService {
         if (!conversation.linkedAccount) {
           throw new Error("This conversation has no connected account to send through.");
         }
+        if (conversation.linkedAccount.deletedAt || conversation.linkedAccount.status === "reauth_required") {
+          throw new Error("The connected account needs to be reauthorized before sending.");
+        }
         const connector = defaultConnectorRegistry.get(conversation.provider.key) as Connector;
         if (!connector.send) {
           throw new Error(`Sending is not supported for provider "${conversation.provider.key}".`);

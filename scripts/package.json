@@ -23,7 +23,8 @@
     "certify:email-connector": "node certify-email-connector.mjs",
     "verify:email": "node verify-email.cjs",
     "verify:credentials-key-rotation": "node verify-credentials-key-rotation.mjs",
-    "rotate:credentials-key": "node rotate-credentials-key.mjs"
+    "rotate:credentials-key": "node rotate-credentials-key.mjs",
+    "verify:connector-reauth": "node verify-connector-reauth.mjs"
   },
   "dependencies": {
     "@smc/connector-sdk": "workspace:*",
