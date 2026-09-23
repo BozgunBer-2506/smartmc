@@ -20,6 +20,7 @@ import { AppModule } from "./app.module";
 import { ProblemDetailsFilter } from "./common/problem-details.filter";
 import { formatValidationErrors } from "./common/format-validation-errors";
 import { credentialsStoreConfig } from "./config/credentials-store.config";
+import { transactionalEmailConfig } from "./config/transactional-email.config";
 
 async function bootstrap() {
   // Fails fast, before the server binds, if production has no real
@@ -27,6 +28,12 @@ async function bootstrap() {
   // putSecret/getSecret call discover this) would mean the app appears to
   // start successfully and only fails on someone's first connector action.
   credentialsStoreConfig.assertValid();
+
+  // Same fail-fast reasoning: an explicitly misconfigured
+  // TRANSACTIONAL_EMAIL_PROVIDER (missing Resend credentials, an
+  // unsupported value) must crash boot, not silently fall back to a
+  // fake/unconfigured implementation on the first password-reset request.
+  transactionalEmailConfig.assertValid();
 
   // rawBody: true - required by Slack's Events API webhook (SlackController),
   // which must verify an HMAC-SHA256 signature over the exact raw request
