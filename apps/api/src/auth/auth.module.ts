@@ -2,10 +2,14 @@ import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { AuditLogModule } from "../audit/audit-log.module";
 import { authConfig } from "../config/auth.config";
+import { TransactionalEmailModule } from "../transactional-email/transactional-email.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { DevPasswordResetFaultInjectorController } from "./dev-password-reset-fault-injector.controller";
+import { DevPasswordResetFaultInjectorService } from "./dev-password-reset-fault-injector.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { LoginThrottleService } from "./login-throttle.service";
+import { PasswordResetService } from "./password-reset.service";
 import { PasswordService } from "./password.service";
 import { RolesGuard } from "./roles.guard";
 import { SessionService } from "./session.service";
@@ -14,16 +18,19 @@ import { TokenService } from "./token.service";
 @Module({
   imports: [
     AuditLogModule,
+    TransactionalEmailModule,
     JwtModule.register({
       secret: authConfig.jwtSecret,
       signOptions: { expiresIn: authConfig.accessTokenTtlSeconds },
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, DevPasswordResetFaultInjectorController],
   providers: [
     AuthService,
     SessionService,
     PasswordService,
+    PasswordResetService,
+    DevPasswordResetFaultInjectorService,
     LoginThrottleService,
     TokenService,
     JwtAuthGuard,

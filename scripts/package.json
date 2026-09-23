@@ -24,11 +24,13 @@
     "verify:email": "node verify-email.cjs",
     "verify:credentials-key-rotation": "node verify-credentials-key-rotation.mjs",
     "rotate:credentials-key": "node rotate-credentials-key.mjs",
-    "verify:connector-reauth": "node verify-connector-reauth.mjs"
+    "verify:connector-reauth": "node verify-connector-reauth.mjs",
+    "verify:password-reset": "node verify-password-reset.mjs"
   },
   "dependencies": {
     "@smc/connector-sdk": "workspace:*",
     "@smc/database": "workspace:*",
+    "ioredis": "^5.4.0",
     "socket.io-client": "^4.8.0"
   }
 }

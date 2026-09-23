@@ -5,7 +5,7 @@ import { AuthForm } from "../components/AuthForm";
 import { ConnectorManagement } from "../components/ConnectorManagement";
 import { Inbox } from "../components/Inbox";
 import { Rules } from "../components/Rules";
-import { fetchMe, tryRefresh, type AuthResponse, type PublicUser } from "../lib/api";
+import { fetchMe, setAuthListener, tryRefresh, type AuthResponse, type PublicUser } from "../lib/api";
 
 /**
  * Orchestrates Phase 3's demo script (docs/ROADMAP.md Phase 3): shows the
@@ -45,6 +45,15 @@ export default function HomePage() {
     setAccessToken(null);
     setUser(null);
   }
+
+  // Auth Reliability Hardening - lib/api.ts's central apiFetch wrapper
+  // hands a refreshed token back here (so the next render uses it, not a
+  // stale prop) and signals a clean logout when refresh itself fails,
+  // instead of every component independently handling a 401.
+  useEffect(() => {
+    setAuthListener({ onRefreshed: setAccessToken, onExpired: handleLoggedOut });
+    return () => setAuthListener(null);
+  }, []);
 
   if (booting) {
     return (

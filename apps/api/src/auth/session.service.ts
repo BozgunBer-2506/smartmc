@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { createHash, randomBytes } from "node:crypto";
-import { getPrismaClient, newId, type Session } from "@smc/database";
+import { getPrismaClient, newId, type ExtendedTransactionClient, type Session } from "@smc/database";
 import { authConfig } from "../config/auth.config";
 import { AuditLogService } from "../audit/audit-log.service";
 import { httpError } from "../common/http-error";
@@ -176,10 +176,19 @@ export class SessionService {
     return { userId: existing.userId };
   }
 
-  /** Revokes every active session for a user - "log out everywhere" (SECURITY.md Section 4.3). */
-  async revokeAllForUser(userId: string): Promise<number> {
-    const prisma = getPrismaClient();
-    const result = await prisma.session.updateMany({
+  /**
+   * Revokes every active session for a user - "log out everywhere"
+   * (SECURITY.md Section 4.3). Accepts an optional transaction client
+   * (`tx`) so a caller needing this to participate in a larger atomic
+   * operation - PasswordResetService's reset, which must not leave a
+   * consumed token paired with an unchanged password, or a changed
+   * password paired with sessions still active - can pass one in instead
+   * of this running against its own separate connection. Defaults to the
+   * shared singleton for every existing caller (logout-all), unchanged.
+   */
+  async revokeAllForUser(userId: string, tx?: ExtendedTransactionClient): Promise<number> {
+    const client = tx ?? getPrismaClient();
+    const result = await client.session.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });

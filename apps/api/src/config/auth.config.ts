@@ -23,4 +23,10 @@ export const authConfig = {
   // Account lockout window/threshold - SECURITY.md Section 4.1
   loginLockoutWindowSeconds: Number(process.env.LOGIN_LOCKOUT_WINDOW_SECONDS ?? 15 * 60),
   loginLockoutMaxAttempts: Number(process.env.LOGIN_LOCKOUT_MAX_ATTEMPTS ?? 10),
+  // Auth Reliability Hardening - forgot/reset-password.
+  passwordResetTokenTtlMinutes: Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES ?? 30),
+  passwordResetLockoutWindowSeconds: Number(process.env.PASSWORD_RESET_LOCKOUT_WINDOW_SECONDS ?? 15 * 60),
+  passwordResetLockoutMaxAttempts: Number(process.env.PASSWORD_RESET_LOCKOUT_MAX_ATTEMPTS ?? 5),
+  /** Where the reset link points a user's browser at - the web app, not this API. */
+  webAppBaseUrl: () => process.env.WEB_APP_BASE_URL ?? "http://localhost:3000",
 };

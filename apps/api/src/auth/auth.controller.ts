@@ -4,16 +4,22 @@ import { authConfig } from "../config/auth.config";
 import { AuthService } from "./auth.service";
 import { httpError } from "../common/http-error";
 import { CurrentUser } from "./current-user.decorator";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import type { JwtPayload } from "./jwt-payload";
+import { PasswordResetService } from "./password-reset.service";
 import type { RequestContext } from "./session.service";
 import { HttpStatus } from "@nestjs/common";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly passwordResetService: PasswordResetService,
+  ) {}
 
   @Post("register")
   async register(
@@ -86,6 +92,25 @@ export class AuthController {
       createdAt: session.createdAt,
       expiresAt: session.expiresAt,
     }));
+  }
+
+  /**
+   * Always 200 with the same body, whether or not the email has an
+   * account - enumeration-safety lives in PasswordResetService itself,
+   * this handler just never branches on the result.
+   */
+  @Post("forgot-password")
+  @HttpCode(200)
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    await this.passwordResetService.requestReset(dto.email, this.buildContext(req));
+    return { message: "If an account exists for this email, password reset instructions have been sent." };
+  }
+
+  @Post("reset-password")
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    await this.passwordResetService.resetPassword(dto.token, dto.newPassword, this.buildContext(req));
+    return { status: "ok" };
   }
 
   private buildContext(req: Request): RequestContext {

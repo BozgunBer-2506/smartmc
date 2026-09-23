@@ -1,5 +1,73 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+/**
+ * Auth Reliability Hardening - a logged-in user must not silently lose
+ * API functionality when the 15-minute access token expires
+ * (docs/STATUS.md). Every authenticated call in this file goes through
+ * `apiFetch` instead of a raw `fetch`, so a single 401 transparently
+ * triggers exactly one refresh (single-flight - concurrent 401s share the
+ * same in-flight refresh, never issue several) and exactly one retry of
+ * the original request, never a second. 403 is never touched here - it's
+ * a real authorization outcome elsewhere in this API (AI_DISABLED,
+ * NO_WORKSPACE, RolesGuard), not a session-expiry signal.
+ *
+ * `page.tsx` is the source of truth for the React-visible access token;
+ * this module only needs a way to hand a refreshed token back to it (so
+ * the next render uses the new one, not a stale prop) and to signal a
+ * clean logout when refresh itself fails - `setAuthListener` is that one
+ * seam, registered once on mount, not duplicated per component.
+ */
+export interface AuthListener {
+  onRefreshed: (accessToken: string) => void;
+  onExpired: () => void;
+}
+
+let authListener: AuthListener | null = null;
+
+export function setAuthListener(listener: AuthListener | null): void {
+  authListener = listener;
+}
+
+let refreshPromise: Promise<string | null> | null = null;
+
+/** Cleared once the in-flight attempt settles, so a later, independent expiry starts a fresh refresh rather than reusing a stale outcome. */
+function getOrStartRefresh(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = tryRefresh()
+      .then((result) => {
+        const token = result?.accessToken ?? null;
+        if (token) authListener?.onRefreshed(token);
+        else authListener?.onExpired();
+        return token;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+/**
+ * The single place every authenticated request goes through. On a 401,
+ * refreshes at most once (shared across concurrent callers) and retries
+ * the original request at most once with the new token - the retry calls
+ * `fetch` directly, never `apiFetch` again, so a second 401 on the retry
+ * is simply returned as-is, never looping.
+ */
+async function apiFetch(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.status !== 401) return res;
+
+  const newToken = await getOrStartRefresh();
+  if (!newToken) return res;
+
+  const retryInit: RequestInit = {
+    ...init,
+    headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${newToken}` },
+  };
+  return fetch(url, retryInit);
+}
+
 export interface PublicUser {
   id: string;
   email: string;
@@ -65,6 +133,25 @@ export async function logout(): Promise<void> {
   await fetch(`${API_URL}/v1/auth/logout`, { method: "POST", credentials: "include" });
 }
 
+/** Always resolves the same way regardless of whether the email has an account - enumeration-safety lives server-side (docs/SECURITY.md). */
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_URL}/v1/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  return parseOrThrow<{ message: string }>(res);
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ status: string }> {
+  const res = await fetch(`${API_URL}/v1/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, newPassword }),
+  });
+  return parseOrThrow<{ status: string }>(res);
+}
+
 export interface ConversationSummary {
   id: string;
   title: string | null;
@@ -126,7 +213,7 @@ export interface MeResponse {
 }
 
 export async function fetchMe(accessToken: string): Promise<MeResponse> {
-  const res = await fetch(`${API_URL}/v1/users/me`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/users/me`, { headers: authHeaders(accessToken) });
   return parseOrThrow<MeResponse>(res);
 }
 
@@ -137,7 +224,7 @@ export async function fetchConversations(accessToken: string, filters: Conversat
   if (filters.vip) params.set("vip", "true");
   if (filters.unread) params.set("unread", "true");
   const query = params.toString();
-  const res = await fetch(`${API_URL}/v1/conversations${query ? `?${query}` : ""}`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/conversations${query ? `?${query}` : ""}`, { headers: authHeaders(accessToken) });
   // ROADMAP.md Phase 20.2: real cursor pagination - {data, pagination}
   // envelope. This returns just the first page's data, matching the
   // existing UI's behavior exactly (no "load more" UI built yet - a
@@ -146,7 +233,7 @@ export async function fetchConversations(accessToken: string, filters: Conversat
 }
 
 export async function fetchNeedsYouCount(accessToken: string): Promise<{ needsYouCount: number }> {
-  const res = await fetch(`${API_URL}/v1/conversations/summary`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/conversations/summary`, { headers: authHeaders(accessToken) });
   return parseOrThrow<{ needsYouCount: number }>(res);
 }
 
@@ -155,7 +242,7 @@ export async function updateConversation(
   conversationId: string,
   input: { isArchived?: boolean; category?: string | null },
 ): Promise<{ id: string; isArchived: boolean; category: string | null }> {
-  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}`, {
+  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(input),
@@ -164,7 +251,7 @@ export async function updateConversation(
 }
 
 export async function markConversationRead(accessToken: string, conversationId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/read`, {
+  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}/read`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -172,7 +259,7 @@ export async function markConversationRead(accessToken: string, conversationId: 
 }
 
 export async function markConversationUnread(accessToken: string, conversationId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/unread`, {
+  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}/unread`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -180,12 +267,12 @@ export async function markConversationUnread(accessToken: string, conversationId
 }
 
 export async function fetchMergeSuggestions(accessToken: string): Promise<MergeSuggestion[]> {
-  const res = await fetch(`${API_URL}/v1/identity/merge-suggestions`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/identity/merge-suggestions`, { headers: authHeaders(accessToken) });
   return (await parseOrThrow<{ data: MergeSuggestion[] }>(res)).data;
 }
 
 export async function approveMergeSuggestion(accessToken: string, suggestionId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/v1/identity/merge-suggestions/${suggestionId}/approve`, {
+  const res = await apiFetch(`${API_URL}/v1/identity/merge-suggestions/${suggestionId}/approve`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -193,7 +280,7 @@ export async function approveMergeSuggestion(accessToken: string, suggestionId: 
 }
 
 export async function rejectMergeSuggestion(accessToken: string, suggestionId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/v1/identity/merge-suggestions/${suggestionId}/reject`, {
+  const res = await apiFetch(`${API_URL}/v1/identity/merge-suggestions/${suggestionId}/reject`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -201,19 +288,19 @@ export async function rejectMergeSuggestion(accessToken: string, suggestionId: s
 }
 
 export async function fetchMessages(accessToken: string, conversationId: string): Promise<ConversationMessage[]> {
-  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
+  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
     headers: authHeaders(accessToken),
   });
   return (await parseOrThrow<{ data: ConversationMessage[] }>(res)).data;
 }
 
 export async function fetchNotifications(accessToken: string): Promise<NotificationItem[]> {
-  const res = await fetch(`${API_URL}/v1/notifications`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/notifications`, { headers: authHeaders(accessToken) });
   return (await parseOrThrow<{ data: NotificationItem[] }>(res)).data;
 }
 
 export async function sendMessage(accessToken: string, conversationId: string, body: string): Promise<ConversationMessage> {
-  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
+  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ body }),
@@ -239,7 +326,7 @@ export async function scheduleMessage(
   body: string,
   sendAt: string,
 ): Promise<ScheduledMessage> {
-  const res = await fetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
+  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ body, sendAt }),
@@ -248,12 +335,12 @@ export async function scheduleMessage(
 }
 
 export async function fetchScheduledMessages(accessToken: string): Promise<ScheduledMessage[]> {
-  const res = await fetch(`${API_URL}/v1/scheduled-messages`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/scheduled-messages`, { headers: authHeaders(accessToken) });
   return (await parseOrThrow<{ data: ScheduledMessage[] }>(res)).data;
 }
 
 export async function cancelScheduledMessage(accessToken: string, id: string): Promise<{ id: string; status: string }> {
-  const res = await fetch(`${API_URL}/v1/scheduled-messages/${id}/cancel`, {
+  const res = await apiFetch(`${API_URL}/v1/scheduled-messages/${id}/cancel`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -261,7 +348,7 @@ export async function cancelScheduledMessage(accessToken: string, id: string): P
 }
 
 export async function connectDiscord(accessToken: string): Promise<{ authorizationUrl: string }> {
-  const res = await fetch(`${API_URL}/v1/connectors/discord/connect`, {
+  const res = await apiFetch(`${API_URL}/v1/connectors/discord/connect`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -269,7 +356,7 @@ export async function connectDiscord(accessToken: string): Promise<{ authorizati
 }
 
 export async function connectSlack(accessToken: string): Promise<{ authorizationUrl: string }> {
-  const res = await fetch(`${API_URL}/v1/connectors/slack/connect`, {
+  const res = await apiFetch(`${API_URL}/v1/connectors/slack/connect`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -285,7 +372,7 @@ export interface ConnectTelegramResult {
 }
 
 export async function connectTelegram(accessToken: string, botToken: string): Promise<ConnectTelegramResult> {
-  const res = await fetch(`${API_URL}/v1/connectors/telegram/connect`, {
+  const res = await apiFetch(`${API_URL}/v1/connectors/telegram/connect`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ botToken }),
@@ -312,7 +399,7 @@ export interface ConnectEmailResult {
 }
 
 export async function connectEmail(accessToken: string, input: ConnectEmailInput): Promise<ConnectEmailResult> {
-  const res = await fetch(`${API_URL}/v1/connectors/email/connect`, {
+  const res = await apiFetch(`${API_URL}/v1/connectors/email/connect`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(input),
@@ -333,12 +420,12 @@ export interface ConnectorSummary {
 
 /** docs/ROADMAP.md Phase 21.2 - the connector management visibility list. */
 export async function fetchConnectors(accessToken: string): Promise<ConnectorSummary[]> {
-  const res = await fetch(`${API_URL}/v1/connectors`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/connectors`, { headers: authHeaders(accessToken) });
   return (await parseOrThrow<{ data: ConnectorSummary[] }>(res)).data;
 }
 
 export async function disconnectConnector(accessToken: string, provider: string, id: string): Promise<{ id: string; status: string }> {
-  const res = await fetch(`${API_URL}/v1/connectors/${provider}/${id}/disconnect`, {
+  const res = await apiFetch(`${API_URL}/v1/connectors/${provider}/${id}/disconnect`, {
     method: "POST",
     headers: authHeaders(accessToken),
   });
@@ -393,12 +480,12 @@ export interface RuleExecutionLogItem {
 }
 
 export async function fetchRules(accessToken: string): Promise<RuleSummary[]> {
-  const res = await fetch(`${API_URL}/v1/rules`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/rules`, { headers: authHeaders(accessToken) });
   return (await parseOrThrow<{ data: RuleSummary[] }>(res)).data;
 }
 
 export async function createRule(accessToken: string, input: RuleInput): Promise<RuleSummary> {
-  const res = await fetch(`${API_URL}/v1/rules`, {
+  const res = await apiFetch(`${API_URL}/v1/rules`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(input),
@@ -408,7 +495,7 @@ export async function createRule(accessToken: string, input: RuleInput): Promise
 
 /** `expectedVersion` is the `RuleSummary.version` the caller last fetched - sent as `If-Match` (docs/ROADMAP.md Phase 20.4), so a concurrent edit elsewhere is caught with a 412 instead of silently overwritten. */
 export async function updateRule(accessToken: string, ruleId: string, input: Partial<RuleInput>, expectedVersion: number): Promise<RuleSummary> {
-  const res = await fetch(`${API_URL}/v1/rules/${ruleId}`, {
+  const res = await apiFetch(`${API_URL}/v1/rules/${ruleId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", "If-Match": String(expectedVersion), ...authHeaders(accessToken) },
     body: JSON.stringify(input),
@@ -417,7 +504,7 @@ export async function updateRule(accessToken: string, ruleId: string, input: Par
 }
 
 export async function deleteRule(accessToken: string, ruleId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/v1/rules/${ruleId}`, { method: "DELETE", headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/rules/${ruleId}`, { method: "DELETE", headers: authHeaders(accessToken) });
   await parseOrThrow(res);
 }
 
@@ -426,7 +513,7 @@ export async function dryRunRule(
   ruleId: string,
   sample: { bodyText: string; senderDisplayName: string; senderIsVip: boolean },
 ): Promise<{ matched: boolean; status?: string; actionsExecuted: { type: string; status: string; output?: unknown; error?: string }[] }> {
-  const res = await fetch(`${API_URL}/v1/rules/${ruleId}/dry-run`, {
+  const res = await apiFetch(`${API_URL}/v1/rules/${ruleId}/dry-run`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(sample),
@@ -435,7 +522,7 @@ export async function dryRunRule(
 }
 
 export async function fetchRuleExecutions(accessToken: string, ruleId: string): Promise<RuleExecutionLogItem[]> {
-  const res = await fetch(`${API_URL}/v1/rules/${ruleId}/executions`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/rules/${ruleId}/executions`, { headers: authHeaders(accessToken) });
   return (await parseOrThrow<{ data: RuleExecutionLogItem[] }>(res)).data;
 }
 
@@ -454,7 +541,7 @@ export function ifMatchForPreferences(preferences: NotificationPreferences | nul
 }
 
 export async function fetchNotificationPreferences(accessToken: string): Promise<NotificationPreferences> {
-  const res = await fetch(`${API_URL}/v1/notification-preferences`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/notification-preferences`, { headers: authHeaders(accessToken) });
   return parseOrThrow<NotificationPreferences>(res);
 }
 
@@ -463,7 +550,7 @@ export async function updateNotificationPreferences(
   input: Partial<NotificationPreferences>,
   ifMatch: string,
 ): Promise<NotificationPreferences> {
-  const res = await fetch(`${API_URL}/v1/notification-preferences`, {
+  const res = await apiFetch(`${API_URL}/v1/notification-preferences`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", "If-Match": ifMatch, ...authHeaders(accessToken) },
     body: JSON.stringify(input),
@@ -492,7 +579,7 @@ export interface SearchResults {
 }
 
 export async function search(accessToken: string, query: string): Promise<SearchResults> {
-  const res = await fetch(`${API_URL}/v1/search?q=${encodeURIComponent(query)}`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/search?q=${encodeURIComponent(query)}`, { headers: authHeaders(accessToken) });
   const body = await parseOrThrow<{ messages: { data: MessageSearchResult[] }; contacts: { data: ContactSearchResult[] } }>(res);
   return { messages: body.messages.data, contacts: body.contacts.data };
 }
@@ -502,12 +589,12 @@ export interface AiCreditBalance {
 }
 
 export async function fetchAiCreditBalance(accessToken: string): Promise<AiCreditBalance> {
-  const res = await fetch(`${API_URL}/v1/ai/credits/balance`, { headers: authHeaders(accessToken) });
+  const res = await apiFetch(`${API_URL}/v1/ai/credits/balance`, { headers: authHeaders(accessToken) });
   return parseOrThrow<AiCreditBalance>(res);
 }
 
 export async function summarizeConversation(accessToken: string, conversationId: string): Promise<{ summary: string }> {
-  const res = await fetch(`${API_URL}/v1/ai/summaries`, {
+  const res = await apiFetch(`${API_URL}/v1/ai/summaries`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ conversationId }),
@@ -516,7 +603,7 @@ export async function summarizeConversation(accessToken: string, conversationId:
 }
 
 export async function suggestReplies(accessToken: string, text: string): Promise<{ replies: string[] }> {
-  const res = await fetch(`${API_URL}/v1/ai/suggested-replies`, {
+  const res = await apiFetch(`${API_URL}/v1/ai/suggested-replies`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ text }),
@@ -536,7 +623,7 @@ export interface RuleSuggestionResponse {
 }
 
 export async function suggestRule(accessToken: string, naturalLanguagePrompt: string): Promise<RuleSuggestionResponse> {
-  const res = await fetch(`${API_URL}/v1/ai/rule-suggestions`, {
+  const res = await apiFetch(`${API_URL}/v1/ai/rule-suggestions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ naturalLanguagePrompt }),
@@ -548,7 +635,7 @@ export async function subscribeToPush(
   accessToken: string,
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
 ): Promise<void> {
-  const res = await fetch(`${API_URL}/v1/push-subscriptions`, {
+  const res = await apiFetch(`${API_URL}/v1/push-subscriptions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(subscription),
@@ -560,7 +647,7 @@ export async function triggerMockMessage(
   accessToken: string,
   input: { senderDisplayName: string; senderExternalId: string; bodyText: string },
 ): Promise<void> {
-  const res = await fetch(`${API_URL}/dev/mock-connector/send`, {
+  const res = await apiFetch(`${API_URL}/dev/mock-connector/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(input),
