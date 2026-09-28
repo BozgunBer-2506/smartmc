@@ -32,6 +32,7 @@ import {
   type ScheduledMessage,
   type SearchResults,
 } from "../lib/api";
+import { appendConversationsPage, mergeFreshConversationsPage, mergeNewestMessagesPage, mergeOlderMessagesPage } from "../lib/inbox-pagination";
 import { enqueueRequest } from "../lib/offline-queue";
 import { enablePushNotifications, isPushSupported } from "../lib/push";
 import { connectSocket, disconnectSocket } from "../lib/socket";
@@ -72,7 +73,17 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
   const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [conversationsCursor, setConversationsCursor] = useState<string | null>(null);
+  const [conversationsHasMore, setConversationsHasMore] = useState(false);
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
+  const [loadMoreConversationsError, setLoadMoreConversationsError] = useState<string | null>(null);
+  const conversationsRequestIdRef = useRef(0);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesCursor, setMessagesCursor] = useState<string | null>(null);
+  const [messagesHasMore, setMessagesHasMore] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [loadOlderMessagesError, setLoadOlderMessagesError] = useState<string | null>(null);
+  const messagesRequestIdRef = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
@@ -107,24 +118,109 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
 
+  /**
+   * A fresh page-1 load - the only path that REPLACES the conversation
+   * list wholesale. Used on mount and whenever a filter changes (the
+   * result set itself changed, so any previously accumulated "Load more"
+   * pages are no longer valid and must be discarded, not merged). Bumps
+   * `conversationsRequestIdRef` so a slower, now-superseded fetch (this
+   * one, or a concurrent `loadMoreConversations`) can recognize itself as
+   * stale when it resolves and discard its own result instead of
+   * corrupting the newer state.
+   */
   async function refreshConversations() {
+    const gen = ++conversationsRequestIdRef.current;
+    // Cleared synchronously (not just once the fetch resolves) so a
+    // "Load more" click can't slip in against the previous page's cursor
+    // while this fresh load is still in flight.
+    setConversationsCursor(null);
+    setConversationsHasMore(false);
     try {
-      const list = await fetchConversations(accessToken, {
+      const page = await fetchConversations(accessToken, {
         archived: showArchived,
         vip: vipOnly || undefined,
         unread: unreadOnly || undefined,
         category: categoryFilter.trim() || undefined,
       });
-      setConversations(list);
+      if (gen !== conversationsRequestIdRef.current) return;
+      setConversations(page.data);
+      setConversationsCursor(page.pagination.nextCursor);
+      setConversationsHasMore(page.pagination.hasMore);
       setConversationsError(null);
     } catch (err) {
+      if (gen !== conversationsRequestIdRef.current) return;
       // MVP Hardening finding: an empty list here previously looked
       // identical whether the workspace genuinely had no conversations or
       // the request just failed - distinguishing them is what makes the
       // "None yet" empty state trustworthy instead of misleading.
       setConversationsError(err instanceof Error ? err.message : "Could not load conversations.");
     } finally {
-      setConversationsLoading(false);
+      if (gen === conversationsRequestIdRef.current) setConversationsLoading(false);
+    }
+  }
+
+  /**
+   * A realtime nudge - fetches page 1 and MERGES it into whatever's
+   * currently displayed (mergeFreshConversationsPage), never replacing
+   * the list outright. The fresh page-1 conversations occupy their real
+   * canonical server order at the front (a correctness requirement, not
+   * cosmetic - the list has no client-side sort); already-loaded
+   * conversations that aren't in this fresh top-N are kept, appended
+   * after. This is what keeps a "Load more"-accumulated history intact
+   * across an inbound message arriving, per the explicit "pagination
+   * cursor must not be incorrectly reset merely because a realtime event
+   * arrived" requirement. Deliberately does not touch
+   * `conversationsCursor`/`conversationsHasMore` - the cursor is a frozen
+   * keyset boundary tuple, safe to keep using after a realtime mutation
+   * (Postgres re-evaluates "strictly past this boundary" fresh on every
+   * request; it isn't a row reference or an offset that could desync). It
+   * only ever risks a narrow, bounded, self-correcting gap - an item that
+   * rises just enough to cross a previously loaded page's cursor boundary
+   * but not enough to reach the current top-N won't surface until the
+   * next full fresh load - not a duplicate or a crash.
+   */
+  async function mergeConversationsRealtime() {
+    const gen = conversationsRequestIdRef.current; // read, not bumped - must not invalidate a concurrent loadMoreConversations
+    try {
+      const page = await fetchConversations(accessToken, {
+        archived: showArchived,
+        vip: vipOnly || undefined,
+        unread: unreadOnly || undefined,
+        category: categoryFilter.trim() || undefined,
+      });
+      if (gen !== conversationsRequestIdRef.current) return; // a fresh load superseded this since it started
+      setConversations((prev) => mergeFreshConversationsPage(prev, page.data));
+    } catch {
+      // A background realtime refresh failing is not user-facing - the
+      // next socket event or an explicit Retry/filter change will catch
+      // the list back up; surfacing a transient error here for a nudge
+      // the user didn't directly request would be noisier than useful.
+    }
+  }
+
+  /** Explicit "Load more" - appends the next page, deduplicated, never replaces. */
+  async function loadMoreConversations() {
+    if (!conversationsHasMore || loadingMoreConversations || !conversationsCursor) return;
+    const gen = conversationsRequestIdRef.current;
+    setLoadingMoreConversations(true);
+    setLoadMoreConversationsError(null);
+    try {
+      const page = await fetchConversations(accessToken, {
+        archived: showArchived,
+        vip: vipOnly || undefined,
+        unread: unreadOnly || undefined,
+        category: categoryFilter.trim() || undefined,
+        cursor: conversationsCursor,
+      });
+      if (gen !== conversationsRequestIdRef.current) return; // filters changed mid-flight; a fresh load already superseded this
+      setConversations((prev) => appendConversationsPage(prev, page.data));
+      setConversationsCursor(page.pagination.nextCursor);
+      setConversationsHasMore(page.pagination.hasMore);
+    } catch (err) {
+      if (gen !== conversationsRequestIdRef.current) return;
+      setLoadMoreConversationsError(err instanceof Error ? err.message : "Could not load more conversations.");
+    } finally {
+      if (gen === conversationsRequestIdRef.current) setLoadingMoreConversations(false);
     }
   }
 
@@ -186,13 +282,23 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
     const onDisconnect = () => setConnected(false);
 
     const onMessage = (payload?: { priorityScore?: number }) => {
-      // A new message arrived for this workspace - refresh the
-      // conversation list (updates ordering/preview), and if the affected
-      // conversation is the one currently open, refresh its messages too.
-      refreshConversations();
+      // A new message arrived for this workspace - merge it into the
+      // conversation list and, if the affected conversation is the one
+      // currently open, into its messages too. Both are non-destructive
+      // merges (mergeConversationsRealtime / mergeNewestMessagesPage), not
+      // full replaces - a realtime nudge must never discard whatever the
+      // user has already paged through via "Load more"/"Load older
+      // messages".
+      mergeConversationsRealtime();
       fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
       if (selectedIdRef.current) {
-        fetchMessages(accessToken, selectedIdRef.current).then(setMessages).catch(() => undefined);
+        const conversationId = selectedIdRef.current;
+        fetchMessages(accessToken, conversationId)
+          .then((page) => {
+            if (selectedIdRef.current !== conversationId) return; // the open conversation changed since this fired
+            setMessages((prev) => mergeNewestMessagesPage(prev, page.data));
+          })
+          .catch(() => undefined);
       }
     };
 
@@ -266,13 +372,46 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
     setShowScheduler(false);
     setScheduleAt("");
     setMessagesLoading(true);
-    const msgs = await fetchMessages(accessToken, id).catch(() => []);
-    setMessages(msgs);
+    setMessages([]);
+    setMessagesCursor(null);
+    setMessagesHasMore(false);
+    setLoadOlderMessagesError(null);
+    // Bumped so a slower fetch for a conversation the user has since
+    // navigated away from (or a concurrent loadOlderMessages) recognizes
+    // itself as stale on resolve and doesn't contaminate the newly
+    // selected conversation's message list.
+    const gen = ++messagesRequestIdRef.current;
+    const page = await fetchMessages(accessToken, id).catch(() => null);
+    if (gen !== messagesRequestIdRef.current) return;
+    setMessages(page?.data ?? []);
+    setMessagesCursor(page?.pagination.nextCursor ?? null);
+    setMessagesHasMore(page?.pagination.hasMore ?? false);
     setMessagesLoading(false);
     await markConversationRead(accessToken, id).catch(() => undefined);
     refreshConversations();
     fetchNeedsYouCount(accessToken).then((r) => setNeedsYouCount(r.needsYouCount)).catch(() => undefined);
     refreshScheduledMessages();
+  }
+
+  /** Explicit "Load older messages" - prepends the next (older) page, deduplicated, never replaces. */
+  async function loadOlderMessages() {
+    if (!messagesHasMore || loadingOlderMessages || !messagesCursor || !selectedId) return;
+    const gen = messagesRequestIdRef.current;
+    const conversationId = selectedId;
+    setLoadingOlderMessages(true);
+    setLoadOlderMessagesError(null);
+    try {
+      const page = await fetchMessages(accessToken, conversationId, messagesCursor);
+      if (gen !== messagesRequestIdRef.current) return; // the user switched conversations while this was in flight
+      setMessages((prev) => mergeOlderMessagesPage(page.data, prev));
+      setMessagesCursor(page.pagination.nextCursor);
+      setMessagesHasMore(page.pagination.hasMore);
+    } catch (err) {
+      if (gen !== messagesRequestIdRef.current) return;
+      setLoadOlderMessagesError(err instanceof Error ? err.message : "Could not load older messages.");
+    } finally {
+      if (gen === messagesRequestIdRef.current) setLoadingOlderMessages(false);
+    }
   }
 
   async function handleMarkUnread(conversation: ConversationSummary) {
@@ -361,8 +500,11 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
     try {
       await sendMessage(accessToken, selectedId, replyText);
       setReplyText("");
-      const msgs = await fetchMessages(accessToken, selectedId).catch(() => []);
-      setMessages(msgs);
+      // Merge, not replace - a "Load older messages" page the user
+      // already fetched for this conversation must survive sending a
+      // reply, same reasoning as the realtime onMessage handler above.
+      const page = await fetchMessages(accessToken, selectedId).catch(() => null);
+      if (page) setMessages((prev) => mergeNewestMessagesPage(prev, page.data));
     } catch (err) {
       // A genuine network failure (offline, per docs/ROADMAP.md Phase 14's
       // background-sync requirement) - not a server-side error (e.g. a
@@ -642,6 +784,16 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
                 </div>
               </Card>
             ))}
+          {!conversationsLoading && conversationsHasMore && (
+            <div className="mt-2 text-center">
+              {loadMoreConversationsError && (
+                <p className="mb-1.5 text-[11px] text-status-danger">{loadMoreConversationsError}</p>
+              )}
+              <button onClick={loadMoreConversations} disabled={loadingMoreConversations} className={smallButtonClass} aria-busy={loadingMoreConversations}>
+                {loadingMoreConversations ? "Loading..." : loadMoreConversationsError ? "Retry" : "Load more"}
+              </button>
+            </div>
+          )}
         </section>
 
         <section className={selectedId ? "block" : "hidden md:block"}>
@@ -679,6 +831,14 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
               <Skeleton className="h-12" />
               <Skeleton className="h-12" />
               <Skeleton className="h-12" />
+            </div>
+          )}
+          {!messagesLoading && selectedId && messagesHasMore && (
+            <div className="mb-2 text-center">
+              {loadOlderMessagesError && <p className="mb-1.5 text-[11px] text-status-danger">{loadOlderMessagesError}</p>}
+              <button onClick={loadOlderMessages} disabled={loadingOlderMessages} className={smallButtonClass} aria-busy={loadingOlderMessages}>
+                {loadingOlderMessages ? "Loading..." : loadOlderMessagesError ? "Retry" : "Load older messages"}
+              </button>
             </div>
           )}
           {!messagesLoading &&

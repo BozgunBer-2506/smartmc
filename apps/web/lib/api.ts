@@ -175,6 +175,14 @@ export interface ConversationListFilters {
   category?: string;
   vip?: boolean;
   unread?: boolean;
+  /** Opaque - never construct or inspect this string, only pass back a value previously returned in `CursorPage.pagination.nextCursor` (apps/api/src/common/cursor-pagination.ts). */
+  cursor?: string;
+}
+
+/** Mirrors apps/api/src/common/cursor-pagination.ts's `CursorPage<T>` response envelope exactly - the one shape every paginated list endpoint in this API returns. */
+export interface CursorPage<T> {
+  data: T[];
+  pagination: { nextCursor: string | null; hasMore: boolean };
 }
 
 export interface MergeSuggestion {
@@ -217,19 +225,17 @@ export async function fetchMe(accessToken: string): Promise<MeResponse> {
   return parseOrThrow<MeResponse>(res);
 }
 
-export async function fetchConversations(accessToken: string, filters: ConversationListFilters = {}): Promise<ConversationSummary[]> {
+/** Returns the full {data, pagination} envelope (ROADMAP.md Phase 20.2) - callers decide whether to replace or append/merge, per Inbox.tsx's explicit "Load more" pagination. */
+export async function fetchConversations(accessToken: string, filters: ConversationListFilters = {}): Promise<CursorPage<ConversationSummary>> {
   const params = new URLSearchParams();
   if (filters.archived !== undefined) params.set("archived", String(filters.archived));
   if (filters.category) params.set("category", filters.category);
   if (filters.vip) params.set("vip", "true");
   if (filters.unread) params.set("unread", "true");
+  if (filters.cursor) params.set("cursor", filters.cursor);
   const query = params.toString();
   const res = await apiFetch(`${API_URL}/v1/conversations${query ? `?${query}` : ""}`, { headers: authHeaders(accessToken) });
-  // ROADMAP.md Phase 20.2: real cursor pagination - {data, pagination}
-  // envelope. This returns just the first page's data, matching the
-  // existing UI's behavior exactly (no "load more" UI built yet - a
-  // separate, later piece of frontend work, not part of this API change).
-  return (await parseOrThrow<{ data: ConversationSummary[] }>(res)).data;
+  return parseOrThrow<CursorPage<ConversationSummary>>(res);
 }
 
 export async function fetchNeedsYouCount(accessToken: string): Promise<{ needsYouCount: number }> {
@@ -287,11 +293,23 @@ export async function rejectMergeSuggestion(accessToken: string, suggestionId: s
   await parseOrThrow(res);
 }
 
-export async function fetchMessages(accessToken: string, conversationId: string): Promise<ConversationMessage[]> {
-  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}/messages`, {
+/**
+ * Returns the full {data, pagination} envelope. `data` is always in
+ * chronological (oldest-first) order regardless of page - the backend
+ * queries newest-first internally to walk the cursor toward older
+ * messages, then reverses each page before returning it
+ * (apps/api/src/conversations/conversations.controller.ts's `messages()`).
+ * A `cursor` (from a previous call's `pagination.nextCursor`) fetches the
+ * next page of OLDER messages, which callers must prepend, not append.
+ */
+export async function fetchMessages(accessToken: string, conversationId: string, cursor?: string): Promise<CursorPage<ConversationMessage>> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  const query = params.toString();
+  const res = await apiFetch(`${API_URL}/v1/conversations/${conversationId}/messages${query ? `?${query}` : ""}`, {
     headers: authHeaders(accessToken),
   });
-  return (await parseOrThrow<{ data: ConversationMessage[] }>(res)).data;
+  return parseOrThrow<CursorPage<ConversationMessage>>(res);
 }
 
 export async function fetchNotifications(accessToken: string): Promise<NotificationItem[]> {
