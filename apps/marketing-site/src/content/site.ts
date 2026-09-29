@@ -3,9 +3,9 @@
  * Renaming the product = editing `brand` below. Nothing else hardcodes the name.
  */
 export const brand = {
-  name: "Smart Message Center",
-  short: "SMC",
-  domain: "smartmessagecenter.com",
+  name: "Looktra",
+  short: "Looktra",
+  domain: "looktra.com",
   tagline: "The operating system for digital communication.",
   vision:
     "One inbox. Every platform. One identity. Automate everything.",
