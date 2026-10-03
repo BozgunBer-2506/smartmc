@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { brand, nav } from "@/content/site";
 import { cn } from "@/lib/utils";
@@ -25,11 +26,16 @@ export function SiteNav() {
       )}
     >
       <div className="container flex h-16 items-center justify-between gap-6">
-        <a href="#top" className="flex items-center gap-2.5">
-          <Wordmark />
-          <span className="font-display text-[0.9375rem] font-medium tracking-tight text-paper">
-            {brand.name}
-          </span>
+        <a href="#top" className="flex shrink-0 items-center">
+          <Image
+            src="/looktra-wordmark-white.png"
+            alt={brand.name}
+            width={1016}
+            height={168}
+            className="h-auto w-[127px]"
+            priority
+            unoptimized
+          />
         </a>
 
         <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
@@ -83,16 +89,5 @@ export function SiteNav() {
         </div>
       ) : null}
     </header>
-  );
-}
-
-/** Four converging strokes resolving into one node: the product in 20px. */
-function Wordmark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path d="M2 3.5h5M2 8h4M2 12h4M2 16.5h5" stroke="var(--line-strong)" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M7 3.5c4 0 4 6.5 6.5 6.5M6 8c3.5 0 4.5 2 7.5 2M6 12c3.5 0 4.5-2 7.5-2M7 16.5c4 0 4-6.5 6.5-6.5" stroke="var(--faint)" strokeWidth="1.2" />
-      <circle cx="15.5" cy="10" r="2.5" fill="var(--signal)" />
-    </svg>
   );
 }

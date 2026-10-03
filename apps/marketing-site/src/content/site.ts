@@ -90,11 +90,11 @@ export const identityGraph = {
   title: "Three handles. One person. One history.",
   lede: "Identity resolution is the part most tools skip, and it is the reason unified inboxes usually feel like a folder rather than a workspace. IdentityGraph keeps a person record and attaches every platform handle to it as evidence arrives.",
   identities: [
-    { platform: "Telegram", handle: "@arda.k", meta: "user id 5514829" },
-    { platform: "Email", handle: "arda@northwind.io", meta: "verified sender" },
+    { platform: "Telegram", handle: "@daniel.k", meta: "user id 5514829" },
+    { platform: "Email", handle: "daniel@northwind.io", meta: "verified sender" },
     { platform: "Slack", handle: "U04BQ7TXR", meta: "shared channel" },
   ],
-  person: { name: "Arda K.", id: "person_8f2a1c", org: "Northwind" },
+  person: { name: "Daniel K.", id: "person_8f2a1c", org: "Northwind" },
   benefits: [
     "One conversation history instead of one per platform.",
     "Merges are recorded, so a wrong link can be traced and undone.",
@@ -107,11 +107,11 @@ export const inbox = {
   title: "Every platform lands in the same queue.",
   lede: "Threads carry their origin so context is never lost, but triage happens in one place with one set of habits.",
   threads: [
-    { platform: "Telegram", name: "Arda K.", preview: "Any update on the invoice from Tuesday?", time: "2m", unread: true },
+    { platform: "Telegram", name: "Daniel K.", preview: "Any update on the invoice from Tuesday?", time: "2m", unread: true },
     { platform: "Email", name: "Northwind Ops", preview: "Re: onboarding checklist for the new workspace", time: "18m", unread: true },
     { platform: "Slack", name: "Mira Devlin", preview: "Shared channel is live on our side, go ahead.", time: "1h", unread: false },
     { platform: "Discord", name: "community", preview: "Rate limit question from a self hosted setup", time: "3h", unread: false },
-    { platform: "Telegram", name: "Ege Y.", preview: "Thanks, that fixed it.", time: "Yesterday", unread: false },
+    { platform: "Telegram", name: "Maya C.", preview: "Thanks, that fixed it.", time: "Yesterday", unread: false },
   ],
   note: "Screenshot placeholder. Replace with a real capture before launch.",
 };
