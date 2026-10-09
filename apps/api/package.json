@@ -13,7 +13,8 @@
     "verify:token-refresh-logic": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-token-refresh-logic.ts",
     "verify:transactional-email-binding": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-transactional-email-binding.ts",
     "verify:resend-adapter": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-resend-adapter.ts",
-    "verify:inbox-pagination-logic": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-inbox-pagination-logic.ts"
+    "verify:inbox-pagination-logic": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-inbox-pagination-logic.ts",
+    "verify:auth-security-config": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-auth-security-config.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

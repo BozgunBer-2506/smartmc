@@ -21,6 +21,8 @@ import { ProblemDetailsFilter } from "./common/problem-details.filter";
 import { formatValidationErrors } from "./common/format-validation-errors";
 import { credentialsStoreConfig } from "./config/credentials-store.config";
 import { transactionalEmailConfig } from "./config/transactional-email.config";
+import { assertJwtSecretValid } from "./config/auth.config";
+import { corsConfig } from "./config/cors.config";
 
 async function bootstrap() {
   // Fails fast, before the server binds, if production has no real
@@ -35,6 +37,12 @@ async function bootstrap() {
   // fake/unconfigured implementation on the first password-reset request.
   transactionalEmailConfig.assertValid();
 
+  // Same fail-fast reasoning: production must never sign tokens with the
+  // development fallback secret, and must never run with an open
+  // credentialed CORS policy.
+  assertJwtSecretValid();
+  const allowedOrigins = corsConfig.allowedOrigins();
+
   // rawBody: true - required by Slack's Events API webhook (SlackController),
   // which must verify an HMAC-SHA256 signature over the exact raw request
   // bytes (docs/SECURITY.md's authenticity requirement); Express's default
@@ -46,11 +54,12 @@ async function bootstrap() {
   // wildcard `Access-Control-Allow-Origin: *`, which browsers reject
   // outright on any credentialed request (`credentials: true`, needed for
   // the refresh-token cookie) - found live via apps/web's own login flow
-  // failing with a CORS error in the browser console. `origin: true`
-  // reflects the request's actual Origin header instead of a wildcard,
-  // which is what credentialed CORS requires.
+  // failing with a CORS error in the browser console. Credentialed CORS
+  // needs a concrete origin, but reflecting *any* origin would let other
+  // sites read refreshed access tokens - only the explicit allowlist from
+  // config/cors.config.ts is echoed back.
   const app = await NestFactory.create(AppModule, { rawBody: true });
-  app.enableCors({ origin: true, credentials: true });
+  app.enableCors({ origin: allowedOrigins, credentials: true });
   app.use(cookieParser());
   app.useGlobalFilters(new ProblemDetailsFilter());
   app.useGlobalPipes(

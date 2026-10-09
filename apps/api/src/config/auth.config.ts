@@ -1,10 +1,48 @@
+const DEV_JWT_SECRET = "dev-insecure-secret-change-me";
+/** RFC 7518 Section 3.2: an HS256 key should be at least 256 bits. */
+const RECOMMENDED_JWT_SECRET_LENGTH = 32;
+
+type Env = Record<string, string | undefined>;
+
+/**
+ * Production never falls back to the development secret hardcoded in this
+ * public repo - an unset JWT_SECRET resolves to "" there and is rejected at
+ * boot by assertJwtSecretValid(). A configured value is used exactly as-is,
+ * so existing sessions stay valid.
+ */
+export function resolveJwtSecret(env: Env = process.env): string {
+  const configured = env.JWT_SECRET;
+  if (configured) return configured;
+  return env.NODE_ENV === "production" ? "" : DEV_JWT_SECRET;
+}
+
+/** Call once at boot (main.ts), same fail-fast pattern as credentialsStoreConfig.assertValid(). */
+export function assertJwtSecretValid(env: Env = process.env): void {
+  if (env.NODE_ENV !== "production") return;
+  const secret = env.JWT_SECRET;
+  if (!secret || !secret.trim()) {
+    throw new Error("JWT_SECRET is not set. Refusing to start in production without a real token-signing secret.");
+  }
+  if (secret === DEV_JWT_SECRET) {
+    throw new Error("JWT_SECRET is set to the public development value. Refusing to start in production.");
+  }
+  if (secret.length < RECOMMENDED_JWT_SECRET_LENGTH) {
+    // A warning, not a failure: rejecting an existing shorter secret would
+    // force a rotation and sign every user out. Rotate deliberately instead.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `JWT_SECRET is shorter than ${RECOMMENDED_JWT_SECRET_LENGTH} characters. Plan a deliberate rotation to a longer random value.`,
+    );
+  }
+}
+
 /**
  * Auth configuration, read directly from env with documented defaults -
  * matching this codebase's existing pattern (see events/redis-connection.ts)
  * rather than introducing a config-management library for a handful of values.
  */
 export const authConfig = {
-  jwtSecret: process.env.JWT_SECRET ?? "dev-insecure-secret-change-me",
+  jwtSecret: resolveJwtSecret(),
   accessTokenTtlSeconds: 15 * 60, // 15 min - ARCHITECTURE.md Section 6, SECURITY.md Section 4.3
   refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30), // 7-30 days - ARCHITECTURE.md Section 6
   refreshCookieName: "smc_refresh",

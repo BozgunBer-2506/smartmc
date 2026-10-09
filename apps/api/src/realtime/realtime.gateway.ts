@@ -7,6 +7,7 @@ import {
 } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
 import { TokenService } from "../auth/token.service";
+import { socketCorsOrigin } from "../config/cors.config";
 
 function workspaceRoom(workspaceId: string): string {
   return `workspace:${workspaceId}`;
@@ -25,7 +26,8 @@ function workspaceRoom(workspaceId: string): string {
  * token's claims, never from anything the client asserts - a connection
  * with no token, or an invalid one, is disconnected immediately.
  */
-@WebSocketGateway({ cors: { origin: true, credentials: true } })
+// Same explicit allowlist as the REST API (config/cors.config.ts), never a reflected origin.
+@WebSocketGateway({ cors: { origin: socketCorsOrigin, credentials: true } })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
 
