@@ -6,6 +6,17 @@ import { ProductPanel } from "./product-panel";
 import { ChannelTile } from "./connector";
 
 const CONNECTED = ["Telegram", "Slack", "Discord", "Email"];
+// Telegram/Slack are live-verified end to end; Discord and Email are real,
+// shipped connectors but not yet at that same bar (Email's send side is
+// blocked by the platform's outbound SMTP restriction; Discord has no
+// live-verified message round trip yet) - this status is what keeps the
+// claim here accurate rather than implying all four are equally ready.
+const CONNECTED_STATUS: Record<string, string | null> = {
+  Telegram: null,
+  Slack: null,
+  Discord: "In development",
+  Email: "Receive only",
+};
 
 export function LightV3Hero() {
   const [t1, t2, t3, t4] = inbox.threads;
@@ -155,6 +166,11 @@ export function LightV3Hero() {
               <span key={platform} className="inline-flex items-center gap-2 text-sm text-[var(--v3-muted)]">
                 <ChannelTile platform={platform} className="h-6 w-6 text-[0.625rem]" />
                 {platform}
+                {CONNECTED_STATUS[platform] && (
+                  <span className="rounded-full border border-[var(--v3-line-strong)] px-2 py-0.5 text-[0.625rem] font-medium text-[var(--v3-faint)]">
+                    {CONNECTED_STATUS[platform]}
+                  </span>
+                )}
               </span>
             ))}
             <span className="inline-flex items-center gap-2 text-sm text-[var(--v3-faint)]">
