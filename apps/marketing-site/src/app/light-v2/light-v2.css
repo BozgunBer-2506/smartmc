@@ -1,0 +1,45 @@
+/**
+ * Scoped tokens for the Light v2 prototype (/light-v2).
+ * Deliberately NOT beige: clean white canvas, near-black ink, orange as the
+ * one expressive brand color. Lives entirely under .light-v2-proto so it
+ * never touches globals.css, the dark baseline, or /light (v1).
+ */
+.light-v2-proto {
+  --v2-bg: #ffffff;
+  --v2-surface-soft: #f7f7f6;
+  --v2-rail: #fafaf9;
+  --v2-ink: #0c0b0a;
+  --v2-muted: #5b5750;
+  --v2-faint: #948f86;
+  --v2-line: #e8e6e2;
+  --v2-line-strong: #d8d5cf;
+  --v2-orange: #fb5627;
+  --v2-orange-wash: rgba(251, 86, 39, 0.07);
+  --v2-orange-wash-strong: rgba(251, 86, 39, 0.14);
+  --v2-orange-strong: #e14a1f;
+
+  background: var(--v2-bg);
+  color: var(--v2-ink);
+  min-height: 100vh;
+}
+
+.light-v2-proto ::selection {
+  background: rgba(251, 86, 39, 0.18);
+  color: var(--v2-ink);
+}
+
+.light-v2-proto :focus-visible {
+  outline: 2px solid var(--v2-orange);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light-v2-proto *,
+  .light-v2-proto *::before,
+  .light-v2-proto *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

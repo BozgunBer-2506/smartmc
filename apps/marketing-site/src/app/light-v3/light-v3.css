@@ -1,0 +1,114 @@
+/**
+ * Scoped tokens for Light v3 (/light-v3) — faithful reproduction pass of the
+ * approved reference hero. Lives entirely under .light-v3-proto; does not
+ * touch globals.css, the dark baseline, /light, or /light-v2.
+ */
+.light-v3-proto {
+  --v3-bg: #fdfbf9;
+  --v3-surface: #ffffff;
+  --v3-rail: #faf8f6;
+  --v3-ink: #0c0b0a;
+  --v3-muted: #5b5750;
+  /* #948f86 measured 3.21:1 on white — fails WCAG AA for normal text
+     (needs 4.5:1). Darkened along the same hue/saturation to #726d65
+     (5.13:1) rather than picking an unrelated gray. */
+  --v3-faint: #726d65;
+  --v3-line: #ece8e2;
+  --v3-line-strong: #ddd7cd;
+  --v3-orange: #fb5627;
+  --v3-orange-wash: rgba(251, 86, 39, 0.08);
+  --v3-orange-wash-strong: rgba(251, 86, 39, 0.16);
+  --v3-orange-strong: #e14a1f;
+  /* CTA-button-only backgrounds: white text on the brand --v3-orange
+     measures 3.25:1 (fails 4.5:1 for normal-size button text). Darkened
+     along the same hue to #d23204 (5.0:1) / #b42b03 hover (even higher).
+     --v3-orange itself is untouched and still used everywhere else
+     (headline highlights, dots, rings, wash backgrounds). */
+  --v3-orange-button: #d23204;
+  --v3-orange-button-hover: #b42b03;
+
+  background: var(--v3-bg);
+  color: var(--v3-ink);
+  min-height: 100vh;
+}
+
+.light-v3-proto ::selection {
+  background: rgba(251, 86, 39, 0.18);
+  color: var(--v3-ink);
+}
+
+.light-v3-proto :focus-visible {
+  outline: 2px solid var(--v3-orange);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light-v3-proto *,
+  .light-v3-proto *::before,
+  .light-v3-proto *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes v3-draw {
+  from {
+    stroke-dashoffset: var(--v3-path-length, 300);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.light-v3-proto .v3-path {
+  stroke-dasharray: var(--v3-path-length, 300);
+  stroke-dashoffset: var(--v3-path-length, 300);
+  animation: v3-draw 1.1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light-v3-proto .v3-path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Mobile-only anchor/JS scroll offset: the sticky navbar is 81px tall
+   (h-20 + border) at every width, but only phone-width layouts put a
+   section heading close enough to the top for that to matter — desktop
+   already clears it naturally. Scoped below the `sm` breakpoint so
+   desktop's scroll behavior is untouched; native scroll-margin-top, no
+   JS, no change to document flow or section padding. */
+@media (max-width: 767px) {
+  .light-v3-proto section[id] {
+    scroll-margin-top: 104px;
+  }
+}
+
+/* Desktop/tablet counterpart: measured anchor scrolling at 1440px put the
+   Identity heading ~3px and the Getting Started heading ~17px behind the
+   same 81px navbar (their own layouts don't add enough natural top
+   offset the way Context/Automation's taller two-column rows do). Reuses
+   the same 104px value proven at mobile rather than inventing a second
+   number — no section layout changes, scroll-margin only affects the
+   anchor-scroll target, not document flow. */
+@media (min-width: 768px) {
+  .light-v3-proto section[id] {
+    scroll-margin-top: 104px;
+  }
+}
+
+/* Identity section: the "possible match" notification settles into place —
+   restrained, one-shot, and neutralized by the reduced-motion rule above. */
+@keyframes v3-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

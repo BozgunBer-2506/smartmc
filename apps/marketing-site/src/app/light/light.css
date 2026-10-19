@@ -1,0 +1,43 @@
+/**
+ * Scoped design tokens for the light consumer-UI prototype (/light).
+ * Lives entirely under .light-proto so it never touches the global
+ * dark tokens in app/globals.css or the baseline page at "/".
+ */
+.light-proto {
+  --l-bg: #fbf9f6;
+  --l-bg-soft: #f4f0ea;
+  --l-surface: #ffffff;
+  --l-ink: #14110f;
+  --l-muted: #635c54;
+  --l-faint: #8c8478;
+  --l-border: #e9e2d8;
+  --l-border-strong: #ddd3c4;
+  --l-orange: #fb5627;
+  --l-orange-soft: #fff1ea;
+  --l-orange-border: #ffd2bf;
+
+  background: var(--l-bg);
+  color: var(--l-ink);
+  min-height: 100vh;
+}
+
+.light-proto ::selection {
+  background: rgba(251, 86, 39, 0.18);
+  color: var(--l-ink);
+}
+
+.light-proto :focus-visible {
+  outline: 2px solid var(--l-orange);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light-proto *,
+  .light-proto *::before,
+  .light-proto *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
