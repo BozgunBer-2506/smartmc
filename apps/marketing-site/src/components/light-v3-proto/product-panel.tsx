@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { inbox } from "@/content/site";
 import { ChannelTile, ChannelLabel, Avatar } from "./connector";
+import { conversation } from "./content";
 import { cn } from "@/lib/utils";
 
 const RAIL_ITEMS = [
@@ -98,7 +99,7 @@ export function ProductPanel({ className }: { className?: string }) {
           </div>
         </div>
         <div className="flex min-h-[190px] flex-col justify-end gap-2.5 px-4 py-5">
-          {inbox.conversation.messages
+          {conversation.messages
             .slice()
             .reverse()
             .map((message) => (

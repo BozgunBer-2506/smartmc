@@ -1,7 +1,7 @@
 import { ChannelLabel } from "./connector";
-import { inbox, identityGraph as ig } from "@/content/site";
+import { conversation, identityPreviews } from "./content";
 
-const telegramMessages = inbox.conversation.messages
+const telegramMessages = conversation.messages
   .slice()
   .reverse()
   .map((m) => ({
@@ -12,7 +12,7 @@ const telegramMessages = inbox.conversation.messages
 
 const emailEntry = {
   who: "Daniel",
-  text: ig.identities[1].preview,
+  text: identityPreviews[1],
   time: "14:42",
 };
 
