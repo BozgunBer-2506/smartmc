@@ -14,7 +14,19 @@
     "verify:transactional-email-binding": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-transactional-email-binding.ts",
     "verify:resend-adapter": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-resend-adapter.ts",
     "verify:inbox-pagination-logic": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-inbox-pagination-logic.ts",
-    "verify:auth-security-config": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-auth-security-config.ts"
+    "verify:auth-security-config": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-auth-security-config.ts",
+    "verify:metrics-production-gating": "ts-node --transpile-only --project tsconfig.json -O '{\"module\":\"commonjs\"}' ../../scripts/verify-metrics-production-gating.ts",
+    "verify:phase16.1-security-prework": "ts-node --transpile-only --project tsconfig.json -O '{\"module\":\"commonjs\"}' ../../scripts/verify-phase16.1-security-prework.ts",
+    "verify:beta-invites": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-beta-invites.ts",
+    "beta:create-invite": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/create-beta-invite.ts",
+    "verify:workspace-deletion": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-workspace-deletion.ts",
+    "verify:account-deletion": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-account-deletion.ts",
+    "verify:realtime-membership": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-realtime-membership.ts",
+    "verify:events-redis-retention": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-events-redis-retention.ts",
+    "verify:workspace-deletion-redis-timeout": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-workspace-deletion-redis-timeout.ts",
+    "db:backup": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/db-backup.ts",
+    "db:restore": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/db-restore.ts",
+    "verify:db-backup-restore": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-db-backup-restore.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
@@ -53,6 +65,7 @@
     "@types/uuid": "^10.0.0",
     "@types/web-push": "^3.6.4",
     "nodemon": "^3.1.0",
+    "socket.io-client": "^4.8.0",
     "ts-node": "^10.9.0",
     "typescript": "^5.6.0"
   }

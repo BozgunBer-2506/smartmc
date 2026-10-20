@@ -66,6 +66,16 @@ export class CredentialsStoreService {
       throw new Error(`No secret found for ref "${ref}" - it may have already been deleted.`);
     }
 
+    // Phase 16.1 pre-work fix: SecretRecord carries no workspaceId of its
+    // own (it's opaque ciphertext, referenced only via
+    // LinkedAccount.credentialsRef) - every existing caller already
+    // passes the workspaceId that owns the LinkedAccount it fetched `ref`
+    // from, so this check is a no-op for every legitimate call today, and
+    // closes the gap where a single future bug at any call site (passing
+    // an unverified `ref`) would otherwise become a direct cross-tenant
+    // bot-token read with no defense inside the store itself.
+    await this.assertOwnedByWorkspace(ref, context.workspaceId);
+
     const key = credentialsStoreConfig.encryptionKeyForVersion(record.keyVersion);
     const decipher = createDecipheriv(ALGORITHM, key, record.iv);
     decipher.setAuthTag(record.authTag);
@@ -92,10 +102,23 @@ export class CredentialsStoreService {
    * Unconditional, irreversible deletion (SECURITY.md Section 5.2) -
    * `secret_records` is deliberately excluded from the soft-delete
    * extension (packages/database/src/soft-delete.ts), so this is a real
-   * Postgres DELETE, not a `deletedAt` update.
+   * Postgres DELETE, not a `deletedAt` update. `workspaceId` is required
+   * (Phase 16.1 pre-work fix) and checked the same way `getSecret` is -
+   * every existing caller already has the owning LinkedAccount's
+   * `workspaceId` in scope at the call site.
    */
-  async deleteSecret(ref: string): Promise<void> {
+  async deleteSecret(ref: string, workspaceId: string): Promise<void> {
+    await this.assertOwnedByWorkspace(ref, workspaceId);
     const prisma = getPrismaClient();
     await prisma.secretRecord.delete({ where: { id: ref } }).catch(() => undefined);
+  }
+
+  /** Fail-closed: a `ref` with no matching LinkedAccount in this workspace is treated identically to "not found," never silently allowed through. */
+  private async assertOwnedByWorkspace(ref: string, workspaceId: string): Promise<void> {
+    const prisma = getPrismaClient();
+    const owner = await prisma.linkedAccount.findFirst({ where: { credentialsRef: ref, workspaceId } });
+    if (!owner) {
+      throw new Error(`Secret "${ref}" is not owned by workspace "${workspaceId}".`);
+    }
   }
 }

@@ -49,9 +49,21 @@ export class PushService {
     });
   }
 
-  async unsubscribe(endpoint: string): Promise<void> {
+  /**
+   * Phase 16.1 pre-work fix: scoped to the caller's own (workspaceId,
+   * userId) - previously deleted by `endpoint` alone, with no ownership
+   * check at all, despite the endpoint behind this requiring auth. A
+   * subscription's `endpoint` is an unguessable browser-generated URL, so
+   * this wasn't practically exploitable, but it was the one mutation in
+   * the codebase that didn't follow the otherwise-universal
+   * workspace-scoping pattern. Deliberately `deleteMany`, not `delete`:
+   * a cross-tenant `endpoint` now just matches zero rows and still
+   * returns success - idempotent, and never reveals whether that
+   * endpoint exists in a workspace the caller can't see.
+   */
+  async unsubscribe(workspaceId: string, userId: string, endpoint: string): Promise<void> {
     const prisma = getPrismaClient();
-    await prisma.pushSubscription.deleteMany({ where: { endpoint } });
+    await prisma.pushSubscription.deleteMany({ where: { endpoint, workspaceId, userId } });
   }
 
   /** Sends to every subscription in the workspace (every device/browser any member has subscribed from) - matches Notification's own current workspace-wide scope (disclosed in docs/reviews/phase-11-review.md as pending real per-user targeting). */
