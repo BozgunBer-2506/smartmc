@@ -238,7 +238,7 @@ export class TelegramController {
     }
     // SECURITY.md Section 5.2: unconditional deletion, regardless of
     // whether the provider-side call above succeeded.
-    await this.credentialsStore.deleteSecret(linkedAccount.credentialsRef);
+    await this.credentialsStore.deleteSecret(linkedAccount.credentialsRef, linkedAccount.workspaceId);
 
     lifecycle.transition("disconnected");
     await prisma.linkedAccount.update({
