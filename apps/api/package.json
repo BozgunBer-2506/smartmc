@@ -17,6 +17,7 @@
     "verify:auth-security-config": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-auth-security-config.ts",
     "verify:metrics-production-gating": "ts-node --transpile-only --project tsconfig.json -O '{\"module\":\"commonjs\"}' ../../scripts/verify-metrics-production-gating.ts",
     "verify:phase16.1-security-prework": "ts-node --transpile-only --project tsconfig.json -O '{\"module\":\"commonjs\"}' ../../scripts/verify-phase16.1-security-prework.ts",
+    "verify:phase16.1-workspace-membership": "ts-node --transpile-only --project tsconfig.json -O '{\"module\":\"commonjs\"}' ../../scripts/verify-phase16.1-workspace-membership.ts",
     "verify:beta-invites": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-beta-invites.ts",
     "beta:create-invite": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/create-beta-invite.ts",
     "verify:workspace-deletion": "ts-node --transpile-only -O '{\"module\":\"commonjs\"}' ../../scripts/verify-workspace-deletion.ts",

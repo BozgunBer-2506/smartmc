@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from "@nestjs/common";
 import type { Request, Response } from "express";
+import { buildRequestContext } from "../common/request-context";
 import { authConfig } from "../config/auth.config";
 import { AuthService } from "./auth.service";
 import { httpError } from "../common/http-error";
@@ -11,7 +12,7 @@ import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import type { JwtPayload } from "./jwt-payload";
 import { PasswordResetService } from "./password-reset.service";
-import type { RequestContext } from "./session.service";
+import { clearRefreshCookie, setRefreshCookie } from "./refresh-cookie";
 import { HttpStatus } from "@nestjs/common";
 
 @Controller("auth")
@@ -27,8 +28,8 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.register(dto, this.buildContext(req));
-    this.setRefreshCookie(res, result.refreshToken);
+    const result = await this.authService.register(dto, buildRequestContext(req));
+    setRefreshCookie(res, result.refreshToken);
     return { user: result.user, accessToken: result.accessToken };
   }
 
@@ -39,8 +40,8 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(dto, this.buildContext(req));
-    this.setRefreshCookie(res, result.refreshToken);
+    const result = await this.authService.login(dto, buildRequestContext(req));
+    setRefreshCookie(res, result.refreshToken);
     return { user: result.user, accessToken: result.accessToken };
   }
 
@@ -52,8 +53,8 @@ export class AuthController {
       throw httpError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_MISSING", "No refresh token cookie present.");
     }
 
-    const result = await this.authService.refresh(presented, this.buildContext(req));
-    this.setRefreshCookie(res, result.refreshToken);
+    const result = await this.authService.refresh(presented, buildRequestContext(req));
+    setRefreshCookie(res, result.refreshToken);
     return { accessToken: result.accessToken };
   }
 
@@ -62,9 +63,9 @@ export class AuthController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const presented = req.cookies?.[authConfig.refreshCookieName];
     if (presented) {
-      await this.authService.logout(presented, this.buildContext(req));
+      await this.authService.logout(presented, buildRequestContext(req));
     }
-    this.clearRefreshCookie(res);
+    clearRefreshCookie(res);
     return { status: "ok" };
   }
 
@@ -76,8 +77,8 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    await this.authService.logoutAll(user.sub, this.buildContext(req));
-    this.clearRefreshCookie(res);
+    await this.authService.logoutAll(user.sub, buildRequestContext(req));
+    clearRefreshCookie(res);
     return { status: "ok" };
   }
 
@@ -102,46 +103,15 @@ export class AuthController {
   @Post("forgot-password")
   @HttpCode(200)
   async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
-    await this.passwordResetService.requestReset(dto.email, this.buildContext(req));
+    await this.passwordResetService.requestReset(dto.email, buildRequestContext(req));
     return { message: "If an account exists for this email, password reset instructions have been sent." };
   }
 
   @Post("reset-password")
   @HttpCode(200)
   async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
-    await this.passwordResetService.resetPassword(dto.token, dto.newPassword, this.buildContext(req));
+    await this.passwordResetService.resetPassword(dto.token, dto.newPassword, buildRequestContext(req));
     return { status: "ok" };
   }
 
-  private buildContext(req: Request): RequestContext {
-    return {
-      ipAddress: req.ip ?? null,
-      userAgent: req.headers["user-agent"] ?? null,
-    };
-  }
-
-  private setRefreshCookie(res: Response, token: string): void {
-    // See authConfig.refreshCookieSameSite for why this can't just be
-    // "strict" once web/api are on different sites (e.g. Railway).
-    const sameSite = authConfig.refreshCookieSameSite;
-    res.cookie(authConfig.refreshCookieName, token, {
-      httpOnly: true,
-      secure: sameSite === "none" || process.env.NODE_ENV === "production",
-      sameSite,
-      path: authConfig.refreshCookiePath,
-      maxAge: authConfig.refreshTokenTtlDays * 24 * 60 * 60 * 1000,
-    });
-  }
-
-  private clearRefreshCookie(res: Response): void {
-    // Must match setRefreshCookie's sameSite/secure attributes - a
-    // mismatched clearCookie silently fails to delete a SameSite=None
-    // cookie in some browsers.
-    const sameSite = authConfig.refreshCookieSameSite;
-    res.clearCookie(authConfig.refreshCookieName, {
-      path: authConfig.refreshCookiePath,
-      secure: sameSite === "none" || process.env.NODE_ENV === "production",
-      sameSite,
-    });
-  }
 }
