@@ -205,11 +205,18 @@ export class WorkspaceDeletionService {
       // Not soft-delete-intercepted, so a plain deleteMany is a real DELETE.
       await tx.workspaceInvite.deleteMany({ where: { workspaceId } });
 
+      // Phase 16.1 security-audit fix: Session now carries workspaceId
+      // (RESTRICT) - must go before Workspace, same as every other
+      // dependent table here. Scoped to THIS workspace's sessions only,
+      // never account-wide: a member may belong to other workspaces
+      // whose sessions must keep working untouched (the original intent
+      // this comment always documented, now actually enforceable since
+      // a session is finally scoped to one workspace instead of being
+      // account-wide by accident).
+      await tx.session.deleteMany({ where: { workspaceId } });
+
       // WorkspaceMember: soft-delete-intercepted - raw DELETE. Must
       // precede Workspace (workspace_members.workspace_id is RESTRICT).
-      // Deliberately does NOT touch Session - account-wide session
-      // revocation is explicitly out of scope for workspace deletion
-      // (a member may belong to other workspaces that must keep working).
       await tx.$executeRaw`DELETE FROM workspace_members WHERE workspace_id = ${workspaceId}::uuid`;
       // Workspace itself: soft-delete-intercepted - raw DELETE.
       await tx.$executeRaw`DELETE FROM workspaces WHERE id = ${workspaceId}::uuid`;
