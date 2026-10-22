@@ -88,6 +88,7 @@ model Workspace {
   messageAiSummaries       MessageAiSummary[]
   pushSubscriptions        PushSubscription[]
   invites                  WorkspaceInvite[]
+  sessions                 Session[]
 
   @@map("workspaces")
 }
@@ -161,9 +162,25 @@ model WorkspaceMember {
 /// implements the rotation + reuse-detection scheme (ARCHITECTURE.md
 /// Section 6, SECURITY.md Section 4.3): presenting an already-rotated
 /// token from a family revokes every session in it.
+/// `workspaceId` (Phase 16.1 security-audit fix) - the workspace this
+/// refresh-token family's access tokens are scoped to. Before this, a
+/// session tracked only `userId`, and AuthService.refresh()/login() had
+/// to GUESS which workspace to re-issue an access token for - always
+/// picking the user's oldest membership (`orderBy: joinedAt asc`),
+/// regardless of which workspace the session was actually created for.
+/// Harmless while every user had exactly one membership; a real,
+/// confirmed bug the moment Phase 16.1 made a second membership
+/// possible - creating a Business workspace or accepting an invite
+/// issued a correctly-scoped token, only for the next refresh to
+/// silently revert the user to their original workspace. Set once at
+/// SessionService.issue() and carried forward unchanged by every
+/// SessionService.rotate() in the same family, so the workspace a
+/// session represents never changes except by issuing a brand-new
+/// session (a fresh login, a new workspace, an accepted invite).
 model Session {
   id               String    @id @db.Uuid
   userId           String    @map("user_id") @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
   refreshTokenHash String    @map("refresh_token_hash")
   familyId         String    @map("family_id") @db.Uuid
   userAgent        String?   @map("user_agent")
@@ -172,10 +189,12 @@ model Session {
   revokedAt        DateTime? @map("revoked_at")
   createdAt        DateTime  @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
 
   @@index([userId], name: "idx_sessions_user_id")
   @@index([familyId], name: "idx_sessions_family_id")
+  @@index([workspaceId], name: "idx_sessions_workspace_id")
   @@map("sessions")
 }
 

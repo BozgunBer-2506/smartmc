@@ -66,7 +66,14 @@ export class SessionService {
     );
   }
 
-  /** Starts a brand-new rotation family - used for fresh login/registration. */
+  /**
+   * Starts a brand-new rotation family - used for fresh login/registration,
+   * and (Phase 16.1 security-audit fix) for creating/joining a workspace.
+   * `claims.workspaceId` is persisted onto the session (not just the
+   * access token) specifically so a later `rotate()` knows which
+   * workspace this refresh-token family represents, instead of
+   * `AuthService.refresh()` having to guess.
+   */
   async issue(claims: SessionClaims, ctx: RequestContext): Promise<IssuedSession> {
     const prisma = getPrismaClient();
     const refreshToken = this.generateRefreshToken();
@@ -76,6 +83,7 @@ export class SessionService {
       data: {
         id: newId(),
         userId: claims.userId,
+        workspaceId: claims.workspaceId,
         refreshTokenHash: this.hashRefreshToken(refreshToken),
         familyId: newId(),
         userAgent: ctx.userAgent ?? null,
@@ -89,10 +97,14 @@ export class SessionService {
 
   /**
    * Validates and rotates a presented refresh token. Returns the userId
-   * and new session/token; the caller (AuthService) is responsible for
-   * re-resolving claims (workspace/role) and signing a fresh access token
-   * via `signAccessToken`, since a Session row only ever tracks `userId` -
-   * which workspace context to embed is business logic, not session mechanics.
+   * and the new session/token; the caller (AuthService) is responsible
+   * for re-resolving the CURRENT role in `session.workspaceId` and
+   * signing a fresh access token via `signAccessToken`. The workspace
+   * itself is never re-derived here or by the caller (Phase 16.1
+   * security-audit fix) - it's carried forward unchanged from the
+   * session being rotated, onto the new row in the same family, so a
+   * refresh can never silently move a session to a different workspace
+   * than the one it was issued for.
    */
   async rotate(
     presentedRefreshToken: string,
@@ -145,6 +157,7 @@ export class SessionService {
       data: {
         id: newId(),
         userId: existing.userId,
+        workspaceId: existing.workspaceId,
         refreshTokenHash: this.hashRefreshToken(refreshToken),
         familyId: existing.familyId,
         userAgent: ctx.userAgent ?? null,

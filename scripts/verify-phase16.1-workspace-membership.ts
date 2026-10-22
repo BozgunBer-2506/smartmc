@@ -121,9 +121,10 @@ async function main() {
     const createdOwnerMembership = await prisma.workspaceMember.findFirst({ where: { workspaceId: created.workspaceId, userId: ownerId } });
     check("the creator becomes owner of the new workspace", createdOwnerMembership?.role === "owner");
     check("createWorkspace returns a usable access token for the new workspace", typeof created.accessToken === "string" && created.accessToken.length > 0);
+    check("the new session is persisted with the NEW workspace's id, not the caller's original one", created.session.workspaceId === created.workspaceId);
+    await prisma.session.deleteMany({ where: { userId: ownerId } });
     await prisma.$executeRaw`DELETE FROM workspace_members WHERE workspace_id = ${created.workspaceId}::uuid`;
     await prisma.$executeRaw`DELETE FROM workspaces WHERE id = ${created.workspaceId}::uuid`;
-    await prisma.session.deleteMany({ where: { userId: ownerId } });
 
     // ============================================================
     // 2. Role authority, through the REAL guard chain (JwtAuthGuard -> RolesGuard -> controller)

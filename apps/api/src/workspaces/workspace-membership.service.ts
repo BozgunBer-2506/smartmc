@@ -189,15 +189,31 @@ export class WorkspaceMembershipService {
       });
       if (claimed.count === 0) throw invalid();
 
-      await tx.workspaceMember.create({
-        data: {
-          id: newId(),
-          workspaceId: invite.workspaceId,
-          userId: acceptingUserId,
-          role: invite.role,
-          invitedByUserId: invite.invitedByUserId,
-        },
-      });
+      try {
+        await tx.workspaceMember.create({
+          data: {
+            id: newId(),
+            workspaceId: invite.workspaceId,
+            userId: acceptingUserId,
+            role: invite.role,
+            invitedByUserId: invite.invitedByUserId,
+          },
+        });
+      } catch (err) {
+        // Security-audit fix: the pre-check above (`existingMembership`)
+        // is a UX-facing fast path, not the real guarantee - two
+        // DIFFERENT invites for the same (workspace, email), accepted
+        // concurrently, can both pass that check before either has
+        // created a membership, then race here on the real
+        // (workspace_id, user_id) unique constraint. The loser must get
+        // a clean 409, not a raw, unhandled Postgres error. Every OTHER
+        // error (a real outage, a different constraint, anything not
+        // this exact known race) is rethrown unchanged - never swallowed.
+        if ((err as { code?: string }).code === "P2002") {
+          throw httpError(HttpStatus.CONFLICT, "ALREADY_MEMBER", "You are already a member of this workspace.");
+        }
+        throw err;
+      }
     });
 
     const issued = await this.sessionService.issue(

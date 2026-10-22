@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import { getPrismaClient, newId } from "@smc/database";
 import { AuditLogService } from "../audit/audit-log.service";
 import { httpError } from "../common/http-error";
+import { claimBetaInvite } from "./beta-invite.utils";
 import { normalizeEmail, makeSlug, toPublicUser, type PublicUser } from "./auth.utils";
 import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
@@ -68,6 +69,15 @@ export class AuthService {
       const user = await tx.user.create({
         data: { id: newId(), email, displayName: dto.displayName ?? null },
       });
+
+      // Claimed right after the User row it references exists (the FK on
+      // BetaInvite.usedByUserId requires that), but still inside the same
+      // transaction as everything else: if anything later here fails
+      // (e.g. a genuinely concurrent duplicate-email race hitting
+      // User.email's unique constraint), Postgres rolls this claim back
+      // too - the code stays usable rather than being silently burned by
+      // a registration that never actually completed.
+      await claimBetaInvite(tx, { code: dto.inviteCode, email, userId: user.id });
 
       await tx.userCredentials.create({
         data: { id: newId(), userId: user.id, passwordHash },
@@ -238,18 +248,41 @@ export class AuthService {
     return { user: toPublicUser(user), accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
   }
 
+  /**
+   * Phase 16.1 security-audit fix: the workspace is read from
+   * `session.workspaceId` - the exact workspace this refresh-token
+   * family was issued for (SessionService.issue()/rotate()) - never
+   * re-derived by "the user's oldest membership". Re-deriving it that
+   * way was a real, confirmed bug: it silently reverted a multi-workspace
+   * user back to their first-ever workspace on every refresh, regardless
+   * of which workspace their session actually represented. Only the
+   * ROLE is re-resolved here (it can legitimately change between
+   * refreshes - a promotion, a demotion, a transfer), never the
+   * workspace itself.
+   *
+   * Fail-closed: if the membership for `session.workspaceId` no longer
+   * exists (removed from that specific workspace, or the account was
+   * deleted - WorkspaceMember.userId is RESTRICT to User, so the two
+   * cases are indistinguishable and both correctly rejected the same
+   * way JwtAuthGuard's own equivalent check already does), the refresh
+   * is rejected outright - never silently falls back to a different
+   * workspace the caller didn't ask for.
+   */
   async refresh(presentedRefreshToken: string, ctx: RequestContext): Promise<{ accessToken: string; refreshToken: string }> {
-    const { userId, refreshToken } = await this.sessionService.rotate(presentedRefreshToken, ctx);
+    const { userId, refreshToken, session } = await this.sessionService.rotate(presentedRefreshToken, ctx);
 
     const prisma = getPrismaClient();
     const membership = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      orderBy: { joinedAt: "asc" },
+      where: { workspaceId: session.workspaceId, userId },
       include: { workspace: true },
     });
 
     if (!membership) {
-      throw httpError(HttpStatus.FORBIDDEN, "NO_WORKSPACE", "This account has no workspace.");
+      throw httpError(
+        HttpStatus.UNAUTHORIZED,
+        "UNAUTHENTICATED",
+        "This account no longer has access to this workspace.",
+      );
     }
 
     const accessToken = this.sessionService.signAccessToken({
