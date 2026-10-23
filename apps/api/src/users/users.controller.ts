@@ -1,11 +1,11 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Controller, Delete, Get, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
 import { getPrismaClient } from "@smc/database";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { toPublicUser } from "../auth/auth.utils";
 import { httpError } from "../common/http-error";
-import { HttpStatus } from "@nestjs/common";
+import { AccountDeletionService } from "./account-deletion.service";
 
 /**
  * docs/API.md Section 10.2 - GET /v1/users/me: "every client needs 'who
@@ -14,6 +14,8 @@ import { HttpStatus } from "@nestjs/common";
  */
 @Controller("users")
 export class UsersController {
+  constructor(private readonly accountDeletion: AccountDeletionService) {}
+
   @Get("me")
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() claims: JwtPayload) {
@@ -32,6 +34,13 @@ export class UsersController {
 
     return {
       user: toPublicUser(user),
+      // Phase 16.1 frontend integration step 1 - which membership the
+      // CALLER'S OWN access token (claims.workspaceId) actually
+      // represents, straight from the already-verified JWT claims - no
+      // extra query, no guessing. The frontend has always received every
+      // membership below; it never had a way to know which one is "the
+      // one I'm currently looking at."
+      currentWorkspaceId: claims.workspaceId,
       workspaces: memberships.map((m) => ({
         workspaceId: m.workspaceId,
         workspaceName: m.workspace.name,
@@ -39,5 +48,12 @@ export class UsersController {
         role: m.role,
       })),
     };
+  }
+
+  @Delete("me")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  async deleteMe(@CurrentUser() claims: JwtPayload): Promise<void> {
+    await this.accountDeletion.deleteAccount(claims.sub);
   }
 }

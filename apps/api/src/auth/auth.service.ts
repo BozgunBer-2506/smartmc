@@ -295,6 +295,60 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  /**
+   * Phase 16.1 frontend-integration step - moves the CALLER'S OWN
+   * current session into a different workspace they already belong to.
+   * Authorization happens before any session mechanics run: membership
+   * in `targetWorkspaceId` is verified first (fail-closed, no session
+   * is touched at all if it fails), then the switch itself reuses
+   * `SessionService.rotate()` exactly as `refresh()` does - same
+   * reuse-detection, same family, same revoke-old-row-first mechanics -
+   * just with `targetWorkspaceId` instead of the session's existing
+   * workspace carried onto the new row. No separate "session for a
+   * workspace I'm not actually in" state can exist even transiently -
+   * the old row is already revoked and the new one already carries the
+   * verified target by the time this returns.
+   *
+   * `userId` must be the CALLER'S OWN id, from their already-verified
+   * access token (JwtAuthGuard/`claims.sub`), never trusted from the
+   * refresh cookie alone - the post-rotate check below is defense in
+   * depth against a refresh cookie that doesn't actually belong to the
+   * same user as the presented access token (a stolen/mismatched
+   * cookie), which should never happen in a normal browser session but
+   * costs nothing to rule out explicitly rather than assume.
+   */
+  async switchWorkspace(
+    userId: string,
+    targetWorkspaceId: string,
+    presentedRefreshToken: string,
+    ctx: RequestContext,
+  ): Promise<{ accessToken: string; refreshToken: string; workspaceId: string }> {
+    const prisma = getPrismaClient();
+    const membership = await prisma.workspaceMember.findFirst({
+      where: { workspaceId: targetWorkspaceId, userId },
+      include: { workspace: true },
+    });
+
+    if (!membership) {
+      throw httpError(HttpStatus.FORBIDDEN, "NOT_A_WORKSPACE_MEMBER", "You are not a member of this workspace.");
+    }
+
+    const { userId: sessionUserId, refreshToken } = await this.sessionService.rotate(presentedRefreshToken, ctx, targetWorkspaceId);
+
+    if (sessionUserId !== userId) {
+      throw httpError(HttpStatus.UNAUTHORIZED, "SESSION_MISMATCH", "This session does not belong to the authenticated user.");
+    }
+
+    const accessToken = this.sessionService.signAccessToken({
+      userId,
+      workspaceId: targetWorkspaceId,
+      orgId: membership.workspace.organizationId,
+      role: membership.role,
+    });
+
+    return { accessToken, refreshToken, workspaceId: targetWorkspaceId };
+  }
+
   async logout(presentedRefreshToken: string, ctx: RequestContext): Promise<void> {
     const result = await this.sessionService.revoke(presentedRefreshToken);
     if (result) {
