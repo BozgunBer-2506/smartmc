@@ -98,17 +98,28 @@ export class SessionService {
   /**
    * Validates and rotates a presented refresh token. Returns the userId
    * and the new session/token; the caller (AuthService) is responsible
-   * for re-resolving the CURRENT role in `session.workspaceId` and
-   * signing a fresh access token via `signAccessToken`. The workspace
-   * itself is never re-derived here or by the caller (Phase 16.1
-   * security-audit fix) - it's carried forward unchanged from the
-   * session being rotated, onto the new row in the same family, so a
-   * refresh can never silently move a session to a different workspace
-   * than the one it was issued for.
+   * for re-resolving the CURRENT role in the resulting `session.workspaceId`
+   * and signing a fresh access token via `signAccessToken`. The workspace
+   * is never re-derived here or GUESSED by the caller (Phase 16.1
+   * security-audit fix) - by default it's carried forward unchanged from
+   * the session being rotated, onto the new row in the same family, so a
+   * plain refresh can never silently move a session to a different
+   * workspace than the one it was issued for.
+   *
+   * `overrideWorkspaceId` (Phase 16.1 frontend-integration step) is the
+   * ONE deliberate exception: workspace switching. It still goes through
+   * this exact same rotation - same reuse-detection, same family, same
+   * revoke-the-old-row-first mechanics - the only difference is which
+   * workspaceId the new row in the family carries forward. This method
+   * never checks whether the caller is actually allowed into that
+   * workspace - that authorization is AuthService.switchWorkspace()'s
+   * job (session mechanics vs. "who's allowed," this class's own stated
+   * boundary), checked and resolved BEFORE this is ever called.
    */
   async rotate(
     presentedRefreshToken: string,
     ctx: RequestContext,
+    overrideWorkspaceId?: string,
   ): Promise<{ userId: string; refreshToken: string; session: Session }> {
     const prisma = getPrismaClient();
     const presentedHash = this.hashRefreshToken(presentedRefreshToken);
@@ -157,7 +168,7 @@ export class SessionService {
       data: {
         id: newId(),
         userId: existing.userId,
-        workspaceId: existing.workspaceId,
+        workspaceId: overrideWorkspaceId ?? existing.workspaceId,
         refreshTokenHash: this.hashRefreshToken(refreshToken),
         familyId: existing.familyId,
         userAgent: ctx.userAgent ?? null,
@@ -169,10 +180,11 @@ export class SessionService {
     await this.auditLog.log({
       actorUserId: existing.userId,
       actorType: "user",
-      action: "session.refreshed",
+      action: overrideWorkspaceId && overrideWorkspaceId !== existing.workspaceId ? "session.workspace_switched" : "session.refreshed",
       resourceType: "session",
       resourceId: newSession.id,
       ipAddress: ctx.ipAddress,
+      metadata: overrideWorkspaceId && overrideWorkspaceId !== existing.workspaceId ? { fromWorkspaceId: existing.workspaceId, toWorkspaceId: overrideWorkspaceId } : undefined,
     });
 
     return { userId: existing.userId, refreshToken, session: newSession };

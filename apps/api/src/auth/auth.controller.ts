@@ -9,6 +9,7 @@ import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { SwitchWorkspaceDto } from "./dto/switch-workspace.dto";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import type { JwtPayload } from "./jwt-payload";
 import { PasswordResetService } from "./password-reset.service";
@@ -56,6 +57,34 @@ export class AuthController {
     const result = await this.authService.refresh(presented, buildRequestContext(req));
     setRefreshCookie(res, result.refreshToken);
     return { accessToken: result.accessToken };
+  }
+
+  /**
+   * Phase 16.1 frontend-integration step - same cookie/token mechanics as
+   * `refresh()` above, reusing the same httpOnly cookie, the same
+   * `AuthService`, the same `setRefreshCookie` helper - just rotating
+   * into a different (already-a-member-of) workspace instead of staying
+   * on the current one. `JwtAuthGuard` here establishes WHO is asking
+   * (`claims.sub`) from their access token; the refresh cookie is still
+   * what actually gets rotated, exactly as `refresh()` does it.
+   */
+  @Post("switch-workspace")
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async switchWorkspace(
+    @Body() dto: SwitchWorkspaceDto,
+    @CurrentUser() claims: JwtPayload,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const presented = req.cookies?.[authConfig.refreshCookieName];
+    if (!presented) {
+      throw httpError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_MISSING", "No refresh token cookie present.");
+    }
+
+    const result = await this.authService.switchWorkspace(claims.sub, dto.workspaceId, presented, buildRequestContext(req));
+    setRefreshCookie(res, result.refreshToken);
+    return { workspaceId: result.workspaceId, accessToken: result.accessToken };
   }
 
   @Post("logout")
