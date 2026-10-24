@@ -115,11 +115,28 @@ export class SessionService {
    * workspace - that authorization is AuthService.switchWorkspace()'s
    * job (session mechanics vs. "who's allowed," this class's own stated
    * boundary), checked and resolved BEFORE this is ever called.
+   *
+   * `expectedUserId` (frontend-integration follow-up fix): switchWorkspace()
+   * is the one caller that already knows an independently-verified
+   * identity (the access token's `claims.sub`, via JwtAuthGuard) before
+   * it ever touches the refresh cookie. A refresh token's owning user can
+   * only be learned by looking up the session row itself - so the
+   * ownership check MUST happen here, before any mutation, not as a
+   * post-hoc comparison after this method has already revoked a session
+   * and created a new one. The original version checked
+   * `sessionUserId !== userId` only after calling `rotate()` - by then,
+   * a refresh token belonging to a DIFFERENT user than the caller had
+   * already been rotated (their old token revoked, a new session row
+   * created under THEIR userId but with the caller's chosen
+   * `overrideWorkspaceId`) before the mismatch was ever detected and the
+   * request failed. Checked here, first, a mismatched token is rejected
+   * with zero side effect - the other user's session is never touched.
    */
   async rotate(
     presentedRefreshToken: string,
     ctx: RequestContext,
     overrideWorkspaceId?: string,
+    expectedUserId?: string,
   ): Promise<{ userId: string; refreshToken: string; session: Session }> {
     const prisma = getPrismaClient();
     const presentedHash = this.hashRefreshToken(presentedRefreshToken);
@@ -127,6 +144,13 @@ export class SessionService {
 
     if (!existing) {
       throw httpError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_INVALID", "Refresh token is invalid.");
+    }
+
+    if (expectedUserId && existing.userId !== expectedUserId) {
+      // Reject before any mutation - never revoke, rotate, or otherwise
+      // touch a session that doesn't belong to the identity the caller
+      // already proved via their access token.
+      throw httpError(HttpStatus.UNAUTHORIZED, "SESSION_MISMATCH", "This session does not belong to the authenticated user.");
     }
 
     if (existing.revokedAt) {

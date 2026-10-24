@@ -31,12 +31,16 @@ import {
   type PublicUser,
   type ScheduledMessage,
   type SearchResults,
+  type MeResponse,
+  type WorkspaceRole,
+  type WorkspaceSessionResult,
 } from "../lib/api";
 import { appendConversationsPage, mergeFreshConversationsPage, mergeNewestMessagesPage, mergeOlderMessagesPage } from "../lib/inbox-pagination";
 import { enqueueRequest } from "../lib/offline-queue";
 import { enablePushNotifications, isPushSupported } from "../lib/push";
 import { connectSocket, disconnectSocket } from "../lib/socket";
 import { playPriorityChime } from "../lib/sound";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 /** Not in TypeScript's standard DOM lib yet (docs/ROADMAP.md Phase 14's install-prompt requirement) - the browser-standard shape of the `beforeinstallprompt` event. */
 interface BeforeInstallPromptEvent extends Event {
@@ -47,9 +51,15 @@ interface BeforeInstallPromptEvent extends Event {
 interface InboxProps {
   accessToken: string;
   user: PublicUser;
+  workspaces: MeResponse["workspaces"];
+  currentWorkspaceId: string;
+  currentRole: WorkspaceRole;
   onLoggedOut: () => void;
   onOpenRules: () => void;
   onOpenConnectors: () => void;
+  onOpenTeam: () => void;
+  /** Switching or creating a workspace issues a fresh token - the parent (page.tsx) re-syncs user/workspaces/view state from it, same as login. */
+  onWorkspaceChanged: (result: WorkspaceSessionResult) => void;
 }
 
 const smallButtonClass =
@@ -69,7 +79,18 @@ const smallButtonClass =
  * below - provider badges, unread state, loading skeletons, filtered/empty
  * states - is preserved exactly, not rebuilt).
  */
-export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConnectors }: InboxProps) {
+export function Inbox({
+  accessToken,
+  user,
+  workspaces,
+  currentWorkspaceId,
+  currentRole,
+  onLoggedOut,
+  onOpenRules,
+  onOpenConnectors,
+  onOpenTeam,
+  onWorkspaceChanged,
+}: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
   const [conversationsLoading, setConversationsLoading] = useState(true);
@@ -598,11 +619,21 @@ export function Inbox({ accessToken, user, onLoggedOut, onOpenRules, onOpenConne
           {aiBalance !== null && <Badge title="AI credits remaining">AI credits: {aiBalance}</Badge>}
         </div>
         <div className="flex items-center gap-2">
+          <WorkspaceSwitcher
+            accessToken={accessToken}
+            currentWorkspaceId={currentWorkspaceId}
+            workspaces={workspaces}
+            onSwitched={onWorkspaceChanged}
+          />
           <ThemeToggle />
           {installPromptEvent && <Button onClick={handleInstall}>Install app</Button>}
           {isPushSupported() && <Button onClick={handleEnablePush}>Enable push</Button>}
           <Button onClick={onOpenConnectors}>Connectors</Button>
           <Button onClick={onOpenRules}>Automations</Button>
+          {/* Business-only entry point, gated by role/headcount (personal-business-split.md Section 3) - never a separate "account type" flag. An owner/admin always sees it (they're the only roles that can ever invite a first teammate); a plain member only does once there's actually a team (always true in practice - they couldn't be a non-owner member of a workspace with nobody else in it). */}
+          {(currentRole === "owner" || currentRole === "admin" || workspaces.length > 1) && (
+            <Button onClick={onOpenTeam}>Team</Button>
+          )}
           <Button onClick={handleLogout}>Log out</Button>
         </div>
       </header>
