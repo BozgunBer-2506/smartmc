@@ -311,11 +311,13 @@ export class AuthService {
    *
    * `userId` must be the CALLER'S OWN id, from their already-verified
    * access token (JwtAuthGuard/`claims.sub`), never trusted from the
-   * refresh cookie alone - the post-rotate check below is defense in
-   * depth against a refresh cookie that doesn't actually belong to the
-   * same user as the presented access token (a stolen/mismatched
-   * cookie), which should never happen in a normal browser session but
-   * costs nothing to rule out explicitly rather than assume.
+   * refresh cookie alone. Passed into `SessionService.rotate()` as
+   * `expectedUserId` (ordering fix, found during review of this exact
+   * method before the frontend integration step) - a refresh cookie that
+   * doesn't actually belong to the same user as the presented access
+   * token is rejected by `rotate()` itself, BEFORE any session is
+   * touched, not after one has already been silently rotated out from
+   * under its real owner.
    */
   async switchWorkspace(
     userId: string,
@@ -333,11 +335,7 @@ export class AuthService {
       throw httpError(HttpStatus.FORBIDDEN, "NOT_A_WORKSPACE_MEMBER", "You are not a member of this workspace.");
     }
 
-    const { userId: sessionUserId, refreshToken } = await this.sessionService.rotate(presentedRefreshToken, ctx, targetWorkspaceId);
-
-    if (sessionUserId !== userId) {
-      throw httpError(HttpStatus.UNAUTHORIZED, "SESSION_MISMATCH", "This session does not belong to the authenticated user.");
-    }
+    const { refreshToken } = await this.sessionService.rotate(presentedRefreshToken, ctx, targetWorkspaceId, userId);
 
     const accessToken = this.sessionService.signAccessToken({
       userId,

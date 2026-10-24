@@ -11,6 +11,9 @@
  *    membership is removed - the same invariant the prior security fix
  *    already proved for a plain (non-switched) session.
  * 5. Concurrent refresh vs. switch using the same refresh token.
+ * 6. A refresh token belonging to a DIFFERENT user than the caller's
+ *    access token is rejected with zero side effect - the ordering fix
+ *    found during review before the frontend integration step.
  *
  * Runs directly against the local dev Postgres - no live API server
  * needed. Every row created is deleted at the end, FK-safe order,
@@ -152,10 +155,43 @@ async function main() {
         decoded.workspaceId === workspaceAId || decoded.workspaceId === workspaceBId,
       );
     }
+
+    // ============================================================
+    // 6. Ordering fix: presenting someone ELSE's refresh token must never
+    //    mutate THEIR session, even if the caller is independently a
+    //    legitimate member of the target workspace.
+    // ============================================================
+    const victimId = newId();
+    await prisma.user.create({ data: { id: victimId, email: `p161sw-victim-${suffix}@example.test` } });
+    await prisma.workspaceMember.create({ data: { id: newId(), workspaceId: workspaceAId, userId: victimId, role: "member" } });
+    const victimSession = await sessionService.issue({ userId: victimId, workspaceId: workspaceAId, orgId, role: "member" }, { ipAddress: null, userAgent: null });
+
+    check(
+      "switchWorkspace(callerId, target, VICTIM'S refresh token) is rejected as SESSION_MISMATCH",
+      await throwsWithCode(
+        () => authService.switchWorkspace(userId, workspaceBId, victimSession.refreshToken, { ipAddress: null, userAgent: null }),
+        "SESSION_MISMATCH",
+      ),
+    );
+    const victimSessionRowAfter = await prisma.session.findFirst({
+      where: { refreshTokenHash: createHash("sha256").update(victimSession.refreshToken).digest("hex") },
+    });
+    check(
+      "the victim's session row is NEITHER revoked NOR replaced by the rejected cross-user attempt",
+      victimSessionRowAfter !== null && victimSessionRowAfter.revokedAt === null,
+    );
+    const victimStillRefreshes = await authService.refresh(victimSession.refreshToken, { ipAddress: null, userAgent: null });
+    const victimClaimsAfter = jwtService.decode(victimStillRefreshes.accessToken) as { workspaceId: string };
+    check(
+      "the victim's ORIGINAL refresh token still works normally afterward, still scoped to their own workspace",
+      victimClaimsAfter.workspaceId === workspaceAId,
+    );
   } finally {
+    const victimEmailPattern = `p161sw-victim-${suffix}@example.test`;
     await prisma.session.deleteMany({ where: { workspaceId: { in: [workspaceAId, workspaceBId, outsideWorkspaceId] } } }).catch(() => undefined);
     await prisma.$executeRaw`DELETE FROM workspace_members WHERE workspace_id IN (${workspaceAId}::uuid, ${workspaceBId}::uuid, ${outsideWorkspaceId}::uuid)`.catch(() => undefined);
     await prisma.$executeRaw`DELETE FROM users WHERE id = ${userId}::uuid`.catch(() => undefined);
+    await prisma.$executeRaw`DELETE FROM users WHERE email = ${victimEmailPattern}`.catch(() => undefined);
     await prisma.$executeRaw`DELETE FROM workspaces WHERE id IN (${workspaceAId}::uuid, ${workspaceBId}::uuid, ${outsideWorkspaceId}::uuid)`.catch(() => undefined);
     await prisma.$executeRaw`DELETE FROM organizations WHERE id = ${orgId}::uuid`.catch(() => undefined);
   }
