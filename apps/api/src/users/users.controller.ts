@@ -1,11 +1,10 @@
-import { Controller, Delete, Get, HttpCode, HttpStatus, UseGuards } from "@nestjs/common";
+import { Controller, Get, HttpStatus, UseGuards } from "@nestjs/common";
 import { getPrismaClient } from "@smc/database";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import type { JwtPayload } from "../auth/jwt-payload";
 import { toPublicUser } from "../auth/auth.utils";
 import { httpError } from "../common/http-error";
-import { AccountDeletionService } from "./account-deletion.service";
 
 /**
  * docs/API.md Section 10.2 - GET /v1/users/me: "every client needs 'who
@@ -14,8 +13,6 @@ import { AccountDeletionService } from "./account-deletion.service";
  */
 @Controller("users")
 export class UsersController {
-  constructor(private readonly accountDeletion: AccountDeletionService) {}
-
   @Get("me")
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() claims: JwtPayload) {
@@ -48,12 +45,5 @@ export class UsersController {
         role: m.role,
       })),
     };
-  }
-
-  @Delete("me")
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(JwtAuthGuard)
-  async deleteMe(@CurrentUser() claims: JwtPayload): Promise<void> {
-    await this.accountDeletion.deleteAccount(claims.sub);
   }
 }
