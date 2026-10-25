@@ -155,6 +155,15 @@ model WorkspaceMember {
   user      User      @relation(fields: [userId], references: [id])
 
   @@unique([workspaceId, userId], name: "uq_workspace_members_workspace_user")
+  /// Migration-safety fix: the only existing index on this table is the
+  /// composite unique above, with `user_id` as the NON-leading column -
+  /// unusable for a lookup keyed on `user_id` alone (confirmed by review:
+  /// every such lookup in the codebase - AuthService.login()/refresh(),
+  /// and the sessions.workspace_id backfill migration this index exists
+  /// for - filters by user_id with no workspace_id known yet). Without
+  /// this, that backfill ran an effective sequential scan of this table
+  /// once per row of `sessions`.
+  @@index([userId], name: "idx_workspace_members_user_id")
   @@map("workspace_members")
 }
 
