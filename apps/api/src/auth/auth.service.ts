@@ -2,7 +2,6 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import { getPrismaClient, newId } from "@smc/database";
 import { AuditLogService } from "../audit/audit-log.service";
 import { httpError } from "../common/http-error";
-import { claimBetaInvite } from "./beta-invite.utils";
 import { normalizeEmail, makeSlug, toPublicUser, type PublicUser } from "./auth.utils";
 import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
@@ -69,15 +68,6 @@ export class AuthService {
       const user = await tx.user.create({
         data: { id: newId(), email, displayName: dto.displayName ?? null },
       });
-
-      // Claimed right after the User row it references exists (the FK on
-      // BetaInvite.usedByUserId requires that), but still inside the same
-      // transaction as everything else: if anything later here fails
-      // (e.g. a genuinely concurrent duplicate-email race hitting
-      // User.email's unique constraint), Postgres rolls this claim back
-      // too - the code stays usable rather than being silently burned by
-      // a registration that never actually completed.
-      await claimBetaInvite(tx, { code: dto.inviteCode, email, userId: user.id });
 
       await tx.userCredentials.create({
         data: { id: newId(), userId: user.id, passwordHash },
