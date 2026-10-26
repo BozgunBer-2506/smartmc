@@ -9,6 +9,7 @@ import {
   inviteWorkspaceMember,
   leaveWorkspace,
   removeWorkspaceMember,
+  switchWorkspace,
   transferWorkspaceOwnership,
   type PublicUser,
   type WorkspaceMemberSummary,
@@ -19,6 +20,7 @@ import {
 interface TeamManagementProps {
   accessToken: string;
   user: PublicUser;
+  currentWorkspaceId: string;
   currentRole: WorkspaceRole;
   onBack: () => void;
   /** Leaving or accepting an invite moves the caller to a DIFFERENT workspace - same "fresh session" shape switching a workspace already produces. */
@@ -41,7 +43,7 @@ const ROLE_BADGE_VARIANT: Record<WorkspaceRole, "priority" | "neutral"> = {
  * more than one member - gated by role/headcount in Inbox.tsx, never by
  * a separate "account type" flag.
  */
-export function TeamManagement({ accessToken, user, currentRole, onBack, onSwitched, onLeft }: TeamManagementProps) {
+export function TeamManagement({ accessToken, user, currentWorkspaceId, currentRole, onBack, onSwitched, onLeft }: TeamManagementProps) {
   const [members, setMembers] = useState<WorkspaceMemberSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -161,13 +163,29 @@ export function TeamManagement({ accessToken, user, currentRole, onBack, onSwitc
     setActionError(null);
     try {
       await transferWorkspaceOwnership(accessToken, transferTargetId);
-      setTransferTargetId(null);
-      await loadMembers();
     } catch (err) {
+      // Transfer itself failed - nothing committed, keep the dialog/state as-is.
       setActionError(err instanceof Error ? err.message : "Failed to transfer ownership.");
-    } finally {
       setTransferring(false);
+      return;
     }
+    setTransferTargetId(null);
+    await loadMembers();
+    try {
+      // The transfer already committed above. Re-issue the access token through
+      // the existing switch-workspace session rotation (same workspace, role
+      // re-read fresh from the DB) so the now-demoted actor's role/permissions -
+      // including the owner-only "Transfer ownership" action - update immediately,
+      // without waiting for a page reload. Same mechanism acceptWorkspaceInvite
+      // and switchWorkspace already use for this; no new endpoint.
+      onSwitched(await switchWorkspace(accessToken, currentWorkspaceId));
+    } catch {
+      // Best-effort: the transfer already succeeded (loadMembers() above already
+      // reflects it); a failure here only means the actor's local role context
+      // won't refresh until their next natural session refresh, same as before
+      // this fix - not a failed transfer.
+    }
+    setTransferring(false);
   }
 
   const transferCandidates = members.filter((m) => m.userId !== user.id && m.role !== "owner");
