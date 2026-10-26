@@ -110,7 +110,6 @@ model User {
   notificationPreferences NotificationPreference[]
   pushSubscriptions       PushSubscription[]
   passwordResetTokens     PasswordResetToken[]
-  redeemedBetaInvites     BetaInvite[]
   sentWorkspaceInvites    WorkspaceInvite[] @relation("WorkspaceInviteInvitedBy")
   usedWorkspaceInvites    WorkspaceInvite[] @relation("WorkspaceInviteUsedBy")
 
@@ -225,33 +224,6 @@ model PasswordResetToken {
 
   @@index([userId], name: "idx_password_reset_tokens_user_id")
   @@map("password_reset_tokens")
-}
-
-/// Closed-beta registration gate. Single-use, expiring invite codes -
-/// never stored in plaintext, same hash-not-value pattern as
-/// PasswordResetToken.tokenHash (sha256, high-entropy random value, not a
-/// password, so Argon2id would be the wrong tool here too). Minted via
-/// scripts/create-beta-invite.ts, which talks to Postgres directly - there
-/// is deliberately no HTTP endpoint to create, list or revoke invites,
-/// since this product has no platform-admin role (RolesGuard is
-/// workspace-scoped owner/admin/member, not a superuser concept) and
-/// inventing one just for this would be a bigger surface than the problem
-/// needs.
-model BetaInvite {
-  id           String    @id @db.Uuid
-  codeHash     String    @unique @map("code_hash")
-  /// Optional lock to one address (application-layer normalized, same as
-  /// User.email) - null means any email may redeem it.
-  email        String?
-  expiresAt    DateTime  @map("expires_at")
-  usedAt       DateTime? @map("used_at")
-  usedByUserId String?   @map("used_by_user_id") @db.Uuid
-  revokedAt    DateTime? @map("revoked_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-
-  usedByUser User? @relation(fields: [usedByUserId], references: [id])
-
-  @@map("beta_invites")
 }
 
 /// Phase 16.1 - invites an existing user into a specific Workspace (not

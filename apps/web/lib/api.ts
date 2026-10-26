@@ -98,17 +98,12 @@ async function parseOrThrow<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-export async function register(
-  email: string,
-  password: string,
-  inviteCode: string,
-  displayName?: string,
-): Promise<AuthResponse> {
+export async function register(email: string, password: string, displayName?: string): Promise<AuthResponse> {
   const res = await fetch(`${API_URL}/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include", // required for the httpOnly refresh cookie to be set (docs/API.md Section 7.1)
-    body: JSON.stringify({ email, password, inviteCode, displayName }),
+    body: JSON.stringify({ email, password, displayName }),
   });
   return parseOrThrow<AuthResponse>(res);
 }
