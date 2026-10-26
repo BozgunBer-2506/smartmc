@@ -122,6 +122,7 @@ export default function HomePage() {
       <TeamManagement
         accessToken={accessToken}
         user={user}
+        currentWorkspaceId={currentWorkspaceId}
         currentRole={currentRole}
         onBack={() => setView("inbox")}
         onSwitched={handleWorkspaceChanged}
