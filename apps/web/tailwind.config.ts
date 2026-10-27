@@ -25,6 +25,8 @@ const config: Config = {
         "text-secondary": "var(--color-text-secondary)",
         "text-disabled": "var(--color-text-disabled)",
         "accent-priority": "var(--color-accent-priority)",
+        "brand-primary": "var(--color-brand-primary)",
+        "brand-soft": "var(--color-brand-soft)",
         "status-success": "var(--color-status-success)",
         "status-warning": "var(--color-status-warning)",
         "status-danger": "var(--color-status-danger)",

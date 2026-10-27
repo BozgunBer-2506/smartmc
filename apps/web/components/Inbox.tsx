@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, Card, Input, ProviderBadge, Skeleton, ThemeToggle } from "@smc/ui";
+import { Badge, Button, Card, Input, ProviderBadge, Skeleton } from "@smc/ui";
 import {
   approveMergeSuggestion,
   cancelScheduledMessage,
@@ -11,7 +11,6 @@ import {
   fetchNeedsYouCount,
   fetchNotifications,
   fetchScheduledMessages,
-  logout,
   markConversationRead,
   markConversationUnread,
   API_URL,
@@ -31,16 +30,12 @@ import {
   type PublicUser,
   type ScheduledMessage,
   type SearchResults,
-  type MeResponse,
-  type WorkspaceRole,
-  type WorkspaceSessionResult,
 } from "../lib/api";
 import { appendConversationsPage, mergeFreshConversationsPage, mergeNewestMessagesPage, mergeOlderMessagesPage } from "../lib/inbox-pagination";
 import { enqueueRequest } from "../lib/offline-queue";
 import { enablePushNotifications, isPushSupported } from "../lib/push";
 import { connectSocket, disconnectSocket } from "../lib/socket";
 import { playPriorityChime } from "../lib/sound";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 /** Not in TypeScript's standard DOM lib yet (docs/ROADMAP.md Phase 14's install-prompt requirement) - the browser-standard shape of the `beforeinstallprompt` event. */
 interface BeforeInstallPromptEvent extends Event {
@@ -51,15 +46,7 @@ interface BeforeInstallPromptEvent extends Event {
 interface InboxProps {
   accessToken: string;
   user: PublicUser;
-  workspaces: MeResponse["workspaces"];
-  currentWorkspaceId: string;
-  currentRole: WorkspaceRole;
-  onLoggedOut: () => void;
-  onOpenRules: () => void;
   onOpenConnectors: () => void;
-  onOpenTeam: () => void;
-  /** Switching or creating a workspace issues a fresh token - the parent (page.tsx) re-syncs user/workspaces/view state from it, same as login. */
-  onWorkspaceChanged: (result: WorkspaceSessionResult) => void;
 }
 
 const smallButtonClass =
@@ -82,14 +69,7 @@ const smallButtonClass =
 export function Inbox({
   accessToken,
   user,
-  workspaces,
-  currentWorkspaceId,
-  currentRole,
-  onLoggedOut,
-  onOpenRules,
   onOpenConnectors,
-  onOpenTeam,
-  onWorkspaceChanged,
 }: InboxProps) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
@@ -593,19 +573,14 @@ export function Inbox({
     }
   }
 
-  async function handleLogout() {
-    await logout();
-    onLoggedOut();
-  }
-
   const filtersActive = showArchived || vipOnly || unreadOnly || categoryFilter.trim().length > 0;
 
   return (
-    <main className="mx-auto max-w-[900px] p-8">
-      <header className="mb-2 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+    <main className="w-full p-4 sm:p-6 lg:p-8">
+      <header className="mb-2 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-3.5">
           <div>
-            <h1 className="m-0 text-xl font-semibold text-text-primary">Smart Message Center</h1>
+            <h1 className="m-0 text-xl font-semibold text-text-primary">Inbox</h1>
             <p className="mt-1 text-[13px] text-text-secondary">
               {user.displayName ?? user.email} · Realtime:{" "}
               <strong className={connected ? "text-status-success" : "text-status-danger"}>
@@ -618,23 +593,9 @@ export function Inbox({
           </Badge>
           {aiBalance !== null && <Badge title="AI credits remaining">AI credits: {aiBalance}</Badge>}
         </div>
-        <div className="flex items-center gap-2">
-          <WorkspaceSwitcher
-            accessToken={accessToken}
-            currentWorkspaceId={currentWorkspaceId}
-            workspaces={workspaces}
-            onSwitched={onWorkspaceChanged}
-          />
-          <ThemeToggle />
+        <div className="flex flex-wrap items-center gap-2">
           {installPromptEvent && <Button onClick={handleInstall}>Install app</Button>}
           {isPushSupported() && <Button onClick={handleEnablePush}>Enable push</Button>}
-          <Button onClick={onOpenConnectors}>Connectors</Button>
-          <Button onClick={onOpenRules}>Automations</Button>
-          {/* Business-only entry point, gated by role/headcount (personal-business-split.md Section 3) - never a separate "account type" flag. An owner/admin always sees it (they're the only roles that can ever invite a first teammate); a plain member only does once there's actually a team (always true in practice - they couldn't be a non-owner member of a workspace with nobody else in it). */}
-          {(currentRole === "owner" || currentRole === "admin" || workspaces.length > 1) && (
-            <Button onClick={onOpenTeam}>Team</Button>
-          )}
-          <Button onClick={handleLogout}>Log out</Button>
         </div>
       </header>
 
