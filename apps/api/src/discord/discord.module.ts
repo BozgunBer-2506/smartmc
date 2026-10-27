@@ -12,5 +12,9 @@ import { DiscordReconciliationService } from "./discord-reconciliation.service";
   imports: [AuthModule, EventsModule, CredentialsStoreModule, AuditLogModule],
   controllers: [DiscordController],
   providers: [DiscordOAuthStateService, DiscordGatewayManagerService, DiscordReconciliationService],
+  // DiscordGatewayManagerService.stop is reused by WorkspacesModule's
+  // deletion cleanup (the same gateway teardown this module's own
+  // disconnect() already calls) - exported rather than re-implemented.
+  exports: [DiscordGatewayManagerService],
 })
 export class DiscordModule {}

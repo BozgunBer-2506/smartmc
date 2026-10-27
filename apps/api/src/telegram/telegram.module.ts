@@ -11,5 +11,9 @@ import { TelegramReconciliationService } from "./telegram-reconciliation.service
   imports: [AuthModule, EventsModule, CredentialsStoreModule, AuditLogModule],
   controllers: [TelegramController],
   providers: [TelegramApiService, TelegramReconciliationService],
+  // TelegramApiService.deleteWebhook is reused by WorkspacesModule's
+  // deletion cleanup (the same best-effort call this module's own
+  // disconnect() already makes) - exported rather than re-implemented.
+  exports: [TelegramApiService],
 })
 export class TelegramModule {}

@@ -40,6 +40,8 @@ import { TokenService } from "./token.service";
   // are both exported so any module needing to authenticate a token -
   // RealtimeModule's gateway, MockConnectorModule's optional-auth path -
   // can do so identically, without re-deriving the secret/config itself.
-  exports: [JwtAuthGuard, RolesGuard, JwtModule, TokenService],
+  // SessionService is exported too - WorkspacesModule's WorkspaceMembershipService
+  // needs it for leave/transfer-ownership session rotation.
+  exports: [JwtAuthGuard, RolesGuard, JwtModule, TokenService, SessionService],
 })
 export class AuthModule {}
