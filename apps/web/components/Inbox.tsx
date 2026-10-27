@@ -576,16 +576,17 @@ export function Inbox({
   const filtersActive = showArchived || vipOnly || unreadOnly || categoryFilter.trim().length > 0;
 
   return (
-    <main className="w-full p-4 sm:p-6 lg:p-8">
-      <header className="mb-2 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-wrap items-center gap-3.5">
+    <main className="w-full max-w-[1320px] p-5 sm:p-7 lg:p-9">
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <div>
-            <h1 className="m-0 text-xl font-semibold text-text-primary">Inbox</h1>
-            <p className="mt-1 text-[13px] text-text-secondary">
-              {user.displayName ?? user.email} · Realtime:{" "}
-              <strong className={connected ? "text-status-success" : "text-status-danger"}>
-                {connected ? "connected" : "disconnected"}
-              </strong>
+            <h1 className="m-0 text-[clamp(1.5rem,2.6vw,1.875rem)] font-semibold leading-tight tracking-tight text-text-primary">Inbox</h1>
+            <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-text-secondary">
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${connected ? "bg-status-success" : "bg-status-danger"}`}
+                aria-hidden
+              />
+              {connected ? "Connected" : "Disconnected"} · {user.displayName ?? user.email}
             </p>
           </div>
           <Badge variant={needsYouCount > 0 ? "priority" : "neutral"} title="Unread conversations that are VIP or high-priority">
@@ -599,10 +600,10 @@ export function Inbox({
         </div>
       </header>
 
-      <section className="my-5">
+      <section className="mb-6">
         <form onSubmit={handleSearch} className="flex gap-2">
           <Input
-            className="flex-1"
+            className="flex-1 h-11 rounded-xl"
             placeholder="Search messages and contacts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -667,8 +668,8 @@ export function Inbox({
         // development (mock-connector.controller.ts), so this UI must match
         // that guard rather than render a control that silently fails for a
         // real production user.
-        <section className="my-5 flex gap-2">
-          <Input className="w-40 flex-none" value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Sender name" />
+        <section className="my-5 flex flex-col gap-2 sm:flex-row">
+          <Input className="w-full sm:w-40 sm:flex-none" value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Sender name" />
           <Input className="flex-1" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message body" />
           <Button onClick={handleSendMock} disabled={sending}>
             {sending ? "Sending..." : "Send mock message"}
@@ -680,174 +681,231 @@ export function Inbox({
         <section className="mb-3 text-xs text-text-secondary">{[pushStatus, oauthCallbackStatus].filter(Boolean).join(" · ")}</section>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[280px_1fr]">
-        <section className={selectedId ? "hidden md:block" : "block"}>
-          <h2 className="mb-2 text-sm font-semibold text-text-secondary">Conversations</h2>
-          <div className="mb-2.5 flex flex-wrap gap-1 text-xs text-text-secondary">
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
-              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Archived
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
-              <input type="checkbox" checked={vipOnly} onChange={(e) => setVipOnly(e.target.checked)} /> VIP only
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
-              <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} /> Unread only
-            </label>
-            <Input
-              className="w-[100px] text-xs"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              placeholder="Category filter"
-            />
-          </div>
-          {conversationsError && (
-            <Card className="mb-2 border-status-danger text-[13px] text-status-danger">
-              Could not load conversations: {conversationsError}{" "}
-              <button onClick={refreshConversations} className={`${smallButtonClass} ml-1.5`}>
-                Retry
-              </button>
-            </Card>
-          )}
-          {conversationsLoading && (
-            <div className="space-y-2">
-              <Skeleton className="h-[58px]" />
-              <Skeleton className="h-[58px]" />
-              <Skeleton className="h-[58px]" />
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-[340px_1fr] md:items-start">
+        <section
+          className={[
+            selectedId ? "hidden md:block" : "block",
+            "overflow-hidden rounded-lg border border-border-subtle bg-surface-1 shadow-sm",
+          ].join(" ")}
+        >
+          <div className="border-b border-border-subtle px-4 py-3.5">
+            <h2 className="m-0 text-sm font-semibold text-text-primary">Conversations</h2>
+            <div className="mt-2 flex flex-wrap gap-1 text-xs text-text-secondary">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
+                <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Archived
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
+                <input type="checkbox" checked={vipOnly} onChange={(e) => setVipOnly(e.target.checked)} /> VIP only
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
+                <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} /> Unread only
+              </label>
+              <Input
+                className="w-[100px] text-xs"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                placeholder="Category filter"
+              />
             </div>
-          )}
-          {!conversationsLoading && !conversationsError && conversations.length === 0 && filtersActive && (
-            <Card className="text-[13px] text-text-secondary">
-              No conversations match your filters.
-              <div className="mt-1.5">
-                <button onClick={clearConversationFilters} className={smallButtonClass}>
-                  Clear filters
+          </div>
+          <div className="max-h-[calc(100vh-18rem)] overflow-y-auto p-2">
+            {conversationsError && (
+              <Card className="mb-2 border-status-danger text-[13px] text-status-danger">
+                Could not load conversations: {conversationsError}{" "}
+                <button onClick={refreshConversations} className={`${smallButtonClass} ml-1.5`}>
+                  Retry
                 </button>
+              </Card>
+            )}
+            {conversationsLoading && (
+              <div className="space-y-2">
+                <Skeleton className="h-[58px]" />
+                <Skeleton className="h-[58px]" />
+                <Skeleton className="h-[58px]" />
               </div>
-            </Card>
-          )}
-          {!conversationsLoading && !conversationsError && conversations.length === 0 && !filtersActive && (
-            <Card className="text-[13px] text-text-secondary">
-              <strong className="text-text-primary">No conversations yet</strong>
-              <p className="mt-1.5">Connect your first account to start receiving messages.</p>
-              <div className="mt-2.5">
-                <Button onClick={onOpenConnectors}>Connect account</Button>
-              </div>
-            </Card>
-          )}
-          {!conversationsLoading &&
-            conversations.map((c) => (
-              <Card
-                key={c.id}
-                className={[
-                  selectedId === c.id ? "border-accent-priority" : "",
-                  c.unread ? "border-l-[3px] border-l-status-info bg-surface-2" : "",
-                ].join(" ")}
-              >
-                <div onClick={() => selectConversation(c.id)} className="cursor-pointer">
-                  <div className="flex items-center gap-1.5">
-                    {c.unread && <span className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-status-info" />}
-                    <span className={c.unread ? "font-bold text-text-primary" : "font-normal text-text-secondary"}>
-                      {c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown"}
-                      {c.lastMessage?.sender?.isVip && " ⭐"}
-                    </span>
-                    <ProviderBadge providerKey={c.providerKey} />
-                  </div>
-                  <p className="mt-1 text-[13px] text-text-secondary">{c.lastMessage?.bodyText ?? ""}</p>
-                  <p className="mt-1 text-[11px] text-text-disabled">
-                    priority {c.priorityScore}
-                    {c.category ? ` · ${c.category}` : ""}
-                  </p>
-                </div>
-                <div className="mt-1.5 flex gap-1.5">
-                  <button onClick={() => handleToggleArchive(c)} className={smallButtonClass}>
-                    {c.isArchived ? "Unarchive" : "Archive"}
+            )}
+            {!conversationsLoading && !conversationsError && conversations.length === 0 && filtersActive && (
+              <Card className="text-[13px] text-text-secondary">
+                No conversations match your filters.
+                <div className="mt-1.5">
+                  <button onClick={clearConversationFilters} className={smallButtonClass}>
+                    Clear filters
                   </button>
-                  {!c.unread && (
-                    <button onClick={() => handleMarkUnread(c)} className={smallButtonClass}>
-                      Mark unread
-                    </button>
-                  )}
-                  <input
-                    defaultValue={c.category ?? ""}
-                    onBlur={(e) => handleSetCategory(c, e.target.value)}
-                    placeholder="Set category"
-                    className="h-6 flex-1 rounded-sm border border-border-subtle bg-surface-1 px-1 text-[11px] text-text-primary"
-                  />
                 </div>
               </Card>
-            ))}
-          {!conversationsLoading && conversationsHasMore && (
-            <div className="mt-2 text-center">
-              {loadMoreConversationsError && (
-                <p className="mb-1.5 text-[11px] text-status-danger">{loadMoreConversationsError}</p>
-              )}
-              <button onClick={loadMoreConversations} disabled={loadingMoreConversations} className={smallButtonClass} aria-busy={loadingMoreConversations}>
-                {loadingMoreConversations ? "Loading..." : loadMoreConversationsError ? "Retry" : "Load more"}
-              </button>
-            </div>
-          )}
+            )}
+            {!conversationsLoading && !conversationsError && conversations.length === 0 && !filtersActive && (
+              <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-soft text-lg" aria-hidden>
+                  ✉️
+                </span>
+                <strong className="text-sm text-text-primary">No conversations yet</strong>
+                <p className="max-w-[220px] text-[13px] text-text-secondary">
+                  Connect your first account to start receiving messages here.
+                </p>
+                <Button onClick={onOpenConnectors} className="mt-1">
+                  Connect account
+                </Button>
+              </div>
+            )}
+            {!conversationsLoading &&
+              conversations.map((c) => {
+                const name = c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown";
+                const initial = name.trim().charAt(0).toUpperCase() || "?";
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => selectConversation(c.id)}
+                    className={[
+                      "group mb-1 cursor-pointer rounded-md px-2.5 py-2.5 transition-colors hover:bg-surface-2",
+                      selectedId === c.id ? "bg-brand-soft" : "",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <span
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-soft text-[13px] font-semibold text-brand-primary"
+                        aria-hidden
+                      >
+                        {initial}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          {c.unread && <span className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-status-info" />}
+                          <span className={`truncate text-[13.5px] ${c.unread ? "font-semibold text-text-primary" : "font-medium text-text-secondary"}`}>
+                            {name}
+                            {c.lastMessage?.sender?.isVip && " ⭐"}
+                          </span>
+                          <ProviderBadge providerKey={c.providerKey} />
+                        </div>
+                        <p className="mt-0.5 truncate text-[12.5px] text-text-secondary">{c.lastMessage?.bodyText ?? ""}</p>
+                        <p className="mt-1 text-[11px] text-text-disabled">
+                          priority {c.priorityScore}
+                          {c.category ? ` · ${c.category}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-1.5 hidden gap-1.5 pl-[42px] group-hover:flex" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => handleToggleArchive(c)} className={smallButtonClass}>
+                        {c.isArchived ? "Unarchive" : "Archive"}
+                      </button>
+                      {!c.unread && (
+                        <button onClick={() => handleMarkUnread(c)} className={smallButtonClass}>
+                          Mark unread
+                        </button>
+                      )}
+                      <input
+                        defaultValue={c.category ?? ""}
+                        onBlur={(e) => handleSetCategory(c, e.target.value)}
+                        placeholder="Set category"
+                        className="h-6 flex-1 rounded-sm border border-border-subtle bg-surface-1 px-1 text-[11px] text-text-primary"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            {!conversationsLoading && conversationsHasMore && (
+              <div className="mt-2 text-center">
+                {loadMoreConversationsError && (
+                  <p className="mb-1.5 text-[11px] text-status-danger">{loadMoreConversationsError}</p>
+                )}
+                <button onClick={loadMoreConversations} disabled={loadingMoreConversations} className={smallButtonClass} aria-busy={loadingMoreConversations}>
+                  {loadingMoreConversations ? "Loading..." : loadMoreConversationsError ? "Retry" : "Load more"}
+                </button>
+              </div>
+            )}
+          </div>
         </section>
 
-        <section className={selectedId ? "block" : "hidden md:block"}>
-          <button type="button" onClick={() => setSelectedId(null)} className={`${smallButtonClass} mb-2.5 inline-block md:hidden`}>
-            ← Back to conversations
-          </button>
-          <h2 className="mb-2 text-sm font-semibold text-text-secondary">Messages</h2>
-          {!selectedId && <p className="text-[13px] text-text-secondary">Select a conversation to see its history.</p>}
-          {selectedId && messages.length > 0 && (
-            <div className="mb-2 flex gap-1.5">
-              <button onClick={handleSummarize} disabled={summarizing} className={smallButtonClass}>
-                {summarizing ? "Summarizing..." : "Summarize"}
-              </button>
-              <button onClick={handleSuggestReplies} disabled={suggestingReplies} className={smallButtonClass}>
-                {suggestingReplies ? "Thinking..." : "Suggest replies"}
-              </button>
-            </div>
-          )}
-          {conversationSummary && (
-            <Card className="border-status-info text-[13px]">
-              <strong>AI summary:</strong> {conversationSummary}
-            </Card>
-          )}
-          {replySuggestions.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {replySuggestions.map((r, i) => (
-                <button key={i} onClick={() => setReplyText(r)} className={smallButtonClass}>
-                  {r}
+        <section
+          className={[
+            selectedId ? "block" : "hidden md:block",
+            "flex min-h-[calc(100vh-12rem)] flex-col overflow-hidden rounded-lg border border-border-subtle bg-surface-1 shadow-sm md:min-h-[calc(100vh-18rem)]",
+          ].join(" ")}
+        >
+          <div className="border-b border-border-subtle px-4 py-3.5">
+            <button type="button" onClick={() => setSelectedId(null)} className={`${smallButtonClass} mb-2 inline-block md:hidden`}>
+              ← Back to conversations
+            </button>
+            <h2 className="m-0 text-sm font-semibold text-text-primary">Messages</h2>
+            {selectedId && messages.length > 0 && (
+              <div className="mt-2 flex gap-1.5">
+                <button onClick={handleSummarize} disabled={summarizing} className={smallButtonClass}>
+                  {summarizing ? "Summarizing..." : "Summarize"}
                 </button>
-              ))}
-            </div>
-          )}
-          {messagesLoading && (
-            <div className="space-y-2">
-              <Skeleton className="h-12" />
-              <Skeleton className="h-12" />
-              <Skeleton className="h-12" />
-            </div>
-          )}
-          {!messagesLoading && selectedId && messagesHasMore && (
-            <div className="mb-2 text-center">
-              {loadOlderMessagesError && <p className="mb-1.5 text-[11px] text-status-danger">{loadOlderMessagesError}</p>}
-              <button onClick={loadOlderMessages} disabled={loadingOlderMessages} className={smallButtonClass} aria-busy={loadingOlderMessages}>
-                {loadingOlderMessages ? "Loading..." : loadOlderMessagesError ? "Retry" : "Load older messages"}
-              </button>
-            </div>
-          )}
-          {!messagesLoading &&
-            messages.map((m) => (
-              <Card key={m.id}>
-                <strong className={m.direction === "outbound" ? "text-status-info" : "text-accent-priority"}>
-                  {m.direction === "outbound" ? "Me" : (m.sender?.displayName ?? "Unknown")}
-                </strong>{" "}
-                <span className="text-xs text-text-secondary">{new Date(m.receivedAt).toLocaleTimeString()}</span>
-                <p className="mt-1 text-text-secondary">{m.bodyText}</p>
+                <button onClick={handleSuggestReplies} disabled={suggestingReplies} className={smallButtonClass}>
+                  {suggestingReplies ? "Thinking..." : "Suggest replies"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            {!selectedId && (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-lg" aria-hidden>
+                  💬
+                </span>
+                <p className="text-[13px] text-text-secondary">Select a conversation to see its history.</p>
+              </div>
+            )}
+            {conversationSummary && (
+              <Card className="mb-3 border-status-info text-[13px]">
+                <strong>AI summary:</strong> {conversationSummary}
               </Card>
-            ))}
+            )}
+            {replySuggestions.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {replySuggestions.map((r, i) => (
+                  <button key={i} onClick={() => setReplyText(r)} className={smallButtonClass}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            )}
+            {messagesLoading && (
+              <div className="space-y-2">
+                <Skeleton className="h-12" />
+                <Skeleton className="h-12" />
+                <Skeleton className="h-12" />
+              </div>
+            )}
+            {!messagesLoading && selectedId && messagesHasMore && (
+              <div className="mb-2 text-center">
+                {loadOlderMessagesError && <p className="mb-1.5 text-[11px] text-status-danger">{loadOlderMessagesError}</p>}
+                <button onClick={loadOlderMessages} disabled={loadingOlderMessages} className={smallButtonClass} aria-busy={loadingOlderMessages}>
+                  {loadingOlderMessages ? "Loading..." : loadOlderMessagesError ? "Retry" : "Load older messages"}
+                </button>
+              </div>
+            )}
+            <div className="space-y-2.5">
+              {!messagesLoading &&
+                messages.map((m) => {
+                  const outbound = m.direction === "outbound";
+                  return (
+                    <div key={m.id} className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={[
+                          "max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed",
+                          outbound ? "bg-brand-primary text-white" : "bg-surface-2 text-text-primary",
+                        ].join(" ")}
+                      >
+                        {!outbound && <p className="mb-0.5 text-[11px] font-semibold text-accent-priority">{m.sender?.displayName ?? "Unknown"}</p>}
+                        <p className="m-0">{m.bodyText}</p>
+                        <p className={`mt-1 text-[10.5px] ${outbound ? "text-white/70" : "text-text-disabled"}`}>
+                          {new Date(m.receivedAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
           {selectedId && (
-            <div className="mt-2">
+            <div className="border-t border-border-subtle p-3">
               <div className="flex gap-2">
                 <Input
-                  className="flex-1"
+                  className="h-11 flex-1 rounded-xl"
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !showScheduler && handleReply()}
@@ -894,16 +952,16 @@ export function Inbox({
         <h2 className="mb-2 text-sm font-semibold text-text-secondary">Notifications</h2>
         {notifications.length === 0 && <p className="text-[13px] text-text-secondary">None yet.</p>}
         {notifications.map((n) => (
-          <Card key={n.id}>
+          <Card key={n.id} className="mb-2">
             <strong>{n.title}</strong>
             <p className="mt-1 text-[13px]">{n.body}</p>
           </Card>
         ))}
       </section>
 
-      <div className="fixed right-4 top-4 flex flex-col gap-2">
+      <div className="fixed left-4 right-4 top-4 z-50 flex flex-col items-end gap-2 sm:left-auto">
         {toasts.map((t) => (
-          <div key={t.id} className="min-w-[220px] rounded-lg bg-accent-priority p-3 text-[#1B2333] shadow-md">
+          <div key={t.id} className="w-full rounded-xl bg-accent-priority p-3 text-[#1B2333] shadow-lg sm:w-[280px]">
             <strong>{t.title}</strong>
             <p className="mt-0.5 text-[13px]">{t.body}</p>
           </div>
