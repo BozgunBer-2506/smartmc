@@ -1,5 +1,5 @@
 import { ConnectorMark } from "./connector-mark";
-import { inbox } from "@/content/site";
+import { inbox } from "@/content/light-prototypes";
 import { cn } from "@/lib/utils";
 
 /** Light-theme product preview. Mirrors the dark InboxPreview's content and

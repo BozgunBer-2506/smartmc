@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { inbox } from "@/content/site";
+import { inbox } from "@/content/light-prototypes";
 import { ChannelLabel, Avatar } from "./connector";
 import { cn } from "@/lib/utils";
 

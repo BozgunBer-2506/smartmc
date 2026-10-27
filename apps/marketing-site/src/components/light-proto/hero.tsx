@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowRight } from "lucide-react";
-import { hero, brand } from "@/content/site";
+import { hero, brand } from "@/content/light-prototypes";
 import { LightButton } from "./button";
 import { ConnectorChip } from "./connector-mark";
 import { LightInboxPreview } from "./inbox-preview";

@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowRight, Check, UserRound } from "lucide-react";
-import { identityGraph as ig } from "@/content/site";
+import { identityGraph as ig } from "@/content/light-prototypes";
 import { LightSection } from "./section";
 import { ConnectorMark } from "./connector-mark";
 

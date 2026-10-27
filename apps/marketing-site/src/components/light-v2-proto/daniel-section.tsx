@@ -1,6 +1,6 @@
 import { ArrowRight, Check } from "lucide-react";
 import Image from "next/image";
-import { identityGraph as ig } from "@/content/site";
+import { identityGraph as ig } from "@/content/light-prototypes";
 import { SectionHeading } from "./section-heading";
 import { ChannelDot, ChannelLabel, Avatar } from "./connector";
 

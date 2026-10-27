@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { hero } from "@/content/site";
+import { hero } from "@/content/light-prototypes";
 import { ProductShell } from "./product-shell";
 import { ChannelDot } from "./connector";
 

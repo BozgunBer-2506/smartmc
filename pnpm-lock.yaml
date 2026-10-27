@@ -129,6 +129,9 @@ importers:
       nodemon:
         specifier: ^3.1.0
         version: 3.1.14
+      socket.io-client:
+        specifier: ^4.8.0
+        version: 4.8.3
       ts-node:
         specifier: ^10.9.0
         version: 10.9.2(@types/node@22.20.1)(typescript@5.9.3)
