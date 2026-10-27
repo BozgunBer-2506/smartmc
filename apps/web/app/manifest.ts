@@ -12,8 +12,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Smart Message Center",
-    short_name: "SMC",
+    name: "Looktra",
+    short_name: "Looktra",
     description: "One inbox for every messaging channel, with automation and AI built in.",
     start_url: "/",
     display: "standalone",

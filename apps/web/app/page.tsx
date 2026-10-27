@@ -6,6 +6,7 @@ import { ConnectorManagement } from "../components/ConnectorManagement";
 import { Inbox } from "../components/Inbox";
 import { Rules } from "../components/Rules";
 import { TeamManagement } from "../components/TeamManagement";
+import { PersonalAppShell, type AppView } from "../components/PersonalAppShell";
 import {
   fetchMe,
   logout,
@@ -39,7 +40,7 @@ export default function HomePage() {
   const [workspaces, setWorkspaces] = useState<MeResponse["workspaces"]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
-  const [view, setView] = useState<"inbox" | "rules" | "connectors" | "team">("inbox");
+  const [view, setView] = useState<AppView>("inbox");
 
   async function applyAuth(token: string): Promise<void> {
     const me = await fetchMe(token);
@@ -109,40 +110,36 @@ export default function HomePage() {
 
   const currentRole: WorkspaceRole = (workspaces.find((w) => w.workspaceId === currentWorkspaceId)?.role as WorkspaceRole) ?? "member";
 
-  if (view === "rules") {
-    return <Rules accessToken={accessToken} user={user} onBack={() => setView("inbox")} />;
-  }
-
-  if (view === "connectors") {
-    return <ConnectorManagement accessToken={accessToken} user={user} onBack={() => setView("inbox")} />;
-  }
-
-  if (view === "team") {
-    return (
-      <TeamManagement
-        accessToken={accessToken}
-        user={user}
-        currentWorkspaceId={currentWorkspaceId}
-        currentRole={currentRole}
-        onBack={() => setView("inbox")}
-        onSwitched={handleWorkspaceChanged}
-        onLeft={handleLeftWorkspace}
-      />
-    );
-  }
-
   return (
-    <Inbox
+    <PersonalAppShell
+      key={currentWorkspaceId}
       accessToken={accessToken}
       user={user}
       workspaces={workspaces}
       currentWorkspaceId={currentWorkspaceId}
       currentRole={currentRole}
-      onLoggedOut={handleLoggedOut}
-      onOpenRules={() => setView("rules")}
-      onOpenConnectors={() => setView("connectors")}
-      onOpenTeam={() => setView("team")}
+      view={view}
+      onViewChange={setView}
       onWorkspaceChanged={handleWorkspaceChanged}
-    />
+      onLoggedOut={handleLoggedOut}
+    >
+      {view === "rules" ? (
+        <Rules accessToken={accessToken} user={user} onBack={() => setView("inbox")} />
+      ) : view === "connectors" ? (
+        <ConnectorManagement accessToken={accessToken} user={user} onBack={() => setView("inbox")} />
+      ) : view === "team" ? (
+        <TeamManagement
+          accessToken={accessToken}
+          user={user}
+          currentWorkspaceId={currentWorkspaceId}
+          currentRole={currentRole}
+          onBack={() => setView("inbox")}
+          onSwitched={handleWorkspaceChanged}
+          onLeft={handleLeftWorkspace}
+        />
+      ) : (
+        <Inbox accessToken={accessToken} user={user} onOpenConnectors={() => setView("connectors")} />
+      )}
+    </PersonalAppShell>
   );
 }

@@ -59,10 +59,10 @@ export function WorkspaceSwitcher({ accessToken, currentWorkspaceId, workspaces,
   const current = workspaces.find((w) => w.workspaceId === currentWorkspaceId);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:flex-col lg:items-stretch">
       {workspaces.length > 1 ? (
-        <Select value={currentWorkspaceId} onValueChange={handleSwitch}>
-          <SelectTrigger className="w-[180px]">
+        <Select value={currentWorkspaceId} onValueChange={handleSwitch} disabled={switching}>
+          <SelectTrigger className="w-full min-w-0 sm:w-[180px] lg:w-full [&>span]:truncate" aria-label="Switch workspace">
             <SelectValue placeholder={current?.workspaceName ?? "Workspace"} />
           </SelectTrigger>
           <SelectContent>
@@ -74,7 +74,7 @@ export function WorkspaceSwitcher({ accessToken, currentWorkspaceId, workspaces,
           </SelectContent>
         </Select>
       ) : (
-        current && <span className="text-[13px] text-text-secondary">{current.workspaceName}</span>
+        current && <span className="break-words text-[13px] text-text-secondary">{current.workspaceName}</span>
       )}
 
       <Button onClick={() => setShowCreateDialog(true)} disabled={switching}>

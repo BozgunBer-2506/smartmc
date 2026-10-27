@@ -25,6 +25,9 @@ export interface ColorTokens {
   textSecondary: string;
   textDisabled: string;
   accentPriority: string;
+  /** Looktra navigation/brand, separate from VIP and connector health. */
+  brandPrimary: string;
+  brandSoft: string;
   statusSuccess: string;
   statusWarning: string;
   statusDanger: string;
@@ -41,6 +44,8 @@ export const darkColors: ColorTokens = {
   textSecondary: "#9AA5B1",
   textDisabled: "#6B7686",
   accentPriority: "#E0A458",
+  brandPrimary: "#FF9C80",
+  brandSoft: "#35241F",
   statusSuccess: "#3FB27F",
   statusWarning: "#C9A227",
   statusDanger: "#E05252",
@@ -48,15 +53,17 @@ export const darkColors: ColorTokens = {
 };
 
 export const lightColors: ColorTokens = {
-  backgroundBase: "#F7F8FA",
+  backgroundBase: "#FDFBF9",
   surface1: "#FFFFFF",
-  surface2: "#F1F3F6",
-  borderSubtle: "#E2E5EA",
-  borderStrong: "#B7BEC7",
-  textPrimary: "#12151C",
-  textSecondary: "#5B6472",
+  surface2: "#FAF8F6",
+  borderSubtle: "#ECE8E2",
+  borderStrong: "#DDD7CD",
+  textPrimary: "#0C0B0A",
+  textSecondary: "#5B5750",
   textDisabled: "#A2A9B3",
   accentPriority: "#B9791F",
+  brandPrimary: "#B42B03",
+  brandSoft: "#FEF0EA",
   statusSuccess: "#1F8F5F",
   statusWarning: "#8A6D1B",
   statusDanger: "#C23A3A",

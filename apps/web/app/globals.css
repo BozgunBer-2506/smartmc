@@ -23,15 +23,17 @@
    first paint whenever a stored preference exists.
 ------------------------------------------------------------------- */
 :root {
-  --color-background-base: #F7F8FA;
+  --color-background-base: #FDFBF9;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #F1F3F6;
-  --color-border-subtle: #E2E5EA;
-  --color-border-strong: #B7BEC7;
-  --color-text-primary: #12151C;
-  --color-text-secondary: #5B6472;
+  --color-surface-2: #FAF8F6;
+  --color-border-subtle: #ECE8E2;
+  --color-border-strong: #DDD7CD;
+  --color-text-primary: #0C0B0A;
+  --color-text-secondary: #5B5750;
   --color-text-disabled: #A2A9B3;
   --color-accent-priority: #B9791F;
+  --color-brand-primary: #B42B03;
+  --color-brand-soft: #FEF0EA;
   --color-status-success: #1F8F5F;
   --color-status-warning: #8A6D1B;
   --color-status-danger: #C23A3A;
@@ -52,6 +54,8 @@
     --color-text-secondary: #9AA5B1;
     --color-text-disabled: #6B7686;
     --color-accent-priority: #E0A458;
+    --color-brand-primary: #FF9C80;
+    --color-brand-soft: #35241F;
     --color-status-success: #3FB27F;
     --color-status-warning: #C9A227;
     --color-status-danger: #E05252;
@@ -69,6 +73,8 @@
   --color-text-secondary: #9AA5B1;
   --color-text-disabled: #6B7686;
   --color-accent-priority: #E0A458;
+  --color-brand-primary: #FF9C80;
+  --color-brand-soft: #35241F;
   --color-status-success: #3FB27F;
   --color-status-warning: #C9A227;
   --color-status-danger: #E05252;

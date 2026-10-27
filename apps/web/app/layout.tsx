@@ -5,19 +5,19 @@ import { ServiceWorkerRegistration } from "../components/ServiceWorkerRegistrati
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Smart Message Center",
+  title: "Looktra",
   description: "Unified inbox, automation, and AI for every messaging channel you use.",
   appleWebApp: {
     // Standalone iOS home-screen behavior (docs/ROADMAP.md Phase 14) - "default" keeps the real iOS status bar rather than drawing over it, matching UI_GUIDE.md's own no-magic, predictable-chrome philosophy.
     capable: true,
     statusBarStyle: "default",
-    title: "Smart Message Center",
+    title: "Looktra",
   },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F7F8FA" },
+    { media: "(prefers-color-scheme: light)", color: "#FDFBF9" },
     { media: "(prefers-color-scheme: dark)", color: "#0B0F17" },
   ],
 };
