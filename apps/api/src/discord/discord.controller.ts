@@ -160,7 +160,7 @@ export class DiscordController {
 
     await this.gatewayManager.stop(linkedAccount.id);
     // SECURITY.md Section 5.2: unconditional deletion, regardless of connection state.
-    await this.credentialsStore.deleteSecret(linkedAccount.credentialsRef);
+    await this.credentialsStore.deleteSecret(linkedAccount.credentialsRef, linkedAccount.workspaceId);
 
     lifecycle.transition("disconnected");
     await prisma.linkedAccount.update({

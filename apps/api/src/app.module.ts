@@ -22,6 +22,7 @@ import { PushModule } from "./push/push.module";
 import { RateLimitModule } from "./rate-limit/rate-limit.module";
 import { ObservabilityModule } from "./observability/observability.module";
 import { ConnectorsModule } from "./connectors/connectors.module";
+import { WorkspacesModule } from "./workspaces/workspaces.module";
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { ConnectorsModule } from "./connectors/connectors.module";
     SlackModule,
     EmailModule,
     IdentityModule,
+    WorkspacesModule,
   ],
 })
 export class AppModule {}

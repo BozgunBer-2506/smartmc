@@ -167,7 +167,7 @@ export class EmailController {
     // IMAP/SMTP password isn't a token an app can revoke on its own -
     // only the mailbox owner can rotate it), unlike Discord/Slack/
     // Telegram's provider APIs.
-    await this.credentialsStore.deleteSecret(linkedAccount.credentialsRef);
+    await this.credentialsStore.deleteSecret(linkedAccount.credentialsRef, linkedAccount.workspaceId);
 
     lifecycle.transition("disconnected");
     await prisma.linkedAccount.update({

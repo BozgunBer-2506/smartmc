@@ -29,11 +29,11 @@ export class PushController {
   }
 
   @Delete()
-  async unsubscribe(@Body() dto: UnsubscribeDto) {
+  async unsubscribe(@Body() dto: UnsubscribeDto, @CurrentUser() claims: JwtPayload) {
     if (!dto.endpoint) {
       throw httpError(HttpStatus.BAD_REQUEST, "ENDPOINT_REQUIRED", "endpoint is required.");
     }
-    await this.push.unsubscribe(dto.endpoint);
+    await this.push.unsubscribe(claims.workspaceId, claims.sub, dto.endpoint);
     return { status: "ok" };
   }
 }

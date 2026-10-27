@@ -66,7 +66,14 @@ export class SessionService {
     );
   }
 
-  /** Starts a brand-new rotation family - used for fresh login/registration. */
+  /**
+   * Starts a brand-new rotation family - used for fresh login/registration,
+   * and (Phase 16.1 security-audit fix) for creating/joining a workspace.
+   * `claims.workspaceId` is persisted onto the session (not just the
+   * access token) specifically so a later `rotate()` knows which
+   * workspace this refresh-token family represents, instead of
+   * `AuthService.refresh()` having to guess.
+   */
   async issue(claims: SessionClaims, ctx: RequestContext): Promise<IssuedSession> {
     const prisma = getPrismaClient();
     const refreshToken = this.generateRefreshToken();
@@ -76,6 +83,7 @@ export class SessionService {
       data: {
         id: newId(),
         userId: claims.userId,
+        workspaceId: claims.workspaceId,
         refreshTokenHash: this.hashRefreshToken(refreshToken),
         familyId: newId(),
         userAgent: ctx.userAgent ?? null,
@@ -89,14 +97,46 @@ export class SessionService {
 
   /**
    * Validates and rotates a presented refresh token. Returns the userId
-   * and new session/token; the caller (AuthService) is responsible for
-   * re-resolving claims (workspace/role) and signing a fresh access token
-   * via `signAccessToken`, since a Session row only ever tracks `userId` -
-   * which workspace context to embed is business logic, not session mechanics.
+   * and the new session/token; the caller (AuthService) is responsible
+   * for re-resolving the CURRENT role in the resulting `session.workspaceId`
+   * and signing a fresh access token via `signAccessToken`. The workspace
+   * is never re-derived here or GUESSED by the caller (Phase 16.1
+   * security-audit fix) - by default it's carried forward unchanged from
+   * the session being rotated, onto the new row in the same family, so a
+   * plain refresh can never silently move a session to a different
+   * workspace than the one it was issued for.
+   *
+   * `overrideWorkspaceId` (Phase 16.1 frontend-integration step) is the
+   * ONE deliberate exception: workspace switching. It still goes through
+   * this exact same rotation - same reuse-detection, same family, same
+   * revoke-the-old-row-first mechanics - the only difference is which
+   * workspaceId the new row in the family carries forward. This method
+   * never checks whether the caller is actually allowed into that
+   * workspace - that authorization is AuthService.switchWorkspace()'s
+   * job (session mechanics vs. "who's allowed," this class's own stated
+   * boundary), checked and resolved BEFORE this is ever called.
+   *
+   * `expectedUserId` (frontend-integration follow-up fix): switchWorkspace()
+   * is the one caller that already knows an independently-verified
+   * identity (the access token's `claims.sub`, via JwtAuthGuard) before
+   * it ever touches the refresh cookie. A refresh token's owning user can
+   * only be learned by looking up the session row itself - so the
+   * ownership check MUST happen here, before any mutation, not as a
+   * post-hoc comparison after this method has already revoked a session
+   * and created a new one. The original version checked
+   * `sessionUserId !== userId` only after calling `rotate()` - by then,
+   * a refresh token belonging to a DIFFERENT user than the caller had
+   * already been rotated (their old token revoked, a new session row
+   * created under THEIR userId but with the caller's chosen
+   * `overrideWorkspaceId`) before the mismatch was ever detected and the
+   * request failed. Checked here, first, a mismatched token is rejected
+   * with zero side effect - the other user's session is never touched.
    */
   async rotate(
     presentedRefreshToken: string,
     ctx: RequestContext,
+    overrideWorkspaceId?: string,
+    expectedUserId?: string,
   ): Promise<{ userId: string; refreshToken: string; session: Session }> {
     const prisma = getPrismaClient();
     const presentedHash = this.hashRefreshToken(presentedRefreshToken);
@@ -104,6 +144,13 @@ export class SessionService {
 
     if (!existing) {
       throw httpError(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_INVALID", "Refresh token is invalid.");
+    }
+
+    if (expectedUserId && existing.userId !== expectedUserId) {
+      // Reject before any mutation - never revoke, rotate, or otherwise
+      // touch a session that doesn't belong to the identity the caller
+      // already proved via their access token.
+      throw httpError(HttpStatus.UNAUTHORIZED, "SESSION_MISMATCH", "This session does not belong to the authenticated user.");
     }
 
     if (existing.revokedAt) {
@@ -145,6 +192,7 @@ export class SessionService {
       data: {
         id: newId(),
         userId: existing.userId,
+        workspaceId: overrideWorkspaceId ?? existing.workspaceId,
         refreshTokenHash: this.hashRefreshToken(refreshToken),
         familyId: existing.familyId,
         userAgent: ctx.userAgent ?? null,
@@ -156,10 +204,11 @@ export class SessionService {
     await this.auditLog.log({
       actorUserId: existing.userId,
       actorType: "user",
-      action: "session.refreshed",
+      action: overrideWorkspaceId && overrideWorkspaceId !== existing.workspaceId ? "session.workspace_switched" : "session.refreshed",
       resourceType: "session",
       resourceId: newSession.id,
       ipAddress: ctx.ipAddress,
+      metadata: overrideWorkspaceId && overrideWorkspaceId !== existing.workspaceId ? { fromWorkspaceId: existing.workspaceId, toWorkspaceId: overrideWorkspaceId } : undefined,
     });
 
     return { userId: existing.userId, refreshToken, session: newSession };

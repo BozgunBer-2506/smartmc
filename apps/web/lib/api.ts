@@ -217,12 +217,119 @@ function authHeaders(accessToken: string): HeadersInit {
 
 export interface MeResponse {
   user: PublicUser;
+  /** Phase 16.1 frontend integration - which of `workspaces` below the CURRENT accessToken is actually scoped to, straight from the live JWT claim. */
+  currentWorkspaceId: string;
   workspaces: Array<{ workspaceId: string; workspaceName: string; organizationId: string; role: string }>;
 }
 
 export async function fetchMe(accessToken: string): Promise<MeResponse> {
   const res = await apiFetch(`${API_URL}/v1/users/me`, { headers: authHeaders(accessToken) });
   return parseOrThrow<MeResponse>(res);
+}
+
+export type WorkspaceRole = "owner" | "admin" | "member";
+
+/** Same shape `switchWorkspace`/`acceptWorkspaceInvite` return - a fresh access token scoped to a (possibly new) workspace, same as login/register. */
+export interface WorkspaceSessionResult {
+  workspaceId: string;
+  accessToken: string;
+}
+
+/**
+ * Creates a new, empty sibling workspace under the caller's own
+ * Organization (Phase 16.1 - never converts/retrofits the caller's
+ * existing workspace) and returns a token already scoped to it.
+ */
+export async function createWorkspace(accessToken: string, name?: string): Promise<WorkspaceSessionResult> {
+  const res = await apiFetch(`${API_URL}/v1/workspace`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ name }),
+  });
+  return parseOrThrow<WorkspaceSessionResult>(res);
+}
+
+/**
+ * Moves the caller's CURRENT session into a different workspace they
+ * already belong to - not a regular `apiFetch` call: like `login`/
+ * `refresh`, it both sends the current access token (so the API can
+ * verify who's asking) and relies on `credentials: "include"` for the
+ * httpOnly refresh cookie it rotates server-side.
+ */
+export async function switchWorkspace(accessToken: string, workspaceId: string): Promise<WorkspaceSessionResult> {
+  const res = await fetch(`${API_URL}/v1/auth/switch-workspace`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    credentials: "include",
+    body: JSON.stringify({ workspaceId }),
+  });
+  return parseOrThrow<WorkspaceSessionResult>(res);
+}
+
+export interface WorkspaceMemberSummary {
+  id: string;
+  userId: string;
+  email: string;
+  displayName: string | null;
+  role: WorkspaceRole;
+  joinedAt: string;
+}
+
+export async function fetchWorkspaceMembers(accessToken: string): Promise<WorkspaceMemberSummary[]> {
+  const res = await apiFetch(`${API_URL}/v1/workspace/members`, { headers: authHeaders(accessToken) });
+  const body = await parseOrThrow<{ members: WorkspaceMemberSummary[] }>(res);
+  return body.members;
+}
+
+export async function inviteWorkspaceMember(
+  accessToken: string,
+  input: { email?: string; role: "admin" | "member" },
+): Promise<{ code: string; expiresAt: string }> {
+  const res = await apiFetch(`${API_URL}/v1/workspace/invites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify(input),
+  });
+  return parseOrThrow<{ code: string; expiresAt: string }>(res);
+}
+
+/** Accepting an invite joins a DIFFERENT workspace than the caller's current one - same session-rotation shape as `switchWorkspace`, not a plain `apiFetch` call. */
+export async function acceptWorkspaceInvite(accessToken: string, code: string): Promise<WorkspaceSessionResult & { role: WorkspaceRole }> {
+  const res = await fetch(`${API_URL}/v1/workspace/invites/accept`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    credentials: "include",
+    body: JSON.stringify({ code }),
+  });
+  return parseOrThrow<WorkspaceSessionResult & { role: WorkspaceRole }>(res);
+}
+
+export async function changeWorkspaceMemberRole(accessToken: string, memberId: string, role: "admin" | "member"): Promise<{ id: string; role: WorkspaceRole }> {
+  const res = await apiFetch(`${API_URL}/v1/workspace/members/${memberId}/role`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ role }),
+  });
+  return parseOrThrow<{ id: string; role: WorkspaceRole }>(res);
+}
+
+export async function removeWorkspaceMember(accessToken: string, memberId: string): Promise<void> {
+  const res = await apiFetch(`${API_URL}/v1/workspace/members/${memberId}`, { method: "DELETE", headers: authHeaders(accessToken) });
+  if (!res.ok && res.status !== 204) await parseOrThrow(res);
+}
+
+export async function leaveWorkspace(accessToken: string): Promise<void> {
+  const res = await apiFetch(`${API_URL}/v1/workspace/leave`, { method: "POST", headers: authHeaders(accessToken) });
+  if (!res.ok && res.status !== 204) await parseOrThrow(res);
+}
+
+export async function transferWorkspaceOwnership(accessToken: string, userId: string): Promise<void> {
+  const res = await apiFetch(`${API_URL}/v1/workspace/transfer-ownership`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ userId }),
+  });
+  if (!res.ok && res.status !== 204) await parseOrThrow(res);
 }
 
 /** Returns the full {data, pagination} envelope (ROADMAP.md Phase 20.2) - callers decide whether to replace or append/merge, per Inbox.tsx's explicit "Load more" pagination. */

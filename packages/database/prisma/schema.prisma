@@ -87,6 +87,8 @@ model Workspace {
   notificationPreferences  NotificationPreference[]
   messageAiSummaries       MessageAiSummary[]
   pushSubscriptions        PushSubscription[]
+  invites                  WorkspaceInvite[]
+  sessions                 Session[]
 
   @@map("workspaces")
 }
@@ -108,6 +110,8 @@ model User {
   notificationPreferences NotificationPreference[]
   pushSubscriptions       PushSubscription[]
   passwordResetTokens     PasswordResetToken[]
+  sentWorkspaceInvites    WorkspaceInvite[] @relation("WorkspaceInviteInvitedBy")
+  usedWorkspaceInvites    WorkspaceInvite[] @relation("WorkspaceInviteUsedBy")
 
   @@map("users")
 }
@@ -150,6 +154,15 @@ model WorkspaceMember {
   user      User      @relation(fields: [userId], references: [id])
 
   @@unique([workspaceId, userId], name: "uq_workspace_members_workspace_user")
+  /// Migration-safety fix: the only existing index on this table is the
+  /// composite unique above, with `user_id` as the NON-leading column -
+  /// unusable for a lookup keyed on `user_id` alone (confirmed by review:
+  /// every such lookup in the codebase - AuthService.login()/refresh(),
+  /// and the sessions.workspace_id backfill migration this index exists
+  /// for - filters by user_id with no workspace_id known yet). Without
+  /// this, that backfill ran an effective sequential scan of this table
+  /// once per row of `sessions`.
+  @@index([userId], name: "idx_workspace_members_user_id")
   @@map("workspace_members")
 }
 
@@ -157,9 +170,25 @@ model WorkspaceMember {
 /// implements the rotation + reuse-detection scheme (ARCHITECTURE.md
 /// Section 6, SECURITY.md Section 4.3): presenting an already-rotated
 /// token from a family revokes every session in it.
+/// `workspaceId` (Phase 16.1 security-audit fix) - the workspace this
+/// refresh-token family's access tokens are scoped to. Before this, a
+/// session tracked only `userId`, and AuthService.refresh()/login() had
+/// to GUESS which workspace to re-issue an access token for - always
+/// picking the user's oldest membership (`orderBy: joinedAt asc`),
+/// regardless of which workspace the session was actually created for.
+/// Harmless while every user had exactly one membership; a real,
+/// confirmed bug the moment Phase 16.1 made a second membership
+/// possible - creating a Business workspace or accepting an invite
+/// issued a correctly-scoped token, only for the next refresh to
+/// silently revert the user to their original workspace. Set once at
+/// SessionService.issue() and carried forward unchanged by every
+/// SessionService.rotate() in the same family, so the workspace a
+/// session represents never changes except by issuing a brand-new
+/// session (a fresh login, a new workspace, an accepted invite).
 model Session {
   id               String    @id @db.Uuid
   userId           String    @map("user_id") @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
   refreshTokenHash String    @map("refresh_token_hash")
   familyId         String    @map("family_id") @db.Uuid
   userAgent        String?   @map("user_agent")
@@ -168,10 +197,12 @@ model Session {
   revokedAt        DateTime? @map("revoked_at")
   createdAt        DateTime  @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
 
   @@index([userId], name: "idx_sessions_user_id")
   @@index([familyId], name: "idx_sessions_family_id")
+  @@index([workspaceId], name: "idx_sessions_workspace_id")
   @@map("sessions")
 }
 
@@ -193,6 +224,50 @@ model PasswordResetToken {
 
   @@index([userId], name: "idx_password_reset_tokens_user_id")
   @@map("password_reset_tokens")
+}
+
+/// Phase 16.1 - invites an existing user into a specific Workspace (not
+/// registration - BetaInvite above is the closed-beta signup gate, a
+/// different concern entirely). Same hash-not-value, single-use-via-usedAt
+/// pattern as BetaInvite/PasswordResetToken, for the same reason: a
+/// high-entropy random code, not a password. `role` is restricted to
+/// "admin"/"member" at the application layer (WorkspaceMembershipService) -
+/// never "owner", since ownership only ever changes via an atomic
+/// transfer (ADR-0008's own workspace model; see
+/// docs/architecture/personal-business-split.md Section 3's role-authority
+/// invariants), never by redeeming an invite.
+model WorkspaceInvite {
+  id              String    @id @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  /// Optional lock to one address (same semantics as BetaInvite.email) -
+  /// null means any account may redeem it, matched means the redeeming
+  /// user's own email must equal this exactly (application-layer
+  /// normalized).
+  email           String?
+  role            String    @default("member") // "admin" | "member" - never "owner"
+  codeHash        String    @unique @map("code_hash")
+  /// Nullable + SET NULL on delete, deliberately - same reasoning as
+  /// BetaInvite.usedByUserId: the inviter may later delete their own
+  /// account (account-deletion.service.ts) without that being blocked by,
+  /// or silently deleting, an invite they sent into a workspace they
+  /// don't even own (e.g. sent as an admin). A RESTRICT FK here would
+  /// make "delete my account" fail for anyone who ever invited a
+  /// teammate anywhere, which is wrong - losing the "who sent this"
+  /// attribution on an old invite is an acceptable trade, an account
+  /// deletion silently failing is not.
+  invitedByUserId String?   @map("invited_by_user_id") @db.Uuid
+  expiresAt       DateTime  @map("expires_at")
+  usedAt          DateTime? @map("used_at")
+  usedByUserId    String?   @map("used_by_user_id") @db.Uuid
+  revokedAt       DateTime? @map("revoked_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id])
+  invitedBy  User?     @relation("WorkspaceInviteInvitedBy", fields: [invitedByUserId], references: [id])
+  usedByUser User?     @relation("WorkspaceInviteUsedBy", fields: [usedByUserId], references: [id])
+
+  @@index([workspaceId], name: "idx_workspace_invites_workspace_id")
+  @@map("workspace_invites")
 }
 
 /// Append-only audit trail (docs/DATABASE.md Section 6.21). No `updatedAt`/
