@@ -28,7 +28,16 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// --- Offline shell: cache-then-network for same-origin GETs, never for API calls. ---
+// --- Offline shell: network-first for same-origin GETs, never for API calls. ---
+// Phase 16.2 fix: this used to be cache-first (return the cached response
+// immediately, refresh the cache in the background) - correct for a
+// genuinely static shell, but wrong once the shell itself ships real UI
+// changes on every deploy: an online user with an already-installed SW
+// would keep seeing the HTML from their last visit until a *second*
+// reload happened to hit the by-then-refreshed cache. Network-first fixes
+// that for anyone online - the cache is now purely an offline fallback,
+// never preferred over a reachable network - at the cost of one extra
+// network round-trip per navigation that cache-first would have skipped.
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -41,18 +50,15 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const networkFetch = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached || caches.match("/"));
-      return cached || networkFetch;
-    }),
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("/"))),
   );
 });
 
