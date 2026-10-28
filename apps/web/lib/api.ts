@@ -195,6 +195,20 @@ export interface MergeSuggestion {
   expiresAt: string;
 }
 
+export interface ContactIdentity {
+  id: string;
+  providerKey: string;
+  handle: string;
+  matchType: string;
+}
+
+export interface Contact {
+  id: string;
+  displayName: string | null;
+  isVip: boolean;
+  identities: ContactIdentity[];
+}
+
 export interface ConversationMessage {
   id: string;
   direction: string;
@@ -398,6 +412,34 @@ export async function rejectMergeSuggestion(accessToken: string, suggestionId: s
     headers: authHeaders(accessToken),
   });
   await parseOrThrow(res);
+}
+
+export async function fetchContacts(accessToken: string): Promise<Contact[]> {
+  const res = await apiFetch(`${API_URL}/v1/contacts`, { headers: authHeaders(accessToken) });
+  return (await parseOrThrow<{ data: Contact[] }>(res)).data;
+}
+
+export async function setContactVip(accessToken: string, contactId: string, isVip: boolean): Promise<Contact> {
+  const res = await apiFetch(`${API_URL}/v1/contacts/${contactId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ isVip }),
+  });
+  return parseOrThrow<Contact>(res);
+}
+
+export async function splitContact(
+  accessToken: string,
+  contactId: string,
+  contactIdentityIds: string[],
+  reason?: string,
+): Promise<{ newContactId: string }> {
+  const res = await apiFetch(`${API_URL}/v1/contacts/${contactId}/split`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
+    body: JSON.stringify({ contactIdentityIds, reason }),
+  });
+  return parseOrThrow<{ newContactId: string }>(res);
 }
 
 /**

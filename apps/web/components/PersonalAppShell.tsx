@@ -6,7 +6,7 @@ import { Alert, Button, ThemeToggle } from "@smc/ui";
 import { logout, type MeResponse, type PublicUser, type WorkspaceRole, type WorkspaceSessionResult } from "../lib/api";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
-export type AppView = "inbox" | "connectors" | "rules" | "team";
+export type AppView = "inbox" | "people" | "connectors" | "rules" | "team";
 
 interface PersonalAppShellProps {
   accessToken: string;
@@ -23,6 +23,7 @@ interface PersonalAppShellProps {
 
 const NAV_ITEMS: Array<{ view: AppView; label: string }> = [
   { view: "inbox", label: "Inbox" },
+  { view: "people", label: "People" },
   { view: "connectors", label: "Connectors" },
   { view: "rules", label: "Automations" },
   { view: "team", label: "Team" },
