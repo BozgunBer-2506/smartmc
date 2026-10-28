@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AuthForm } from "../components/AuthForm";
 import { ConnectorManagement } from "../components/ConnectorManagement";
 import { Inbox } from "../components/Inbox";
+import { People } from "../components/People";
 import { Rules } from "../components/Rules";
 import { TeamManagement } from "../components/TeamManagement";
 import { PersonalAppShell, type AppView } from "../components/PersonalAppShell";
@@ -125,6 +126,8 @@ export default function HomePage() {
     >
       {view === "rules" ? (
         <Rules accessToken={accessToken} user={user} onBack={() => setView("inbox")} />
+      ) : view === "people" ? (
+        <People accessToken={accessToken} user={user} />
       ) : view === "connectors" ? (
         <ConnectorManagement accessToken={accessToken} user={user} onBack={() => setView("inbox")} />
       ) : view === "team" ? (
