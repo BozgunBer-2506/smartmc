@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, Card, Input, ProviderBadge, Skeleton } from "@smc/ui";
+import { Badge, Button, Card, Dialog, DialogContent, DialogTitle, Input, ProviderBadge, Skeleton } from "@smc/ui";
 import {
   approveMergeSuggestion,
   cancelScheduledMessage,
@@ -100,6 +100,7 @@ export function Inbox({
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toasts, setToasts] = useState<NotificationItem[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [connected, setConnected] = useState(false);
   const [senderName, setSenderName] = useState("Alex");
   const [body, setBody] = useState("Hey, are we still on for tomorrow?");
@@ -597,52 +598,24 @@ export function Inbox({
         <div className="flex flex-wrap items-center gap-2">
           {installPromptEvent && <Button onClick={handleInstall}>Install app</Button>}
           {isPushSupported() && <Button onClick={handleEnablePush}>Enable push</Button>}
+          <button
+            type="button"
+            onClick={() => setShowNotifications(true)}
+            aria-label={`Notifications${notifications.length > 0 ? ` (${notifications.length})` : ""}`}
+            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border-subtle bg-surface-1 text-text-secondary hover:border-border-strong hover:text-text-primary"
+          >
+            <span aria-hidden>🔔</span>
+            {notifications.length > 0 && (
+              <span
+                aria-hidden
+                className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-priority px-1 text-[10px] font-semibold text-white"
+              >
+                {notifications.length > 9 ? "9+" : notifications.length}
+              </span>
+            )}
+          </button>
         </div>
       </header>
-
-      <section className="mb-6">
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <Input
-            className="flex-1 h-11 rounded-xl"
-            placeholder="Search messages and contacts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <Button type="submit" disabled={searching}>
-            {searching ? "Searching..." : "Search"}
-          </Button>
-          {searchResults && <Button onClick={clearSearch}>Clear</Button>}
-        </form>
-
-        {searchResults && (
-          <Card className="mt-2">
-            <h2 className="mb-2 text-sm font-semibold text-text-secondary">
-              Messages ({searchResults.messages.length}) - Contacts ({searchResults.contacts.length})
-            </h2>
-            {searchResults.messages.length === 0 && searchResults.contacts.length === 0 && (
-              <p className="text-[13px] text-text-secondary">No results.</p>
-            )}
-            {searchResults.messages.map((m) => (
-              <div
-                key={m.id}
-                onClick={() => {
-                  selectConversation(m.conversationId);
-                  clearSearch();
-                }}
-                className="cursor-pointer border-b border-border-subtle py-1.5 text-[13px]"
-              >
-                <strong>{m.senderDisplayName ?? m.conversationTitle ?? "Unknown"}</strong>
-                <span className="text-text-secondary"> - {m.bodyText}</span>
-              </div>
-            ))}
-            {searchResults.contacts.map((c) => (
-              <div key={c.id} className="py-1.5 text-[13px]">
-                {c.displayName} {c.isVip && <span className="text-accent-priority">(VIP)</span>}
-              </div>
-            ))}
-          </Card>
-        )}
-      </section>
 
       {mergeSuggestions.length > 0 && (
         <section className="my-5">
@@ -690,7 +663,23 @@ export function Inbox({
         >
           <div className="border-b border-border-subtle px-4 py-3.5">
             <h2 className="m-0 text-sm font-semibold text-text-primary">Conversations</h2>
-            <div className="mt-2 flex flex-wrap gap-1 text-xs text-text-secondary">
+            <form onSubmit={handleSearch} className="mt-2.5 flex gap-1.5">
+              <Input
+                className="h-9 flex-1 rounded-lg text-[13px]"
+                placeholder="Search messages and contacts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <button type="submit" disabled={searching} className={smallButtonClass}>
+                {searching ? "…" : "Search"}
+              </button>
+              {searchResults && (
+                <button type="button" onClick={clearSearch} className={smallButtonClass}>
+                  Clear
+                </button>
+              )}
+            </form>
+            <div className="mt-2.5 flex flex-wrap gap-1 text-xs text-text-secondary">
               <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1">
                 <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Archived
               </label>
@@ -708,7 +697,35 @@ export function Inbox({
               />
             </div>
           </div>
-          <div className="max-h-[calc(100vh-18rem)] overflow-y-auto p-2">
+          <div className="max-h-[calc(100vh-20rem)] overflow-y-auto p-2">
+            {searchResults && (
+              <Card className="mb-2">
+                <h3 className="mb-2 text-xs font-semibold text-text-secondary">
+                  Messages ({searchResults.messages.length}) · Contacts ({searchResults.contacts.length})
+                </h3>
+                {searchResults.messages.length === 0 && searchResults.contacts.length === 0 && (
+                  <p className="text-[13px] text-text-secondary">No results.</p>
+                )}
+                {searchResults.messages.map((m) => (
+                  <div
+                    key={m.id}
+                    onClick={() => {
+                      selectConversation(m.conversationId);
+                      clearSearch();
+                    }}
+                    className="cursor-pointer border-b border-border-subtle py-1.5 text-[13px]"
+                  >
+                    <strong>{m.senderDisplayName ?? m.conversationTitle ?? "Unknown"}</strong>
+                    <span className="text-text-secondary"> - {m.bodyText}</span>
+                  </div>
+                ))}
+                {searchResults.contacts.map((c) => (
+                  <div key={c.id} className="py-1.5 text-[13px]">
+                    {c.displayName} {c.isVip && <span className="text-accent-priority">(VIP)</span>}
+                  </div>
+                ))}
+              </Card>
+            )}
             {conversationsError && (
               <Card className="mb-2 border-status-danger text-[13px] text-status-danger">
                 Could not load conversations: {conversationsError}{" "}
@@ -752,6 +769,9 @@ export function Inbox({
               conversations.map((c) => {
                 const name = c.title ?? c.lastMessage?.sender?.displayName ?? "Unknown";
                 const initial = name.trim().charAt(0).toUpperCase() || "?";
+                const timeLabel = c.lastMessageAt
+                  ? new Date(c.lastMessageAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                  : null;
                 return (
                   <div
                     key={c.id}
@@ -771,11 +791,12 @@ export function Inbox({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           {c.unread && <span className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-status-info" />}
-                          <span className={`truncate text-[13.5px] ${c.unread ? "font-semibold text-text-primary" : "font-medium text-text-secondary"}`}>
+                          <span className={`min-w-0 truncate text-[13.5px] ${c.unread ? "font-semibold text-text-primary" : "font-medium text-text-secondary"}`}>
                             {name}
                             {c.lastMessage?.sender?.isVip && " ⭐"}
                           </span>
                           <ProviderBadge providerKey={c.providerKey} />
+                          {timeLabel && <span className="ml-auto flex-shrink-0 text-[11px] text-text-disabled">{timeLabel}</span>}
                         </div>
                         <p className="mt-0.5 truncate text-[12.5px] text-text-secondary">{c.lastMessage?.bodyText ?? ""}</p>
                         <p className="mt-1 text-[11px] text-text-disabled">
@@ -948,18 +969,25 @@ export function Inbox({
         </section>
       </div>
 
-      <section className="mt-6">
-        <h2 className="mb-2 text-sm font-semibold text-text-secondary">Notifications</h2>
-        {notifications.length === 0 && <p className="text-[13px] text-text-secondary">None yet.</p>}
-        {notifications.map((n) => (
-          <Card key={n.id} className="mb-2">
-            <strong>{n.title}</strong>
-            <p className="mt-1 text-[13px]">{n.body}</p>
-          </Card>
-        ))}
-      </section>
+      <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
+        <DialogContent className="max-h-[70vh] overflow-y-auto">
+          <DialogTitle>Notifications</DialogTitle>
+          <div className="mt-3">
+            {notifications.length === 0 && <p className="text-[13px] text-text-secondary">None yet.</p>}
+            {notifications.map((n) => (
+              <Card key={n.id} className="mb-2">
+                <strong>{n.title}</strong>
+                <p className="mt-1 text-[13px]">{n.body}</p>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      <div className="fixed left-4 right-4 top-4 z-50 flex flex-col items-end gap-2 sm:left-auto">
+      {/* Positioned below the header's own top-right controls (install/push/notifications)
+          rather than top-4, so toasts never visually cover - or sit behind - the
+          notifications bell in the same corner. */}
+      <div className="fixed left-4 right-4 top-20 z-40 flex flex-col items-end gap-2 sm:left-auto">
         {toasts.map((t) => (
           <div key={t.id} className="w-full rounded-xl bg-accent-priority p-3 text-[#1B2333] shadow-lg sm:w-[280px]">
             <strong>{t.title}</strong>
